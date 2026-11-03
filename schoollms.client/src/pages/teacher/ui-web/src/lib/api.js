@@ -183,6 +183,11 @@ export const api = {
   evalBoard: (classId, subjectId, month) => GET('/teacher/evaluation/board', { classId, subjectId, month }),
   setEvalGrade: (body) => POST('/teacher/evaluation/grade', body),
 
+  // ---- Mavsumiy baholash (docs/modules/admission-and-testing.md §6.6) ----
+  seasonalScope: () => GET('/teacher/seasonal-marks/scope'),
+  seasonalStudents: (query) => GET('/teacher/seasonal-marks/students', query),
+  seasonalBulk: (body) => POST('/teacher/seasonal-marks/bulk', body),
+
   // ---- Blok test natijalari (2026-11-03) ----
   blockExams: () => GET('/teacher/block-exams'),
   blockExamEntry: (examId, ownerId) => GET(`/teacher/block-exams/${examId}/entry`, { ownerId }),

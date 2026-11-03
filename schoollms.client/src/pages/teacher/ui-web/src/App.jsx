@@ -23,6 +23,8 @@ import LmsStudentTopicsScreen from './screens/LmsStudentTopicsScreen'
 import LmsTopicDetailScreen from './screens/LmsTopicDetailScreen'
 import BlockExamsScreen from './screens/BlockExamsScreen'
 import BlockExamEntryScreen from './screens/BlockExamEntryScreen'
+import SeasonalMarksScreen from './screens/SeasonalMarksScreen'
+import SeasonalEntryScreen from './screens/SeasonalEntryScreen'
 
 // Ekran reestri. `tab` bo'lgan ekran — pastki navigatsiya ildizi; qolganlari — ichki ekranlar.
 const SCREENS = {
@@ -48,6 +50,8 @@ const SCREENS = {
   lmsTopicDetail: { Comp: LmsTopicDetailScreen },
   blockExams: { Comp: BlockExamsScreen },
   blockExamEntry: { Comp: BlockExamEntryScreen },
+  seasonalMarks: { Comp: SeasonalMarksScreen },
+  seasonalEntry: { Comp: SeasonalEntryScreen },
 }
 
 const TAB_IDS = ['home', 'journal', 'assignments', 'profile']

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Award, Bell, Calendar, ClipboardList, Clock, ArrowRight, ChevronRight } from 'lucide-react'
+import { Award, BarChart3, Bell, Calendar, ClipboardList, Clock, ArrowRight, ChevronRight } from 'lucide-react'
 import Avatar from '../components/Avatar'
 import SegmentedControl from '../components/SegmentedControl'
 import { TapScale } from '../components/AppCard'
@@ -195,6 +195,22 @@ export default function HomeScreen({ onNavigate, onSwitchTab }) {
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-bold text-text">Blok test natijalari</p>
                 <p className="text-[12px] text-muted truncate">O'z fan va yo'nalishingiz bo'yicha</p>
+              </div>
+              <ChevronRight size={20} className="text-faint shrink-0" />
+            </div>
+          </TapScale>
+        </div>
+
+        {/* Mavsumiy baholash — ruxsati yo'q bo'lsa, ekran ichida server javobi aytadi (Mini App'dagidek). */}
+        <div className="px-4 pb-4">
+          <TapScale onClick={() => onNavigate?.('seasonalMarks')}>
+            <div className="p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-primary flex items-center justify-center text-white">
+                <BarChart3 size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-bold text-text">Mavsumiy baholash</p>
+                <p className="text-[12px] text-muted truncate">Oylik, choraklik, yillik baho</p>
               </div>
               <ChevronRight size={20} className="text-faint shrink-0" />
             </div>
