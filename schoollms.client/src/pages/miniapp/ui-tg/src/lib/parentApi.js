@@ -235,6 +235,12 @@ export function sendFeedback(childId, formData) {
  */
 export const getDiscipline = (childId) => api.get('/student/discipline' + forChild(childId))
 
+/**
+ * Test natijalari va oylik o'sish (2026-11-03): `{ months, exams }`, yangisi tepada. Jami va foiz faqat
+ * hamma blok kiritilganda keladi. Maktab o'zlashtirishni yopgan bo'lsa — 403, "Baholar" tabi bilan birga.
+ */
+export const getExamResults = (childId) => api.get('/student/exam-results' + forChild(childId))
+
 /** Sertifikatlar (ball / daraja), yangisi tepada — "hozircha necha balli" (mijoz, 2026-10-07). */
 export const getCertificates = (childId) => api.get('/student/certificates' + forChild(childId))
 

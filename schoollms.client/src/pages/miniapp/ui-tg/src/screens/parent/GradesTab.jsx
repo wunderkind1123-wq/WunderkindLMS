@@ -17,6 +17,7 @@ import { Badge, Card, DateChip, EmptyState, Row, StatGrid, Stepper } from '../..
 import { useAsync } from '../../lib/useAsync'
 import { dayMonth } from '../../lib/format'
 import { getAttendance, getGrades, getMeta, getWeek } from '../../lib/parentApi'
+import { ExamResultsCards } from './ExamResultsCards'
 import { AsyncBlock, gradeTone } from './shared'
 import { parseISO } from './weeks'
 
@@ -40,6 +41,9 @@ export function GradesTab({ child }) {
   }, [child.id])
 
   return (
+    <>
+    {/* Chorakka bog'liq emas — shuning uchun chorak tanlagichidan yuqorida (2026-11-03). */}
+    <ExamResultsCards childId={child.id} />
     <AsyncBlock state={state} loadingLabel="Baholar yuklanmoqda…">
       {({ report, attendance, meta, week }) => {
         const quarters = (meta.quarters ?? []).map((q) => q.quarter).sort((a, b) => a - b)
@@ -156,6 +160,7 @@ export function GradesTab({ child }) {
         )
       }}
     </AsyncBlock>
+    </>
   )
 }
 
