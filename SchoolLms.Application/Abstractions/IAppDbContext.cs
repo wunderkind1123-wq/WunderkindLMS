@@ -364,6 +364,9 @@ public interface IAppDbContext
     DbSet<OnboardingStepTemplate> OnboardingStepTemplates { get; }
     DbSet<ApplicantOnboardingStep> ApplicantOnboardingSteps { get; }
 
+    /// <summary>Bilimlar bazasi — xodimlarning shaxsiy eslatmalari (Wiki.cs, docs/modules/wiki.md).</summary>
+    DbSet<WikiPage> WikiPages { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 

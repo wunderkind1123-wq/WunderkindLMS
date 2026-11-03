@@ -727,8 +727,10 @@ app.MapFallback(async ctx =>
     // istisnosiz havola yoki sahifani yangilash PWA'ning index.html iga tushardi.
     // "Uy vazifasi bajarilishi" (docs/modules/homework-completion.md) — the same exception: the page
     // lives in the main SPA, the PWA's Profil screen links to it.
+    // "Eslatmalarim" (Bilimlar bazasi, docs/modules/wiki.md) — the same exception.
     if (path.StartsWith("/teacher/dars-tahlili", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWith("/teacher/uy-vazifasi", StringComparison.OrdinalIgnoreCase))
+        || path.StartsWith("/teacher/uy-vazifasi", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/teacher/eslatmalar", StringComparison.OrdinalIgnoreCase))
     {
         var spaIndex = Path.Combine(webRoot, "index.html");
         if (!File.Exists(spaIndex)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }

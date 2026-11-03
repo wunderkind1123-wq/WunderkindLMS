@@ -283,6 +283,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<OnboardingStepTemplate> OnboardingStepTemplates => Set<OnboardingStepTemplate>();
     public DbSet<ApplicantOnboardingStep> ApplicantOnboardingSteps => Set<ApplicantOnboardingStep>();
 
+    // Bilimlar bazasi — shaxsiy eslatmalar (Wiki.cs). Configuration: WikiModel.cs.
+    public DbSet<WikiPage> WikiPages => Set<WikiPage>();
+
     /// <inheritdoc />
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default) =>
@@ -563,6 +566,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Ishga qabul va adaptatsiya (2026-10-07).
         RecruitmentModel.Apply(b);
+
+        // Bilimlar bazasi — shaxsiy eslatmalar (2026-11-03, docs/modules/wiki.md).
+        WikiModel.Apply(b);
 
         // ----- PostgreSQL: vaqt turi -----
         // Tizim sanalarni Toshkent "devor soati" sifatida saqlaydi (AppClock.Now — Kind=Unspecified),

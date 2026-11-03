@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   Newspaper,
   ListChecks,
+  NotebookPen,
 } from 'lucide-react'
 import type { Role } from '@/types'
 import { SHOW_PARENT_FINANCE } from './flags'
@@ -297,6 +298,9 @@ export const navByRole: Record<Role, NavItem[]> = {
         // Settings — non-directors see "directors only" (server 403).
         { label: 'Sozlamalar', to: '/admin/hr/topshiriqlar/sozlamalar', perm: 'hrTasks', group: 'TOPSHIRIQLAR' },
         // "Mening topshiriqlarim" is a top-level item now (see under "Bosh sahifa").
+        // Bilimlar bazasi (docs/modules/wiki.md, 2026-11-03): har bir xodimning shaxsiy eslatmalari. Ruxsat kaliti
+        // YO'Q — hammaga ko'rinadi (rol oynasida ham chiqmaydi); xodimlarnikini faqat rahbariyat ko'radi (server).
+        { label: 'Bilimlar bazasi', to: '/admin/bilimlar', group: 'BILIMLAR BAZASI' },
       ],
     },
     {
@@ -442,6 +446,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Feedback', to: '/teacher/evaluation', icon: ClipboardList },
     // Dars tahlilim — o'z yakunlangan dars kuzatuvlari va ko'rsatkichi (lesson-analysis.md §7).
     { label: 'Dars tahlilim', to: '/teacher/dars-tahlili', icon: ListChecks },
+    // Eslatmalarim (Bilimlar bazasi, docs/modules/wiki.md) — SPA page like Dars tahlilim; no permission key.
+    { label: 'Eslatmalarim', to: '/teacher/eslatmalar', icon: NotebookPen },
     { label: 'Topshiriqlar', to: '/teacher/assignments', icon: ClipboardCheck, perm: 'assignments' },
     { label: "Ta'lim (LMS)", to: '/teacher/lms', icon: BookOpen },
     { label: 'Dars jadvali', to: '/teacher/schedule', icon: CalendarRange, perm: 'schedule' },
@@ -469,6 +475,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Kassa', to: '/cashier', icon: Wallet },
     // HR tasks (hr-tasks.md §8): a cashier can be an HR employee too — own tasks only.
     { label: 'Mening topshiriqlarim', to: '/admin/hr/mening-topshiriqlarim', icon: ListChecks },
+    // Bilimlar bazasi (docs/modules/wiki.md): a cashier writes own notes too.
+    { label: 'Bilimlar bazasi', to: '/admin/bilimlar', icon: BookOpen },
   ],
 }
 
