@@ -21,6 +21,7 @@ import { AttendanceTab } from './teacher/AttendanceTab'
 import { ScheduleTab } from './teacher/ScheduleTab'
 import { BoardingScreen } from './teacher/BoardingScreen'
 import { SeasonalScreen } from './teacher/SeasonalScreen'
+import { BlockExamsScreen } from './teacher/BlockExamsScreen'
 import { AssignmentsTab } from './teacher/AssignmentsTab'
 import { HrTab } from './hr/HrTab'
 
@@ -70,6 +71,8 @@ export function TeacherPanel() {
   const [boarding, setBoarding] = useState(null)
   // Mavsumiy baholash (2026-10-28): "Bugun" dagi kartadan — xuddi Komendant kabi, alohida tab emas.
   const [seasonal, setSeasonal] = useState(false)
+  // Blok test natijalari (2026-11-03): "Bugun" dagi kartadan.
+  const [blockExams, setBlockExams] = useState(false)
 
   if (ctx.loading && ctx.data === null) {
     return (
@@ -104,21 +107,24 @@ export function TeacherPanel() {
     if (next !== 'attendance') setFocusLesson(null)
     setBoarding(null)
     setSeasonal(false)
+    setBlockExams(false)
     setTab(next)
   }
 
   return (
     <>
-      {active === 'home' && !boarding && !seasonal && (
+      {active === 'home' && !boarding && !seasonal && !blockExams && (
         <TodayTab
           profile={profile}
           meta={meta}
           onOpenAttendance={openAttendance}
           onOpenBoarding={setBoarding}
           onOpenSeasonal={() => setSeasonal(true)}
+          onOpenBlockExams={() => setBlockExams(true)}
         />
       )}
       {active === 'home' && seasonal && <SeasonalScreen profile={profile} onBack={() => setSeasonal(false)} />}
+      {active === 'home' && blockExams && <BlockExamsScreen onBack={() => setBlockExams(false)} />}
       {active === 'home' && boarding && (
         <BoardingScreen
           key={boarding}

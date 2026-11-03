@@ -323,7 +323,7 @@ public class Exam
 
     public DateTime CreatedAt { get; set; } = AppClock.Now;
 
-    /// <summary>One section per subject; frozen once the exam is published (§5.5).</summary>
+    /// <summary>One section per subject and weight; frozen once the exam is published (§5.5).</summary>
     public List<ExamSection> Sections { get; set; } = new();
 }
 
@@ -339,7 +339,11 @@ public class ExamSection
     /// <summary><see cref="Exam.Id"/>; <c>on delete cascade</c>.</summary>
     public string ExamId { get; set; } = string.Empty;
 
-    /// <summary><see cref="Subject.Id"/>; <c>on delete restrict</c>. Unique per exam.</summary>
+    /// <summary>
+    /// <see cref="Subject.Id"/>; <c>on delete restrict</c>. Unique per exam together with
+    /// <see cref="PointsPerCorrect"/>: a block test may have tarix as a main block (3.1) and as a
+    /// compulsory one (1.1) (client, 2026-11-03).
+    /// </summary>
     public string SubjectId { get; set; } = string.Empty;
 
     /// <summary><see cref="QuestionBank.Id"/>; <c>on delete restrict</c>. Required for online exams.</summary>

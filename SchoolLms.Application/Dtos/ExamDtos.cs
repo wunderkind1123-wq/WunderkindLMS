@@ -235,9 +235,13 @@ public sealed record ExamAddParticipantsResultDto(int Added, int Skipped);
 /// <summary>One subject column of the grid.</summary>
 /// <param name="QuestionCount">DTM-shaped section (manual): the number of questions — the cell takes correct answers.</param>
 /// <param name="PointsPerCorrect">DTM-shaped section: the weight of one correct answer.</param>
+/// <param name="Block">
+/// 1-based place of the section in the exam — tells two columns of one subject apart
+/// (tarix in block 1 and in block 5) even when a teacher's grid shows only some of the blocks.
+/// </param>
 public sealed record ExamEntryColumnDto(
     string SectionId, string SubjectId, string Name, decimal MaxScore,
-    int? QuestionCount = null, decimal? PointsPerCorrect = null);
+    int? QuestionCount = null, decimal? PointsPerCorrect = null, int? Block = null);
 
 /// <summary>
 /// A certificate credit in one cell: the pupil is exempt from the block and gets
@@ -314,6 +318,27 @@ public sealed record ExamResultImportResultDto(
     int ErrorCount,
     int Imported,
     IReadOnlyList<ExamResultImportErrorDto> Errors);
+
+// ---------------------------------------------------------------------------
+//  Teacher's block test entry — /api/teacher/block-exams (client, 2026-11-03)
+// ---------------------------------------------------------------------------
+
+/// <summary>One subject of the teacher in a block test.</summary>
+public sealed record ExamTeacherSubjectDto(string SubjectId, string Name);
+
+/// <summary>
+/// One thing to mark: a block test × one of the teacher's tracks (or classes). A teacher of five
+/// tracks has five rows, each with that track's pupils.
+/// </summary>
+/// <param name="PupilCount">Participants of the exam who belong to this owner.</param>
+/// <param name="DoneCount">Of those: absent, or with a value in every block of the teacher.</param>
+public sealed record ExamTeacherRowDto(
+    string ExamId, string Title, string? ExamDate, string? ExamTypeName,
+    string OwnerId, string OwnerName, bool IsTrack,
+    IReadOnlyList<ExamTeacherSubjectDto> Subjects, int PupilCount, int DoneCount);
+
+/// <summary><c>POST /api/teacher/block-exams/{id}/entry</c> — <c>{ ownerId, rows }</c>.</summary>
+public sealed record ExamTeacherSaveRequest(string? OwnerId, IReadOnlyList<ExamEntrySaveRow>? Rows);
 
 // ---------------------------------------------------------------------------
 //  Results register (screen 8)

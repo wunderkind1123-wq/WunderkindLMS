@@ -245,6 +245,8 @@ export interface EntryColumn {
   /** DTM-shaped section: the cell takes correct answers (0…questionCount). */
   questionCount?: number | null
   pointsPerCorrect?: number | null
+  /** 1-based place of the section in the exam — one subject can be in two blocks. */
+  block?: number | null
 }
 
 /** A certificate credit: the pupil is exempt from this block and gets these points. */

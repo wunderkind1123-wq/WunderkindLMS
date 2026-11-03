@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Bell, Calendar, ClipboardList, Clock, ArrowRight, ChevronRight } from 'lucide-react'
+import { Award, Bell, Calendar, ClipboardList, Clock, ArrowRight, ChevronRight } from 'lucide-react'
 import Avatar from '../components/Avatar'
 import SegmentedControl from '../components/SegmentedControl'
 import { TapScale } from '../components/AppCard'
@@ -184,6 +184,22 @@ export default function HomeScreen({ onNavigate, onSwitchTab }) {
                 </div>
               ),
             )}
+
+        {/* Blok test natijalari (2026-11-03) — ro'yxat dars jadvalidan chiqadi. */}
+        <div className="px-4 pt-2 pb-4">
+          <TapScale onClick={() => onNavigate?.('blockExams')}>
+            <div className="p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-primary flex items-center justify-center text-white">
+                <Award size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-bold text-text">Blok test natijalari</p>
+                <p className="text-[12px] text-muted truncate">O'z fan va yo'nalishingiz bo'yicha</p>
+              </div>
+              <ChevronRight size={20} className="text-faint shrink-0" />
+            </div>
+          </TapScale>
+        </div>
 
         {/* Homeroom */}
         {homeroom && (

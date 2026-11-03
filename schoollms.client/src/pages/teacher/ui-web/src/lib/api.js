@@ -183,6 +183,11 @@ export const api = {
   evalBoard: (classId, subjectId, month) => GET('/teacher/evaluation/board', { classId, subjectId, month }),
   setEvalGrade: (body) => POST('/teacher/evaluation/grade', body),
 
+  // ---- Blok test natijalari (2026-11-03) ----
+  blockExams: () => GET('/teacher/block-exams'),
+  blockExamEntry: (examId, ownerId) => GET(`/teacher/block-exams/${examId}/entry`, { ownerId }),
+  saveBlockExamEntry: (examId, body) => POST(`/teacher/block-exams/${examId}/entry`, body),
+
   // ---- Topshiriqlar ----
   assignments: () => GET('/teacher/assignments'),
   createAssignment: (body) => POST('/teacher/assignments', body),

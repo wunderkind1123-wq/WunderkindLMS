@@ -48,6 +48,15 @@ export const teacherApi = {
   /** Faqat o'zgargan qatorlar; ball ham izoh ham bo'sh — shu davrdagi bahoni o'chirish. */
   seasonalBulk: (body) => api.post(`${BASE}/seasonal-marks/bulk`, body),
 
+  /* ---------- blok test natijalari (2026-11-03) — docs/modules/track-groups-as-classes.md ---------- */
+
+  /** Har (imtihon, yo'nalish) uchun bir qator — dars jadvalidagi o'z fanlari bo'yicha. */
+  blockExams: () => api.get(`${BASE}/block-exams`),
+  /** O'qituvchi bloklari va shu yo'nalish o'quvchilari. */
+  blockExamEntry: (examId, ownerId) => api.get(`${BASE}/block-exams/${examId}/entry${qs({ ownerId })}`),
+  /** Faqat o'zgargan qatorlar: `{ ownerId, rows }`. */
+  saveBlockExamEntry: (examId, body) => api.post(`${BASE}/block-exams/${examId}/entry`, body),
+
   /* ---------- jadval ---------- */
 
   /** Bir haftalik darslar. quarter/week berilmasa — server joriysini oladi. */
