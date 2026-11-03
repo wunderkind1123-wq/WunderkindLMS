@@ -39,6 +39,7 @@ import { SalaryCalcPage } from '@/pages/admin/schedule/SalaryCalcPage'
 import { TeacherSchedulePage } from '@/pages/admin/schedule/TeacherSchedulePage'
 import { ClassScheduleViewPage } from '@/pages/admin/schedule/ClassScheduleViewPage'
 import { HolidaysPage } from '@/pages/admin/schedule/HolidaysPage'
+import { ChatbotPage } from '@/pages/admin/chatbot/ChatbotPage'
 import { BallarNazoratiPage } from '@/pages/admin/discipline/BallarNazoratiPage'
 import { BallSabablarPage } from '@/pages/admin/discipline/BallSabablarPage'
 import { GradesReportPage } from '@/pages/admin/grades-report/GradesReportPage'
@@ -215,6 +216,7 @@ export default function App() {
               hasFinanceAccess bilan tekshiradi). */}
           <Route path="teachers/salary" element={<RequirePerm perm={['finance', 'teachers']}><SalaryCalcPage /></RequirePerm>} />
           <Route path="schedule/holidays" element={<RequirePerm perm="schedule"><HolidaysPage /></RequirePerm>} />
+          <Route path="chatbot" element={<RequirePerm perm="chatbot"><ChatbotPage /></RequirePerm>} />
           <Route path="discipline" element={<RequirePerm perm="discipline"><BallarNazoratiPage /></RequirePerm>} />
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />
           <Route path="discipline/incidents" element={<RequirePerm perm="discipline"><HarakatlarPage /></RequirePerm>} />

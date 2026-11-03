@@ -13,3 +13,6 @@ schoollms.client/multitanent
 DEPLOY.md
 README.md
 **/*.md
+
+# Chatbot (docs/modules/chatbot.md) builds from its own context
+chatbot

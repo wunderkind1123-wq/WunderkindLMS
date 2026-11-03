@@ -28,14 +28,29 @@
 	}
 }
 
+# Chatbot (docs/modules/chatbot.md): its own Caddy `chatbot-web` serves the panel under /chatbot/ and
+# the bot's public routes. It runs only with `--profile chatbot`; without it these paths answer 502.
+(chatbot) {
+	reverse_proxy chatbot-web:80 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {client_ip}
+	}
+}
+
 (app) {
 	encode zstd gzip
-	reverse_proxy backend:8080 {
-		header_up X-Forwarded-Proto {scheme}
-		# AYNAN BITTA yozuv: haqiqiy tashrifchi IP'si. `{client_ip}` yuqoridagi
-		# `trusted_proxies` bo'yicha hisoblanadi — Cloudflare orqali kelsa
-		# tashrifchi, to'g'ridan-to'g'ri kelsa ulanuvchining o'zi.
-		header_up X-Forwarded-For {client_ip}
+	# Chatbot panel inside LMS (menu "Chatbot" embeds /chatbot/).
+	handle /chatbot* {
+		import chatbot
+	}
+	handle {
+		reverse_proxy backend:8080 {
+			header_up X-Forwarded-Proto {scheme}
+			# AYNAN BITTA yozuv: haqiqiy tashrifchi IP'si. `{client_ip}` yuqoridagi
+			# `trusted_proxies` bo'yicha hisoblanadi — Cloudflare orqali kelsa
+			# tashrifchi, to'g'ridan-to'g'ri kelsa ulanuvchining o'zi.
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 }
 
@@ -43,6 +58,14 @@
 https://lms.wunderkindedu.uz {
 	tls internal
 	import app
+}
+
+# The chatbot's public address: Instagram/Telegram webhooks, Instagram OAuth, Meta legal pages,
+# /f/ forms. Same URLs as on the old server, so nothing changes at Meta or Telegram.
+https://chatbot.wunderkindedu.uz {
+	tls internal
+	encode gzip
+	import chatbot
 }
 
 # Cloudflare "Flexible" — origin HTTP.
@@ -54,5 +77,11 @@ https://lms.wunderkindedu.uz {
 :80 {
 	@untrusted not remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32 127.0.0.1/32 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
 	abort @untrusted
-	import app
+	@chatbot host chatbot.wunderkindedu.uz
+	handle @chatbot {
+		import chatbot
+	}
+	handle {
+		import app
+	}
 }

@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Bot,
   FileBadge,
   CalendarCheck,
   FlaskConical,
@@ -83,6 +84,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     // doska, ichki ro'yxatsiz. `/admin/leads/funnel` sahifasi o'chirilmadi (manzil
     // ishlaydi), faqat menyudan olindi; voronka bosh sahifada vidjet sifatida qoladi.
     { label: 'Lidlar', to: '/admin/leads', icon: UserPlus, perm: 'leads' },
+    // Instagram/Telegram AI sotuv agenti — alohida servis, panel ramkada (docs/modules/chatbot.md).
+    { label: 'Chatbot', to: '/admin/chatbot', icon: Bot, perm: 'chatbot' },
     {
       label: 'Moliya',
       to: '/admin/finance',

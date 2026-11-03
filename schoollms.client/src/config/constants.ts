@@ -125,6 +125,8 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'recruitment', label: 'Ishga qabul' },
   // Boshqaruv → O'zgarishlar tarixi (docs/modules/audit-log.md). Finance rows also need `finance`.
   { key: 'audit', label: "O'zgarishlar tarixi" },
+  // Instagram/Telegram AI agenti (docs/modules/chatbot.md): to'liq — sozlamalar ham, ko'rish — inbox va lidlar.
+  { key: 'chatbot', label: 'Chatbot' },
 ]
 
 /**
@@ -132,7 +134,7 @@ export const adminPermissions: { key: string; label: string }[] = [
  * (Boshqaruv → Rollar). Every key above appears in exactly one group.
  */
 export const adminPermissionGroups: { label: string; keys: string[] }[] = [
-  { label: 'Asosiy', keys: ['dashboard', 'leads', 'marketing', 'admission'] },
+  { label: 'Asosiy', keys: ['dashboard', 'leads', 'chatbot', 'marketing', 'admission'] },
   { label: 'Moliya', keys: ['finance', 'contracts'] },
   { label: "O'quv bo'limi", keys: ['students', 'classes', 'teachers', 'journal', 'schedule'] },
   { label: 'Davomat', keys: ['attendance', 'attendanceMark', 'attendanceCases', 'attendanceEvening', 'attendanceDorm'] },

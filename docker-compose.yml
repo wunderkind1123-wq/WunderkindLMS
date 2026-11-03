@@ -112,6 +112,9 @@ services:
       Gemini__Model: "${GEMINI_MODEL:-}"
       # Asosiy model band (503) yoki yopilgan (404) bo'lsa so'raladigan zaxira. Bo'sh = koddagi standart.
       Gemini__FallbackModel: "${GEMINI_FALLBACK_MODEL:-}"
+      # "Chatbot" menyusi (docs/modules/chatbot.md §3): chatbot paneliga bir martalik kirish tokeni
+      # shu kalit bilan imzolanadi. Bo'sh = menyu "Chatbot hali ulanmagan" deydi.
+      Chatbot__SsoKey: "${CHATBOT_SSO_KEY:-}"
     volumes:
       - uploads:/app/uploads               # yuklangan fayllar (rasm, hujjat) saqlanadi
       - dpkeys:/app/keys                    # DataProtection kalitlari — deploylar oralig'ida saqlanadi
@@ -163,6 +166,62 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # ── CHATBOT ── Instagram/Telegram AI sotuv agenti (docs/modules/chatbot.md). Alohida Python
+  # servis, `chatbot/` papkasidan. `chatbot` profili ortida: oddiy `up` uni ISHGA TUSHIRMAYDI —
+  # eski serverdagi nusxa to'xtatilmaguncha ikkinchisi mijozlarga ikki marta javob yozardi.
+  # Yoqish: `--profile chatbot`. Baza — shu PostgreSQL'dagi alohida `wk_agent` bazasi va rol.
+  chatbot-backend:
+    profiles: ["chatbot"]
+    build: ./chatbot/backend
+    container_name: wunderkind-chatbot
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://wk_agent:${CHATBOT_DB_PASSWORD}@database:5432/wk_agent"
+      REDIS_URL: "redis://chatbot-redis:6379/0"
+      # Bazadagi sirlar (AI/Instagram/Telegram kalitlari) shu kalit bilan shifrlangan — eski
+      # serverdagi qiymat AYNAN ko'chirilishi shart, aks holda ular o'qilmay qoladi.
+      SECRET_KEY: "${CHATBOT_SECRET_KEY}"
+      PUBLIC_URL: "${CHATBOT_PUBLIC_URL:-}"
+      ADMIN_USERNAME: "${CHATBOT_ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${CHATBOT_ADMIN_PASSWORD:-}"
+      LMS_SSO_KEY: "${CHATBOT_SSO_KEY:-}"
+      TIMEZONE: "${CHATBOT_TIMEZONE:-Asia/Tashkent}"
+    depends_on:
+      database:
+        condition: service_healthy
+      chatbot-redis:
+        condition: service_started
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Chatbot paneli (SPA, /chatbot/ ostida) + uning ommaviy yo'llari (webhook, OAuth, formalar).
+  # Tashqariga ochilmaydi — unga `proxy` (Caddy) kiradi.
+  chatbot-web:
+    profiles: ["chatbot"]
+    build:
+      context: ./chatbot/frontend
+      args:
+        VITE_BASE: "/chatbot/"
+        CADDYFILE: "Caddyfile.lms"
+    container_name: wunderkind-chatbot-web
+    environment:
+      PANEL_URL: "${CHATBOT_PANEL_URL:-/chatbot/}"
+    depends_on:
+      - chatbot-backend
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Chatbotning o'z Redis'i: suhbat holati va chastota hisoblagichlari. LMS keshi `allkeys-lru`
+  # — u bu kalitlarni siqib chiqarardi, shuning uchun alohida.
+  chatbot-redis:
+    profiles: ["chatbot"]
+    image: redis:7-alpine
+    container_name: wunderkind-chatbot-redis
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - chatbot-redis-data:/data
+    restart: unless-stopped
+    logging: *default-logging
+
   # Kunlik avtomatik backup. Har kuni BACKUP_HOUR (UTC) da BARCHA foydalanuvchi bazalarini
   # /backups ga .bak qilib oladi va BACKUP_RETENTION_DAYS dan eski nusxalarni o'chiradi.
   # Kunlik avtomatik backup. Har kuni BACKUP_HOUR (UTC) da bazani /backups ga .dump qilib
@@ -196,6 +255,10 @@ services:
           ts=$$(date -u +%Y%m%d_%H%M)
           echo "[backup] $$ts — boshlandi"
           pg_dump --format=custom --file="/backups/schoollms_$${ts}.dump" && echo "[backup] tayyor" || echo "[backup] XATO"
+          # Chatbot bazasi (docs/modules/chatbot.md) — bo'lsa, u ham.
+          if psql -tAc "select 1 from pg_database where datname = 'wk_agent'" | grep -q 1; then
+            pg_dump --format=custom --dbname=wk_agent --file="/backups/wk_agent_$${ts}.dump" && echo "[backup] chatbot tayyor" || echo "[backup] chatbot XATO"
+          fi
           find /backups -name '*.dump' -type f -mtime +$${BACKUP_RETENTION_DAYS} -delete
         done
 
@@ -206,3 +269,4 @@ volumes:
   dpkeys:
   pg-backups:
   cam-recordings:
+  chatbot-redis-data:

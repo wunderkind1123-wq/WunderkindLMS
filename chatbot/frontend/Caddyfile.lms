@@ -1,0 +1,45 @@
+# Inside WunderkindLMS (docs/modules/chatbot.md §2). The LMS Caddy (ports 80/443, Cloudflare in
+# front) forwards two things here over the private Docker network:
+#   lms.wunderkindedu.uz/chatbot/*  -> the panel (SPA built with VITE_BASE=/chatbot/) and its /api
+#   chatbot.wunderkindedu.uz/*      -> webhooks, OAuth, legal pages, forms — unchanged public URLs
+# X-Forwarded-* are trusted only from private ranges, i.e. from the LMS Caddy, which sets the
+# real visitor IP from Cloudflare.
+{
+	admin off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	encode gzip
+
+	@forms path /f/*
+	request_body @forms {
+		max_size 256KB
+	}
+
+	handle_path /chatbot/* {
+		@api path /api/*
+		handle @api {
+			reverse_proxy {$BACKEND_UPSTREAM:chatbot-backend:8000}
+		}
+		handle {
+			root * /srv
+			try_files {path} /index.html
+			file_server
+		}
+	}
+
+	# /api stays at the root too: an old panel tab or bookmark on the chatbot domain keeps working.
+	@backend path /api/* /webhook/* /connect/* /health /privacy /terms /data-deletion /go/* /f/*
+	handle @backend {
+		reverse_proxy {$BACKEND_UPSTREAM:chatbot-backend:8000}
+	}
+
+	# Anything else (the old panel address, "← Admin panelga qaytish" after Instagram OAuth)
+	# opens the panel inside LMS.
+	handle {
+		redir {$PANEL_URL:/chatbot/} 302
+	}
+}
