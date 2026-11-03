@@ -3776,9 +3776,11 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasIndex("ExamId", "Order")
                         .HasDatabaseName("ix_exam_sections_exam_order");
 
-                    b.HasIndex("ExamId", "SubjectId")
+                    b.HasIndex("ExamId", "SubjectId", "PointsPerCorrect")
                         .IsUnique()
-                        .HasDatabaseName("ux_exam_sections_exam_subject");
+                        .HasDatabaseName("ux_exam_sections_exam_subject_weight");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("ExamId", "SubjectId", "PointsPerCorrect"), false);
 
                     b.ToTable("exam_sections", null, t =>
                         {
