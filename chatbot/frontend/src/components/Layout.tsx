@@ -8,6 +8,7 @@ import { isAdmin, useAuth } from '@/lib/auth'
 import { USER_ROLE_LABELS } from '@/lib/labels'
 import { BRAND } from '@/lib/brand'
 import { cn } from '@/lib/cn'
+import { EMBEDDED } from '@/components/LmsBridge'
 
 interface NavItem {
   to: string
@@ -84,9 +85,12 @@ export function Layout() {
   const fullBleed = location.pathname.startsWith('/inbox')
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <aside className="hidden w-60 shrink-0 border-r border-gray-200 lg:block">
-        <Sidebar />
-      </aside>
+      {/* Inside LMS its sidebar holds these pages as submenus — ours would be a second menu. */}
+      {!EMBEDDED && (
+        <aside className="hidden w-60 shrink-0 border-r border-gray-200 lg:block">
+          <Sidebar />
+        </aside>
+      )}
       {open && (
         <div className="fixed inset-0 z-40 flex lg:hidden" onClick={() => setOpen(false)}>
           <div className="w-64 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -100,7 +104,7 @@ export function Layout() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 lg:hidden">
+        <header className={cn('flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 lg:hidden', EMBEDDED && 'hidden')}>
           <button onClick={() => setOpen(true)} className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100">
             <Menu className="h-5 w-5" />
           </button>

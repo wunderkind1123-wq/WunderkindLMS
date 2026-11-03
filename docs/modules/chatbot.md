@@ -25,7 +25,7 @@ Secrets in its DB (AI keys, Instagram tokens, Telegram tokens) are encrypted wit
 ## 2. Target shape
 
 ```
-lms.wunderkindedu.uz/admin/chatbot      LMS page: menu "Chatbot", full-height iframe of /chatbot/
+lms.wunderkindedu.uz/admin/chatbot/*    LMS page: menu "Chatbot" with the panel's pages as submenus, one iframe of /chatbot/
 lms.wunderkindedu.uz/chatbot/*          chatbot panel (SPA built with base /chatbot/) and /chatbot/api/*
 chatbot.wunderkindedu.uz/*              webhooks, OAuth callback, legal pages, /f/ forms, /go/ — unchanged URLs
 ```
@@ -58,6 +58,10 @@ LMS never shares its JWT key with the chatbot. Instead:
 
 ## 4. Changes to the chatbot code (additive)
 
+- Frontend (2026-11-03, client: chatbot menus as LMS submenus): inside a frame the panel hides its own
+  sidebar and follows `wk-chatbot:navigate` messages from the same-origin parent; it reports every route as
+  `wk-chatbot:location` so `/admin/chatbot/<page>` stays in step (`components/LmsBridge.tsx`, LMS `ChatbotPage`).
+  Opened directly on the chatbot domain it looks as before.
 - Frontend: Vite `base` and router `basename` from `VITE_BASE` (default `/`, LMS build `/chatbot/`); axios
   `baseURL` = `${base}api`; SSO bootstrap from `#sso=`; the hash is removed from the address bar at once.
 - Backend: `app/api/auth.py` gets `POST /auth/sso` (LMS_SSO_KEY empty → 404, the endpoint does not exist).
