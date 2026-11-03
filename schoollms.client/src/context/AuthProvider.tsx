@@ -4,6 +4,7 @@ import type { User } from '@/types'
 import { AuthContext } from './auth-context'
 import { login as loginRequest, fetchMe } from '@/api/services/auth'
 import { USE_MOCK } from '@/api/client'
+import { SessionSwitchedNotice } from '@/components/auth/SessionSwitchedNotice'
 
 const TOKEN_KEY = 'token'
 const USER_KEY = 'user'
@@ -68,10 +69,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => logout())
   }, [logout])
 
+  // Boshqa oynada boshqa akkaunt bilan kirilsa, token shu oynada ham almashadi (kalit bitta).
+  // `storage` faqat boshqa oynadagi o'zgarishda keladi; uxlab qolgan oyna uni o'tkazib yuborishi
+  // mumkin, shuning uchun oynaga qaytganda ham tekshiramiz.
+  const [storedUser, setStoredUser] = useState<User | null>(null)
+  useEffect(() => {
+    const check = () => setStoredUser(localStorage.getItem(TOKEN_KEY) ? readStoredUser() : null)
+    window.addEventListener('storage', check)
+    window.addEventListener('focus', check)
+    return () => {
+      window.removeEventListener('storage', check)
+      window.removeEventListener('focus', check)
+    }
+  }, [])
+
   const value = useMemo(
     () => ({ user, isAuthenticated: !!user, login, logout, updateUser }),
     [user, login, logout, updateUser],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {user && storedUser && storedUser.id !== user.id && (
+        <SessionSwitchedNotice
+          current={user}
+          active={storedUser}
+          onSwitchAccount={() => {
+            logout()
+            window.location.assign('/login')
+          }}
+        />
+      )}
+    </AuthContext.Provider>
+  )
 }
