@@ -216,7 +216,7 @@ export default function App() {
               hasFinanceAccess bilan tekshiradi). */}
           <Route path="teachers/salary" element={<RequirePerm perm={['finance', 'teachers']}><SalaryCalcPage /></RequirePerm>} />
           <Route path="schedule/holidays" element={<RequirePerm perm="schedule"><HolidaysPage /></RequirePerm>} />
-          <Route path="chatbot" element={<RequirePerm perm="chatbot"><ChatbotPage /></RequirePerm>} />
+          <Route path="chatbot/*" element={<RequirePerm perm="chatbot"><ChatbotPage /></RequirePerm>} />
           <Route path="discipline" element={<RequirePerm perm="discipline"><BallarNazoratiPage /></RequirePerm>} />
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />
           <Route path="discipline/incidents" element={<RequirePerm perm="discipline"><HarakatlarPage /></RequirePerm>} />

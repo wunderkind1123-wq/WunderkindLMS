@@ -85,7 +85,27 @@ export const navByRole: Record<Role, NavItem[]> = {
     // ishlaydi), faqat menyudan olindi; voronka bosh sahifada vidjet sifatida qoladi.
     { label: 'Lidlar', to: '/admin/leads', icon: UserPlus, perm: 'leads' },
     // Instagram/Telegram AI sotuv agenti — alohida servis, panel ramkada (docs/modules/chatbot.md).
-    { label: 'Chatbot', to: '/admin/chatbot', icon: Bot, perm: 'chatbot' },
+    // Mijoz, 2026-11-03: chatbot menyulari shu menyu ostida submenyu bo'lsin. Har biri ramkadagi
+    // panelning shu sahifasini ochadi (ChatbotPage); panelning o'z yon menyusi LMS ichida yashirin.
+    // Sozlamalar-turidagi sahifalarni panelning o'zi faqat chatbot `admin`iga ochadi (to'liq kalit).
+    {
+      label: 'Chatbot',
+      to: '/admin/chatbot',
+      icon: Bot,
+      perm: 'chatbot',
+      children: [
+        { label: 'Umumiy ko\'rinish', to: '/admin/chatbot', end: true },
+        { label: 'Suhbatlar', to: '/admin/chatbot/inbox' },
+        { label: 'Leadlar', to: '/admin/chatbot/leads' },
+        { label: 'Voronka', to: '/admin/chatbot/funnel' },
+        { label: 'Formalar', to: '/admin/chatbot/forms' },
+        { label: 'Bilim bazasi', to: '/admin/chatbot/knowledge' },
+        { label: 'Bot menyusi', to: '/admin/chatbot/bot-menu' },
+        { label: 'Sinov', to: '/admin/chatbot/playground' },
+        { label: 'Sozlamalar', to: '/admin/chatbot/settings' },
+        { label: 'Foydalanuvchilar', to: '/admin/chatbot/users' },
+      ],
+    },
     {
       label: 'Moliya',
       to: '/admin/finance',
