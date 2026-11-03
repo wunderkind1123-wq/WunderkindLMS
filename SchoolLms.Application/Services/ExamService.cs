@@ -491,7 +491,7 @@ public static class ExamService
             return ExamError.BadRequest("validation", BlockOnlineMessage);
 
         var (header, headerErrors) = await ValidateHeaderAsync(db, request, kind, delivery, ExamStatus.Draft, ct);
-        var (sections, sectionErrors) = await ValidateSectionsAsync(db, request.Sections, delivery, header.Grade, ct);
+        var (sections, sectionErrors) = await ValidateSectionsAsync(db, request.Sections, kind, delivery, header.Grade, ct);
         if (headerErrors.Concat(sectionErrors).ToList() is { Count: > 0 } errors)
             return ExamError.BadRequest("validation", errors[0], errors);
 
@@ -561,7 +561,7 @@ public static class ExamService
         }
         else
         {
-            var (plan, sectionErrors) = await ValidateSectionsAsync(db, request.Sections, delivery, header.Grade, ct);
+            var (plan, sectionErrors) = await ValidateSectionsAsync(db, request.Sections, kind, delivery, header.Grade, ct);
             headerErrors.AddRange(sectionErrors);
             sections = plan;
         }
@@ -639,11 +639,24 @@ public static class ExamService
     /// <summary>
     /// Validates and normalises the sections: sorted by <c>order</c> (ties keep
     /// the request order), renumbered 0…n-1. Two queries: subjects, banks.
+    ///
+    /// <para>
+    /// A block test may carry one subject in two blocks — tarix as a main block (30 × 3.1) and
+    /// as a compulsory one (10 × 1.1) (client, 2026-11-03) — as long as the weights differ, so
+    /// the two stay distinct. Everywhere else a repeated subject is a typing mistake.
+    /// </para>
     /// </summary>
     private static async Task<(List<SectionPlan> Plan, List<string> Errors)> ValidateSectionsAsync(
-        IAppDbContext db, IReadOnlyList<ExamSectionInput>? input, string delivery, int? grade, CancellationToken ct)
+        IAppDbContext db, IReadOnlyList<ExamSectionInput>? input, string kind, string delivery, int? grade, CancellationToken ct)
     {
         var errors = new List<string>();
+        bool Repeats(List<SectionPlan> planned, string subject, decimal? weight) =>
+            planned.Any(p => p.SubjectId == subject
+                && (kind != ExamKind.Block || weight is null || p.PointsPerCorrect is null || p.PointsPerCorrect == weight));
+        string Repeated(int n) => kind == ExamKind.Block
+            ? $"{n}-fan takrorlangan — bir fan boshqa blokda faqat boshqa ball bilan qo'shiladi (masalan, 3,1 va 1,1)"
+            : $"{n}-fan takrorlangan";
+
         var ordered = (input ?? []).Select((s, i) => (s, i)).OrderBy(x => x.s.Order).ThenBy(x => x.i)
             .Select(x => x.s).ToList();
 
@@ -698,7 +711,6 @@ public static class ExamService
             {
                 if (subjectId is null) { errors.Add($"{n}-fan: fanni tanlang"); continue; }
                 if (!subjects.ContainsKey(subjectId)) { errors.Add($"{n}-fan: fan topilmadi"); continue; }
-                if (!seen.Add(subjectId)) { errors.Add($"{n}-fan takrorlangan"); continue; }
 
                 // DTM shape (client, 2026-10-31): N questions × weight — the ceiling is their
                 // product and the grid takes correct answers. Both or neither.
@@ -715,6 +727,7 @@ public static class ExamService
                         continue;
                     }
                     var weight = ExamScoringService.RoundPoints(rawWeight);
+                    if (Repeats(plan, subjectId, weight)) { errors.Add(Repeated(n)); continue; }
                     var product = ExamScoringService.RoundPoints(qc * weight);
                     if (product > MaxSectionScore)
                     {
@@ -725,6 +738,7 @@ public static class ExamService
                     continue;
                 }
 
+                if (Repeats(plan, subjectId, null)) { errors.Add(Repeated(n)); continue; }
                 if (s.MaxScore is not { } rawMax) { errors.Add($"{n}-fan: maksimal ballni kiriting"); continue; }
                 var max = ExamScoringService.RoundPoints(rawMax);
                 if (max <= 0m || max > MaxSectionScore)
@@ -779,17 +793,32 @@ public static class ExamService
     }
 
     /// <summary>
-    /// Applies the planned sections to a draft, keyed by subject so a section
-    /// that stays keeps its id (and anything already pointing at it).
+    /// Applies the planned sections to a draft, so a section that stays keeps its
+    /// id (and anything already pointing at it). A subject can be in two blocks,
+    /// so subject + weight is matched first and only the leftovers by subject
+    /// alone — that order also never writes a weight another row of the same
+    /// subject still holds, which <c>ux_exam_sections_exam_subject_weight</c> would refuse.
     /// </summary>
     private static void ReplaceSections(IAppDbContext db, Exam exam, List<SectionPlan> plan)
     {
-        var bySubject = exam.Sections.ToDictionary(s => s.SubjectId, StringComparer.Ordinal);
-        var keep = new HashSet<string>(StringComparer.Ordinal);
+        var free = exam.Sections.ToList();
+        var matched = new Dictionary<SectionPlan, ExamSection>(ReferenceEqualityComparer.Instance);
         foreach (var p in plan)
         {
-            keep.Add(p.SubjectId);
-            if (bySubject.TryGetValue(p.SubjectId, out var s))
+            if (free.FirstOrDefault(x => x.SubjectId == p.SubjectId && x.PointsPerCorrect == p.PointsPerCorrect) is not { } s) continue;
+            matched[p] = s;
+            free.Remove(s);
+        }
+        foreach (var p in plan.Where(p => !matched.ContainsKey(p)))
+        {
+            if (free.FirstOrDefault(x => x.SubjectId == p.SubjectId) is not { } s) continue;
+            matched[p] = s;
+            free.Remove(s);
+        }
+
+        foreach (var p in plan)
+        {
+            if (matched.TryGetValue(p, out var s))
             {
                 s.BankId = p.BankId;
                 s.QuestionCount = p.QuestionCount;
@@ -809,7 +838,7 @@ public static class ExamService
             }
         }
 
-        foreach (var gone in exam.Sections.Where(s => !keep.Contains(s.SubjectId)).ToList())
+        foreach (var gone in free)
         {
             exam.Sections.Remove(gone);
             db.ExamSections.Remove(gone);
@@ -1417,6 +1446,24 @@ public static class ExamService
         IAppDbContext db, ExamActor actor, string examId, IReadOnlyList<ExamEntrySaveRow>? rows,
         CancellationToken ct = default)
     {
+        // Several teachers save one exam's pupils at once now, each their own subject (2026-11-03).
+        // Every save recomputes the pupil's total from the stored cells, so one exam's saves run
+        // one at a time — otherwise the later commit keeps a total without the other's points.
+        await using var tx = await db.BeginTransactionAsync(ct);
+        if (db is DbContext ef)
+            await ef.Database.ExecuteSqlRawAsync(EntryLockSql, ["exam-entry:" + examId], ct);
+
+        var result = await SaveEntryLockedAsync(db, actor, examId, rows, ct);
+        if (result.Error is null) await tx.CommitAsync(ct);
+        return result;
+    }
+
+    private const string EntryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended({0}::text, 0))";
+
+    private static async Task<ExamOutcome<ExamEntrySaveResultDto>> SaveEntryLockedAsync(
+        IAppDbContext db, ExamActor actor, string examId, IReadOnlyList<ExamEntrySaveRow>? rows,
+        CancellationToken ct)
+    {
         var exam = await db.Exams.AsNoTracking().Include(e => e.Sections).FirstOrDefaultAsync(e => e.Id == examId, ct);
         if (exam is null) return ExamError.NotFound("exam_not_found", ExamNotFoundMessage);
         if (EntryStateProblem(exam) is { } stateProblem) return stateProblem;
@@ -1704,7 +1751,8 @@ public static class ExamService
                orderby s.Order, s.Id
                select new ExamEntryColumnDto(s.Id, s.SubjectId, subject.Name, s.MaxScore,
                    s.BankId == null && s.PointsPerCorrect != null ? s.QuestionCount : null,
-                   s.BankId == null ? s.PointsPerCorrect : null))
+                   s.BankId == null ? s.PointsPerCorrect : null,
+                   s.Order + 1))
             .ToListAsync(ct);
 
     /// <summary>A participant row of the grid/template, with display name and class — no scores.</summary>

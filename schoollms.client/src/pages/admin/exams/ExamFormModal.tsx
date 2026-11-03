@@ -287,15 +287,22 @@ function ExamForm({ title, exam, lookups, canAdmission, onClose, onSaved, onChan
     }
     if (frozen) return null
     if (sections.length === 0) return "Kamida bitta fan qo'shing"
-    const seen = new Set<string>()
+    // Blok testda bir fan boshqa ball bilan ikkinchi blokka tushadi: asosiy 3,1 va majburiy 1,1 (mijoz, 2026-11-03).
+    const seen = new Map<string, (number | null)[]>()
     for (const [i, s] of sections.entries()) {
       const n = i + 1
       if (isManual) {
         if (!s.subjectId) return `${n}-qatorda fanni tanlang`
-        if (seen.has(s.subjectId)) return `${n}-qatordagi fan takrorlangan`
-        seen.add(s.subjectId)
         const weighted = weightedSection(s)
         if (weighted === 'bad') return `${n}-qatorda savollar soni va bitta savol balini to'liq kiriting`
+        const weight = weighted ? weighted.weight : null
+        const earlier = seen.get(s.subjectId)
+        if (earlier && (!isBlock || weight === null || earlier.some((w) => w === null || w === weight))) {
+          return isBlock
+            ? `${n}-qatordagi fan takrorlangan — bir fan boshqa blokda faqat boshqa ball bilan qo'shiladi`
+            : `${n}-qatordagi fan takrorlangan`
+        }
+        seen.set(s.subjectId, [...(earlier ?? []), weight])
         if (weighted) {
           if (weighted.max > MAX_SECTION_SCORE) return `${n}-qatordagi maksimal ball juda katta`
           continue
@@ -439,7 +446,8 @@ function ExamForm({ title, exam, lookups, canAdmission, onClose, onSaved, onChan
     setSections((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)))
 
   const subjectOptions = (index: number) => {
-    const taken = new Set(sections.filter((_, i) => i !== index).map((s) => s.subjectId))
+    // Blok testda tanlangan fan yashirilmaydi — u boshqa blokka boshqa ball bilan tushishi mumkin.
+    const taken = new Set(isBlock ? [] : sections.filter((_, i) => i !== index).map((s) => s.subjectId))
     const current = sections[index]?.subjectId
     return lookups.subjects
       .filter((s) => s.id === current || (s.isActive !== false && !taken.has(s.id)))

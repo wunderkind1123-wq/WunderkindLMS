@@ -100,3 +100,30 @@ qilinadi va sertifikat natijasiga teng ball avtomatik qo'shib beriladi."*
   document. The credit is written when the row is saved (grid or import); a value sent for that cell is
   ignored. Results show such a subject in violet with the certificate name.
 - Migration `ExamDtmCertificateCredits`. Tests: `ExamDtmCreditTests`.
+
+## One subject in two blocks, teachers enter block results — 2026-11-03
+
+Client: *"birinchi blokga tarix bo'ladigan bo'lsa, u uchinchi blokga ham tushishi mumkin … asosiy blok uchun
+3.1, majburiy blok uchun 1.1 … natijalarni o'qituvchi profilida ham to'g'rilash kerak … har bitta yo'nalishga
+kiradigan o'qituvchiga o'zi kiradigan yo'nalishidagi o'quvchilar ro'yxati chiqishi kerak."*
+
+- **A subject may repeat with another weight** (block tests only): unique index is now
+  `ux_exam_sections_exam_subject_weight` on `(exam_id, subject_id, points_per_correct)`, `NULLS NOT DISTINCT`
+  so a section without a weight still appears once per subject. Same subject + same weight, or a repeat
+  without a weight, is refused. Admission exams keep one section per subject.
+- **A certificate exempts both blocks of its subject** — credits are per section, each `ceiling × percent`.
+- **Teacher entry:** `GET /api/teacher/block-exams` (one row per exam × owner), `GET …/{id}/entry?ownerId=`,
+  `POST …/{id}/entry` `{ ownerId, rows }`; screens in the Mini App ("Bugun" card) and the teacher PWA (home).
+  Rules in `TeacherBlockExamService`:
+  - scope comes from the timetable (`TeacherOwnerAccess.PairsAsync`) — no permission key, a lesson assigned is
+    the grant, a lesson removed takes it away. Usually a track group; a class added to the exam works the same;
+  - columns are the teacher's subjects' blocks, rows the participants of that owner: member of the track on the
+    exam day or now; for a class, the class snapshot. Other subjects and the total are not sent;
+  - only published and closed exams: a first score freezes the sections, so a draft stays the admin's;
+  - "Kelmadi" stays with the admin — it clears the pupil's scores in every subject. A row the admin marked absent
+    is locked for the teacher;
+  - two teachers of one subject in one track share its blocks: a lesson does not say which block it teaches.
+- **The admin grid and Excel import stay** (client's choice, 2026-11-03) for corrections and absences.
+- `ExamService.SaveEntryAsync` now runs under a per-exam advisory lock: teachers save one exam concurrently, and
+  each save recomputes the pupil's total from the stored cells.
+- Migration `ExamSectionSubjectWeight`. Tests: `TeacherBlockExamTests`.

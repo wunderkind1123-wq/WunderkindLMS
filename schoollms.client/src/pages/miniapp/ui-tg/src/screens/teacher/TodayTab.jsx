@@ -37,8 +37,9 @@ const POLLS_API = {
 import { LessonAnalysisCard } from './LessonAnalysis'
 import { boardingSessions } from './BoardingScreen'
 import { SeasonalCard } from './SeasonalScreen'
+import { BlockExamsCard } from './BlockExamsScreen'
 
-export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal }) {
+export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams }) {
   const perms = profile.permissions || []
   const canSchedule = perms.includes('schedule')
   const canJournal = perms.includes('journal')
@@ -130,6 +131,9 @@ export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOp
 
             {/* Mavsumiy baholash (2026-10-28) — har o'qituvchida; ruxsati yo'q bo'lsa ichida "Bo'lim yopiq". */}
             {onOpenSeasonal && <SeasonalCard onOpen={onOpenSeasonal} />}
+
+            {/* Blok test natijalari (2026-11-03) — ro'yxat dars jadvalidan chiqadi. */}
+            {onOpenBlockExams && <BlockExamsCard onOpen={onOpenBlockExams} />}
 
             {/* Qizil ro'yxat (2026-10-15): ota-ona bilan bog'lanish kerak bo'lgan o'quvchilar — faqat holat bo'lsa. */}
             {profile.homeroomClass && <RedListCard />}

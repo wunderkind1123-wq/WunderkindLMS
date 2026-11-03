@@ -243,8 +243,12 @@ internal static class ExamModel
             e.HasOne<QuestionBank>().WithMany().HasForeignKey(x => x.BankId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            e.HasIndex(x => new { x.ExamId, x.SubjectId }).IsUnique()
-                .HasDatabaseName("ux_exam_sections_exam_subject");
+            // A subject may repeat with another weight — tarix as a main block (3.1) and as a
+            // compulsory one (1.1) (client, 2026-11-03). NULLS NOT DISTINCT: a section without a
+            // weight (plain ceiling, online draft) still appears once per subject, as before.
+            e.HasIndex(x => new { x.ExamId, x.SubjectId, x.PointsPerCorrect }).IsUnique()
+                .AreNullsDistinct(false)
+                .HasDatabaseName("ux_exam_sections_exam_subject_weight");
             e.HasIndex(x => new { x.ExamId, x.Order }).HasDatabaseName("ix_exam_sections_exam_order");
         });
     }
