@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ProtectedRoute, RootRedirect } from '@/components/auth/ProtectedRoute'
@@ -148,6 +148,10 @@ import { Loader } from '@/components/ui/Loader'
 const MoneyFlowPage = lazy(() => import('@/pages/admin/finance/MoneyFlowPage'))
 const SubscriptionAnalyticsPage = lazy(() => import('@/pages/admin/finance/subscriptions/SubscriptionAnalyticsPage'))
 const SubscriptionClassPage = lazy(() => import('@/pages/admin/finance/subscriptions/SubscriptionClassPage'))
+// Bilimlar bazasi (docs/modules/wiki.md) — LAZY: muharrir (BlockNote + Mantine) asosiy bundle'ga tushmasin.
+const NotesPage = lazy(() => import('@/pages/admin/wiki/NotesPage').then((m) => ({ default: m.NotesPage })))
+const WikiEntry = lazy(() => import('@/pages/admin/wiki/WikiEntry').then((m) => ({ default: m.WikiEntry })))
+const lazyPage = (node: ReactNode) => <Suspense fallback={<Loader label="Yuklanmoqda…" />}>{node}</Suspense>
 
 export default function App() {
   return (
@@ -355,6 +359,17 @@ export default function App() {
         <Route path="/admin/hr/mening-topshiriqlarim" element={<AppLayout />}>
           <Route index element={<HrMyTasksPage />} />
         </Route>
+        {/* HR → Bilimlar bazasi (docs/modules/wiki.md): har bir xodim (kassir ham) o'z eslatmalarini yozadi —
+            ruxsat kalitisiz, shuning uchun /admin daraxtidan tashqarida (xuddi "Mening topshiriqlarim" kabi).
+            «Xodimlar» tabi — faqat rahbariyat; buni server hal qiladi (`isLeader`). */}
+        <Route path="/admin/bilimlar" element={<AppLayout />}>
+          <Route index element={lazyPage(<WikiEntry />)} />
+          <Route path="eslatmalar" element={lazyPage(<NotesPage mode="mine" showTabs />)} />
+          <Route path="eslatmalar/:pageId" element={lazyPage(<NotesPage mode="mine" showTabs />)} />
+          <Route path="xodimlar" element={lazyPage(<NotesPage mode="team" showTabs />)} />
+          <Route path="xodimlar/:userId" element={lazyPage(<NotesPage mode="team" showTabs />)} />
+          <Route path="xodimlar/:userId/:pageId" element={lazyPage(<NotesPage mode="team" showTabs />)} />
+        </Route>
       </Route>
 
       {/* Kassa — kassir ish o'rni (P1-16). ATAYLAB /admin daraxtidan tashqarida:
@@ -396,6 +411,11 @@ export default function App() {
             the PWA's Profil screen links here. Own class + subject only (server gate). */}
         <Route path="/teacher/uy-vazifasi" element={<AppLayout />}>
           <Route index element={<RequirePerm perm="journal"><HomeworkCompletionPage scope="teacher" /></RequirePerm>} />
+        </Route>
+        {/* Eslatmalarim (Bilimlar bazasi, docs/modules/wiki.md) — the same SPA exception (Program.cs MapFallback). */}
+        <Route path="/teacher/eslatmalar" element={<AppLayout />}>
+          <Route index element={lazyPage(<NotesPage mode="mine" basePath="/teacher/eslatmalar" />)} />
+          <Route path=":pageId" element={lazyPage(<NotesPage mode="mine" basePath="/teacher/eslatmalar" />)} />
         </Route>
       </Route>
       <Route path="/teacher/*" element={<TeacherAppRedirect />} />
