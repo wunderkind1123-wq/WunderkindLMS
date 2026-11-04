@@ -24,6 +24,12 @@ namespace SchoolLms.Application.Services;
 //  Kiritilgan bloklar darrov ko'rinadi, lekin jami va foiz berilmaydi va oy hisobiga kirmaydi: aks holda
 //  oxirgi o'qituvchi kiritguncha o'quvchi "pasayib ketgandek" ko'rinardi.
 //
+//  KIMGA TEST NATIJALARI
+//  ---------------------
+//  Mijoz, 2026-11-04: blok test faqat yo'nalish guruhlaridan olinadi (9–11-sinflar, DTM shaklida);
+//  3–8-sinflarning oylik testi mavsumiy baholashda va "Oylik o'sish"da turadi. Shuning uchun "Test natijalari"
+//  va oydagi test foizi faqat yo'nalishdagi yoki 9-sinfdan yuqori o'quvchiga beriladi (ShowTests).
+//
 //  OY HISOBI
 //  ---------
 //  Test foizi — oydagi to'liq testlar foizining o'rtachasi (har test teng og'irlikda; testlarning
@@ -33,15 +39,19 @@ namespace SchoolLms.Application.Services;
 
 public static class PortalExamResultsService
 {
+    /// <summary>Yo'nalish guruhlari shu sinfdan boshlanadi (docs/modules/track-groups-as-classes.md).</summary>
+    private const int FirstTrackGrade = 9;
+
     public static async Task<PortalExamResultsDto> ForStudentAsync(
         IAppDbContext db, string studentId, CancellationToken ct = default)
     {
+        var showTests = await TakesBlockTestsAsync(db, studentId, ct);
         var sittings = await (
                 from p in db.ExamParticipants.AsNoTracking()
                 join e in db.Exams.AsNoTracking() on p.ExamId equals e.Id
                 join t in db.ExamTypes.AsNoTracking() on e.ExamTypeId equals t.Id into tj
                 from t in tj.DefaultIfEmpty()
-                where p.StudentId == studentId && e.Kind == ExamKind.Block && e.Status != ExamStatus.Cancelled
+                where showTests && p.StudentId == studentId && e.Kind == ExamKind.Block && e.Status != ExamStatus.Cancelled
                       && (p.Status == ExamParticipantStatus.Finished || p.Status == ExamParticipantStatus.Absent)
                 select new
                 {
@@ -121,6 +131,9 @@ public static class PortalExamResultsService
 
         var months = new List<PortalExamMonthDto>();
         decimal? lastTest = null, lastMark = null;
+        // Fan bo'yicha oxirgi qiymat: o'zgarish shu fan bor bo'lgan oldingi oyga nisbatan.
+        var lastSubjectTest = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var lastSubjectMark = new Dictionary<string, decimal>(StringComparer.Ordinal);
         foreach (var month in tests.Select(t => t.Month).Concat(absent).Concat(pending)
                      .Concat(monthlyMarks.Select(m => m.Month)).Distinct().Order(StringComparer.Ordinal))
         {
@@ -136,10 +149,15 @@ public static class PortalExamResultsService
                 .Select(x =>
                 {
                     var taken = subjectPoints.Where(p => p.Month == month && p.SubjectId == x.SubjectId).ToList();
-                    return new PortalExamMonthSubjectDto(
-                        x.SubjectId, x.Name,
-                        taken.Count == 0 ? null : ExamScoringService.Percent(taken.Sum(p => p.Points), taken.Sum(p => p.Max)),
-                        myMarks.Where(m => m.SubjectId == x.SubjectId).Select(m => (decimal?)m.Score).FirstOrDefault());
+                    var percent = taken.Count == 0 ? null : ExamScoringService.Percent(taken.Sum(p => p.Points), taken.Sum(p => p.Max));
+                    var mark = myMarks.Where(m => m.SubjectId == x.SubjectId).Select(m => (decimal?)m.Score).FirstOrDefault();
+                    var row = new PortalExamMonthSubjectDto(
+                        x.SubjectId, x.Name, percent, mark,
+                        percent is { } p2 && lastSubjectTest.TryGetValue(x.SubjectId, out var t0) ? p2 - t0 : null,
+                        mark is { } m2 && lastSubjectMark.TryGetValue(x.SubjectId, out var m0) ? m2 - m0 : null);
+                    if (percent is { } p3) lastSubjectTest[x.SubjectId] = p3;
+                    if (mark is { } m3) lastSubjectMark[x.SubjectId] = m3;
+                    return row;
                 })
                 .ToList();
 
@@ -155,7 +173,19 @@ public static class PortalExamResultsService
         }
         months.Reverse();
 
-        return new PortalExamResultsDto(months, exams);
+        return new PortalExamResultsDto(months, exams, showTests);
+    }
+
+    /// <summary>O'quvchi yo'nalish guruhida yoki 9-sinfdan yuqorida — blok test faqat ulardan olinadi.</summary>
+    private static async Task<bool> TakesBlockTestsAsync(IAppDbContext db, string studentId, CancellationToken ct)
+    {
+        if ((await TrackMembership.ByStudentAsync(db, [studentId], ct: ct)).Count > 0) return true;
+        return await (
+                from s in db.Students.AsNoTracking()
+                join c in db.Classes.AsNoTracking() on s.ClassName equals c.Name
+                where s.Id == studentId && c.Grade >= FirstTrackGrade
+                select c.Id)
+            .AnyAsync(ct);
     }
 
     /// <summary>"2026-10-31" → "2026-10".</summary>

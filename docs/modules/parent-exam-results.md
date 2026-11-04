@@ -6,11 +6,16 @@ ona farzandidagi o'sishni kuzata olsin."*
 
 - **Where:** Mini App → "Baholar" tab, above the quarter picker: cards "Oylik o'sish" and "Test natijalari". The web
   portal (`/parent`) has finance and news only and stays so. A pupil's own login sees the same.
-- **API:** `GET /api/student/exam-results` → `{ months, exams }` (`PortalExamResultsService`). Behind
+- **API:** `GET /api/student/exam-results` → `{ months, exams, showTests }` (`PortalExamResultsService`). Behind
   `show_learning_progress_in_parent_dashboard`, like the grades: the school closing progress closes this too.
-- **Which results:** exams of the Imtihonlar module with `kind = block` (a monthly test is the same exam with another
-  type), not cancelled, the pupil `finished` or `absent`. Visible as soon as entered — no approval step, drafts with
-  entered scores included. Only the child's own scores; no ranking, no other pupils.
+- **Who sees what (client, 2026-11-04):** grades 3–8 take a monthly test per subject, entered in Mavsumiy baholash, and
+  see only "Oylik o'sish". Block tests are taken only by the track groups (filologiya, ijtimoiy, tabiiy fan, aniq fan,
+  iqtisodiyot), entered DTM-style; those pupils see both cards, the block test counting in "Oylik o'sish" too.
+  `showTests` = an active track group or grade 9+; otherwise the server sends no exams and no test percent.
+- **Every month stays open** in "Oylik o'sish" so a parent can compare them; a month also shows each subject's change.
+- **Which results:** exams of the Imtihonlar module with `kind = block`, not cancelled, the pupil `finished` or
+  `absent`. Visible as soon as entered — no approval step, drafts with entered scores included. Only the child's own
+  scores; no ranking, no other pupils.
 - **Partial results:** teachers enter one subject each. Entered blocks show immediately, "kiritilmagan" for the rest;
   total and percent appear only when every block is entered, and a partial sitting stays out of the monthly mean.
 - **Monthly calculation:** the month is the exam date's. Test percent = mean of the month's complete tests' percents,

@@ -345,8 +345,9 @@ public sealed record ExamTeacherSaveRequest(string? OwnerId, IReadOnlyList<ExamE
 // ---------------------------------------------------------------------------
 
 /// <summary><c>exam-results</c>: months newest first, exams newest first.</summary>
+/// <param name="ShowTests">The pupil takes block tests (a track group or grade 9+): the "Test natijalari" card is drawn.</param>
 public sealed record PortalExamResultsDto(
-    IReadOnlyList<PortalExamMonthDto> Months, IReadOnlyList<PortalExamResultDto> Exams);
+    IReadOnlyList<PortalExamMonthDto> Months, IReadOnlyList<PortalExamResultDto> Exams, bool ShowTests);
 
 /// <summary>One block of a sitting. <c>Points</c> is <c>null</c> until it is entered.</summary>
 /// <param name="Certificate">The certificate that exempted the pupil from this block.</param>
@@ -376,8 +377,12 @@ public sealed record PortalExamMonthDto(
     decimal? MarkAverage, decimal? MarkChange, int MarkCount,
     IReadOnlyList<PortalExamMonthSubjectDto> Subjects);
 
-/// <summary>One subject of a month: all its blocks together, and its seasonal mark.</summary>
-public sealed record PortalExamMonthSubjectDto(string SubjectId, string Name, decimal? TestPercent, decimal? Mark);
+/// <summary>
+/// One subject of a month: all its blocks together, its seasonal mark, and each one's change from the
+/// previous month that has it (<c>null</c> the first time).
+/// </summary>
+public sealed record PortalExamMonthSubjectDto(
+    string SubjectId, string Name, decimal? TestPercent, decimal? Mark, decimal? TestChange, decimal? MarkChange);
 
 // ---------------------------------------------------------------------------
 //  Results register (screen 8)
