@@ -181,6 +181,68 @@ public class PortalExamResultsTests(ApiFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sinf_3_8da_faqat_oylik_baholar_blok_test_berilmaydi()
+    {
+        await using var db = await NewDbAsync("grade5");
+        var w = await SeedAsync(db, grade: 5);
+        await WholeExamAsync(db, w, "Blok", "2026-10-05", 30m, 40m);
+        db.SeasonalMarks.AddRange(
+            new SeasonalMark { StudentId = w.Pupil, ClassId = w.Class, SubjectId = w.Math, PeriodKind = SeasonalPeriodKind.Monthly, Year = 2026, Month = 9, Score = 48m },
+            new SeasonalMark { StudentId = w.Pupil, ClassId = w.Class, SubjectId = w.Math, PeriodKind = SeasonalPeriodKind.Monthly, Year = 2026, Month = 10, Score = 57m });
+        await db.SaveChangesAsync();
+
+        var result = await PortalExamResultsService.ForStudentAsync(db, w.Pupil);
+
+        Assert.False(result.ShowTests);
+        Assert.Empty(result.Exams);
+        Assert.Equal(["2026-10", "2026-09"], result.Months.Select(m => m.Month));
+        Assert.All(result.Months, m => Assert.Null(m.TestPercent));
+        Assert.Equal(9m, result.Months[0].MarkChange);
+    }
+
+    [Fact]
+    public async Task Yonalishdagi_oquvchi_ikkala_kartani_oladi_sinfi_past_bolsa_ham()
+    {
+        await using var db = await NewDbAsync("track");
+        var w = await SeedAsync(db, grade: 5);
+        var user = new AppUser { FullName = "Test", Role = Roles.SuperAdmin, Email = $"per.{Guid.NewGuid():N}"[..16] };
+        var track = new StudyGroup { Name = "Filologiya", IsTrack = true, CreatedBy = user.Id, CreatedAt = AppClock.NowInstant };
+        db.Users.Add(user);
+        db.StudyGroups.Add(track);
+        db.StudyGroupMembers.Add(new StudyGroupMember { GroupId = track.Id, StudentId = w.Pupil, JoinedOn = new DateOnly(2026, 9, 1), CreatedBy = user.Id, CreatedAt = AppClock.NowInstant });
+        await db.SaveChangesAsync();
+        await WholeExamAsync(db, w, "Blok", "2026-10-05", 30m, 40m);
+
+        var result = await PortalExamResultsService.ForStudentAsync(db, w.Pupil);
+
+        Assert.True(result.ShowTests);
+        Assert.Single(result.Exams);
+        Assert.Equal(70m, result.Months.Single().TestPercent);
+    }
+
+    [Fact]
+    public async Task Fan_ozgarishi_shu_fan_bor_oldingi_oyga_nisbatan()
+    {
+        await using var db = await NewDbAsync("subject_change");
+        var w = await SeedAsync(db, grade: 5);
+        SeasonalMark Mark(string subject, int month, decimal score) => new()
+        {
+            StudentId = w.Pupil, ClassId = w.Class, SubjectId = subject, PeriodKind = SeasonalPeriodKind.Monthly,
+            Year = 2026, Month = month, Score = score,
+        };
+        // Matematika: 50 → (oktabrda yo'q) → 70. Tarix faqat oktabrda.
+        db.SeasonalMarks.AddRange(Mark(w.Math, 9, 50m), Mark(w.History, 10, 80m), Mark(w.Math, 11, 70m), Mark(w.History, 11, 60m));
+        await db.SaveChangesAsync();
+
+        var months = (await PortalExamResultsService.ForStudentAsync(db, w.Pupil)).Months;
+
+        Assert.Null(months[2].Subjects.Single(s => s.SubjectId == w.Math).MarkChange);
+        Assert.Null(months[1].Subjects.Single(s => s.SubjectId == w.History).MarkChange);
+        Assert.Equal(20m, months[0].Subjects.Single(s => s.SubjectId == w.Math).MarkChange);
+        Assert.Equal(-20m, months[0].Subjects.Single(s => s.SubjectId == w.History).MarkChange);
+    }
+
+    [Fact]
     public async Task Http_admin_studentId_bilan_oladi_kirmagan_kira_olmaydi()
     {
         var tag = Guid.NewGuid().ToString("N")[..8];
@@ -191,7 +253,7 @@ public class PortalExamResultsTests(ApiFixture fixture) : IAsyncLifetime
         await fixture.Api.WithDbAsync(async db =>
         {
             var subject = new Subject { Name = $"Fan {tag}" };
-            var cls = new SchoolClass { Name = $"5-{tag}", Grade = 5 };
+            var cls = new SchoolClass { Name = $"9-{tag}", Grade = 9 };
             var pupil = NewStudent($"O'quvchi {tag}", cls.Name);
             db.AddRange(subject, cls, pupil);
             await db.SaveChangesAsync();
@@ -220,11 +282,11 @@ public class PortalExamResultsTests(ApiFixture fixture) : IAsyncLifetime
 
     private sealed record World(string Math, string History, string Class, string Pupil, string Classmate);
 
-    private static async Task<World> SeedAsync(AppDbContext db)
+    private static async Task<World> SeedAsync(AppDbContext db, int grade = 9)
     {
         var math = new Subject { Name = "Matematika" };
         var history = new Subject { Name = "Tarix" };
-        var cls = new SchoolClass { Name = "5-A", Grade = 5 };
+        var cls = new SchoolClass { Name = $"{grade}-A", Grade = grade };
         var pupil = NewStudent("O'quvchi", cls.Name);
         var classmate = NewStudent("Sinfdosh", cls.Name);
         db.AddRange(math, history, cls, pupil, classmate);

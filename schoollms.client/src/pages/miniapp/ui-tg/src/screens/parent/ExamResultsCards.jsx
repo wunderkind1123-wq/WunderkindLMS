@@ -4,6 +4,9 @@
  * Hamma hisobni server qiladi (`/api/student/exam-results`), ekran faqat ko'rsatadi. Natija kiritilishi
  * bilan ko'rinadi; hamma blok kiritilmaguncha jami va foiz chiqmaydi. O'zi yuklanadi, shuning uchun
  * xato bo'lsa ham baholar tabi ishlayveradi.
+ *
+ * Mijoz, 2026-11-04: 3–8-sinflarda faqat "Oylik o'sish" (oylik testlar mavsumiy baholashda); yo'nalish
+ * guruhlarida ikkala karta — blok test "Oylik o'sish"ga ham, "Test natijalari"ga ham tushadi.
  */
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, ClipboardCheck, TrendingDown, TrendingUp } from 'lucide-react'
@@ -13,7 +16,7 @@ import { fullDate, monthTitle } from '../../lib/format'
 import { haptic } from '../../lib/telegram'
 import { getExamResults } from '../../lib/parentApi'
 
-/** Karta yopiq turganda ko'rinadigan qatorlar soni. */
+/** "Test natijalari" yopiq turganda ko'rinadigan qatorlar soni. */
 const PREVIEW = 4
 
 const num = (v) => String(Number(Number(v).toFixed(2))).replace('.', ',')
@@ -96,12 +99,21 @@ function MonthRow({ month }) {
       {open && month.subjects.length > 0 && (
         <div className="bg-slate-50 px-4 py-2">
           {month.subjects.map((s) => (
-            <div key={s.subjectId} className="flex items-center justify-between gap-3 py-1.5 text-[13px]">
+            <div key={s.subjectId} className="flex items-start justify-between gap-3 py-1.5 text-[13px]">
               <span className="min-w-0 break-words text-slate-700">{s.name}</span>
-              <span className="shrink-0 font-semibold tabular-nums text-slate-800">
-                {[s.testPercent !== null ? `${num(s.testPercent)}%` : null, s.mark !== null ? `${num(s.mark)} baho` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
+              <span className="shrink-0 text-right font-semibold tabular-nums text-slate-800">
+                {s.testPercent !== null && (
+                  <span className="flex items-center justify-end gap-2">
+                    <Change value={s.testChange} />
+                    {num(s.testPercent)}%
+                  </span>
+                )}
+                {s.mark !== null && (
+                  <span className="flex items-center justify-end gap-2">
+                    <Change value={s.markChange} />
+                    {num(s.mark)} baho
+                  </span>
+                )}
               </span>
             </div>
           ))}
@@ -173,12 +185,11 @@ function ExamRow({ exam }) {
 
 export function ExamResultsCards({ childId }) {
   const q = useAsync(() => getExamResults(childId), [childId])
-  const [allMonths, setAllMonths] = useState(false)
   const [allExams, setAllExams] = useState(false)
 
   if (q.error) {
     return (
-      <Card title="Test natijalari">
+      <Card title="Oylik o'sish">
         <p className="px-4 pb-4 pt-1 text-[13px] text-slate-500">Yuklab bo'lmadi. Ilovani qayta ochib ko'ring.</p>
       </Card>
     )
@@ -189,10 +200,8 @@ export function ExamResultsCards({ childId }) {
 
   return (
     <>
-      <Card
-        title="Oylik o'sish"
-        action={months.length > PREVIEW ? <ToggleAll expanded={allMonths} count={months.length} onClick={() => setAllMonths((v) => !v)} /> : null}
-      >
+      {/* Hamma oy doim ochiq (mijoz, 2026-11-04): ota-ona oylarni bir-biriga solishtiradi. */}
+      <Card title="Oylik o'sish">
         {months.length === 0 ? (
           <EmptyState
             icon={<TrendingUp className="h-8 w-8" />}
@@ -200,24 +209,27 @@ export function ExamResultsCards({ childId }) {
             note={q.loading ? null : "Birinchi natijalar kiritilgach, har oy shu yerda hisoblanadi."}
           />
         ) : (
-          (allMonths ? months : months.slice(0, PREVIEW)).map((m) => <MonthRow key={m.month} month={m} />)
+          months.map((m) => <MonthRow key={m.month} month={m} />)
         )}
       </Card>
 
-      <Card
-        title="Test natijalari"
-        action={exams.length > PREVIEW ? <ToggleAll expanded={allExams} count={exams.length} onClick={() => setAllExams((v) => !v)} /> : null}
-      >
-        {exams.length === 0 ? (
-          <EmptyState
-            icon={<ClipboardCheck className="h-8 w-8" />}
-            title={q.loading ? 'Yuklanmoqda…' : "Hozircha natija yo'q"}
-            note={q.loading ? null : "Blok yoki oylik test natijasi kiritilishi bilan shu yerda ko'rinadi."}
-          />
-        ) : (
-          (allExams ? exams : exams.slice(0, PREVIEW)).map((e) => <ExamRow key={e.examId} exam={e} />)
-        )}
-      </Card>
+      {/* Blok test faqat yo'nalish guruhlaridan olinadi (mijoz, 2026-11-04) — server aytadi. */}
+      {q.data?.showTests && (
+        <Card
+          title="Test natijalari"
+          action={exams.length > PREVIEW ? <ToggleAll expanded={allExams} count={exams.length} onClick={() => setAllExams((v) => !v)} /> : null}
+        >
+          {exams.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardCheck className="h-8 w-8" />}
+              title="Hozircha natija yo'q"
+              note="Blok test natijasi kiritilishi bilan shu yerda ko'rinadi."
+            />
+          ) : (
+            (allExams ? exams : exams.slice(0, PREVIEW)).map((e) => <ExamRow key={e.examId} exam={e} />)
+          )}
+        </Card>
+      )}
     </>
   )
 }
