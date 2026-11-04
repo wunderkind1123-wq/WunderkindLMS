@@ -120,6 +120,9 @@ export const api = {
   homeroomDebts: () => GET('/teacher/homeroom/debts'),
   // Qizil ro'yxat (2026-10-15) — ketma-ket / sababsiz kelmaganlar; amal Telegram ilovasida yoziladi.
   homeroomRedList: () => GET('/teacher/homeroom/red-list'),
+  // O'quvchilarning balli va bittasining baholari/ballari, kim qo'ygani bilan (2026-11-04) — faqat ko'rish.
+  homeroomPupilScores: () => GET('/teacher/homeroom/pupils'),
+  homeroomPupilProgress: (studentId, quarter) => GET(`/teacher/homeroom/pupils/${encodeURIComponent(studentId)}`, { quarter }),
   // Qarzdorlar Excel'da (2026-10-12) — `group` bo'sh = hamma sinf/guruh, `all` — qarzi yo'qlar ham.
   downloadHomeroomDebts: async ({ group, all } = {}) => {
     const t = tokenStore.get()

@@ -94,6 +94,12 @@ export const teacherApi = {
   addRedListAction: (caseId, body) =>
     api.post(`${BASE}/homeroom/red-list/${encodeURIComponent(caseId)}/actions`, body),
 
+  /** Sinfim (2026-11-04): o'quvchilarimning xulq-atvor balli — ro'yxat uchun. */
+  homeroomPupilScores: () => api.get(`${BASE}/homeroom/pupils`),
+  /** Bitta o'quvchining baholari va ballari, kim qo'ygani bilan; `quarter` bo'sh — joriy chorak. */
+  homeroomPupilProgress: (studentId, quarter) =>
+    api.get(`${BASE}/homeroom/pupils/${encodeURIComponent(studentId)}${qs({ quarter })}`),
+
   /** Sinfim · Kelmaganlar (2026-10-26): shu kuni kelmagan o'quvchilarim, sabab va izoh. */
   homeroomAbsences: (date) => api.get(`${BASE}/homeroom/absences?date=${encodeURIComponent(date)}`),
   /** Kelmagan kunning sababi va/yoki izohi: `{ reasonId, comment }` — yangilangan qatorni qaytaradi. */

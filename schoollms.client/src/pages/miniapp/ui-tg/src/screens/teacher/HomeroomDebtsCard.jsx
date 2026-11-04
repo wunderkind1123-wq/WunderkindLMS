@@ -10,7 +10,8 @@
  *
  *   PupilView          — o'quvchi bosilsa (2026-10-29: "sinf rahbari ota-ona bilan bog'lanib
  *                        aniqlashtirib izoh yozishi kerak"): qarzdorligi, telefon, izoh yozish va tarix.
- *                        Admin'dagi "Moliya → Qarzdorlar → Izoh" bilan BITTA tarix.
+ *                        Admin'dagi "Moliya → Qarzdorlar → Izoh" bilan BITTA tarix. 2026-11-04 dan
+ *                        boshqa ustozlar qo'ygan baholar va ballar ham shu yerda (PupilProgressCards).
  *
  * Faqat rahbarga: rahbarligi yo'q o'qituvchida karta umuman chizilmaydi (server ham bo'sh
  * ro'yxat qaytaradi). To'lov va chegirmalar bu yerda yo'q — faqat ko'rish va izoh. Raqamlar admin'dagi
@@ -20,12 +21,13 @@
  * qarzdor bo'lib ko'rinsin"): server summani umuman yubormaydi — faqat qarzdor / qarzi yo'q va oylar.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronRight, FileSpreadsheet, MessageSquareText, Phone, Users, Wallet, X } from 'lucide-react'
+import { ChevronRight, FileSpreadsheet, GraduationCap, MessageSquareText, Phone, Users, Wallet, X } from 'lucide-react'
 import { Badge, Card, EmptyState, Hero, Row, Segmented, StatGrid } from '../../components/ui'
 import { useAsync } from '../../lib/useAsync'
 import { teacherApi } from '../../lib/teacherApi'
 import { dateTime, monthTitle } from '../../lib/format'
 import { haptic, hapticNotify, inTelegram, showBackButton, useKeyboardOpen } from '../../lib/telegram'
+import { PupilProgressCards } from './PupilProgressCards'
 
 /** "2026-09-01" → "Sentabr" (shu yil) yoki "Sentabr 2025" (boshqa yil). */
 function monthLabel(iso) {
@@ -43,16 +45,17 @@ function telHref(phone) {
 
 export function HomeroomDebtsCard() {
   const q = useAsync(() => teacherApi.homeroomDebts(), [])
-  const [open, setOpen] = useState(false)
+  /** Ochilgan ro'yxatning boshlang'ich filtri ('debtors' | 'all'); null — yopiq. */
+  const [open, setOpen] = useState(null)
   const d = q.data
 
   // Rahbarligi yo'q o'qituvchi — karta yo'q (xato bo'lsa ham "Bugun" ekrani buzilmasin).
   if (q.error || (d && d.groups.length === 0)) return null
 
   const debtors = d ? d.pupils.filter((p) => p.isDebtor) : []
-  const openSheet = () => {
+  const openSheet = (filter = 'debtors') => {
     haptic('light')
-    setOpen(true)
+    setOpen(filter)
   }
 
   return (
@@ -61,13 +64,22 @@ export function HomeroomDebtsCard() {
         title={d ? `Sinfim · ${d.groups.join(', ')}` : 'Sinfim'}
         action={
           d && d.pupilCount > 0 ? (
-            <button type="button" onClick={openSheet} className="shrink-0 text-[14px] font-semibold text-slate-500">
+            <button type="button" onClick={() => openSheet('all')} className="shrink-0 text-[14px] font-semibold text-slate-500">
               Barchasi
             </button>
           ) : null
         }
       >
         <div className="pt-1">
+          {d && d.pupilCount > 0 && (
+            <Row
+              lead={<ProgressIcon />}
+              title="Baholar va ballar"
+              subtitle="O'quvchini tanlang"
+              right={<ChevronRight className="h-5 w-5 text-slate-400" />}
+              onClick={() => openSheet('all')}
+            />
+          )}
           {!d ? (
             <p className="px-4 pb-4 text-[14px] text-slate-400">Yuklanmoqda…</p>
           ) : debtors.length === 0 ? (
@@ -76,7 +88,7 @@ export function HomeroomDebtsCard() {
               title="Qarzdor yo'q"
               subtitle={`${d.pupilCount} ta o'quvchi — hammasi to'lagan`}
               right={d.pupilCount > 0 ? <ChevronRight className="h-5 w-5 text-slate-400" /> : null}
-              onClick={d.pupilCount > 0 ? openSheet : undefined}
+              onClick={d.pupilCount > 0 ? () => openSheet('all') : undefined}
             />
           ) : (
             <>
@@ -85,7 +97,7 @@ export function HomeroomDebtsCard() {
                 title={`${d.debtorCount} ta qarzdor`}
                 subtitle={`${d.pupilCount} ta o'quvchidan`}
                 right={<ChevronRight className="h-5 w-5 text-slate-400" />}
-                onClick={openSheet}
+                onClick={() => openSheet()}
               />
               {debtors.slice(0, 3).map((p) => (
                 <Row
@@ -94,7 +106,7 @@ export function HomeroomDebtsCard() {
                   title={p.fullName}
                   subtitle={monthsLine(p)}
                   right={<Badge tone="danger">Qarzdor</Badge>}
-                  onClick={openSheet}
+                  onClick={() => openSheet()}
                 />
               ))}
             </>
@@ -104,8 +116,9 @@ export function HomeroomDebtsCard() {
 
       {open && d && (
         <HomeroomDebtsSheet
+          initialFilter={open}
           onClose={() => {
-            setOpen(false)
+            setOpen(null)
             q.reload()
           }}
         />
@@ -114,9 +127,13 @@ export function HomeroomDebtsCard() {
   )
 }
 
-export function HomeroomDebtsSheet({ onClose }) {
+export function HomeroomDebtsSheet({ initialFilter = 'debtors', onClose }) {
   const q = useAsync(() => teacherApi.homeroomDebts(), [])
-  const [filter, setFilter] = useState('debtors')
+  // Ballar alohida so'rov: yiqilsa ham qarzlar ro'yxati ishlayveradi.
+  const scores = useAsync(() => teacherApi.homeroomPupilScores().catch(() => []), [])
+  const scoreOf = {}
+  for (const s of scores.data ?? []) scoreOf[s.studentId] = s.score
+  const [filter, setFilter] = useState(initialFilter)
   /** Sinf yoki guruh nomi; '' — hammasi. */
   const [group, setGroup] = useState('')
   const [excel, setExcel] = useState({ busy: false, note: null, error: null })
@@ -242,6 +259,7 @@ export function HomeroomDebtsSheet({ onClose }) {
                   <PupilRow
                     key={p.studentId}
                     p={p}
+                    score={scoreOf[p.studentId]}
                     showGroup={manyGroups}
                     onOpen={() => {
                       haptic('light')
@@ -268,8 +286,8 @@ export function HomeroomDebtsSheet({ onClose }) {
             </div>
 
             <p className="mx-6 mt-3 text-center text-[12px] text-slate-400">
-              Qarz summasi buxgalteriyada. To'lov faqat kassada qabul qilinadi. Izoh yozish uchun
-              o'quvchini bosing.
+              Qarz summasi buxgalteriyada. To'lov faqat kassada qabul qilinadi. Baholar, ballar va izoh
+              uchun o'quvchini bosing.
             </p>
           </>
         )}
@@ -282,7 +300,7 @@ export function HomeroomDebtsSheet({ onClose }) {
 
 /* ------------------------------------------------------------------ qatorlar */
 
-function PupilRow({ p, showGroup, onOpen }) {
+function PupilRow({ p, score, showGroup, onOpen }) {
   const tel = p.parentPhone ? telHref(p.parentPhone) : null
   return (
     // Telefon havolasi ichida bo'lgani uchun <button> emas (ichma-ich interaktiv element bo'lmaydi).
@@ -297,6 +315,7 @@ function PupilRow({ p, showGroup, onOpen }) {
       <div className="min-w-0 flex-1">
         <p className="break-words text-[15px] font-semibold leading-snug">{p.fullName}</p>
         {showGroup && <p className="text-[12px] text-slate-400">{p.group}</p>}
+        {score !== undefined && <p className="mt-0.5 text-[13px] font-medium text-slate-500">{score} ball</p>}
         {p.unpaidMonths.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {p.unpaidMonths.map((m) => (
@@ -413,6 +432,8 @@ function PupilView({ p, onSaved }) {
         )}
       </Card>
 
+      <PupilProgressCards studentId={p.studentId} />
+
       <Card title="Izoh">
         <div className="space-y-3 px-4 pb-4 pt-2">
           <textarea
@@ -473,6 +494,14 @@ function Initial({ name }) {
   return (
     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[16px] font-bold text-slate-600">
       {String(name || '?').trim().charAt(0).toUpperCase()}
+    </div>
+  )
+}
+
+function ProgressIcon() {
+  return (
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/25 text-brand-ink">
+      <GraduationCap className="h-5 w-5" />
     </div>
   )
 }

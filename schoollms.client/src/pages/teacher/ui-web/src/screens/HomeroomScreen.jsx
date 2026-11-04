@@ -13,7 +13,7 @@ import { MONTH_NAMES } from '../lib/seasonal'
 const monthName = (iso) => (MONTH_NAMES[Number(String(iso).slice(5, 7)) - 1] || '').toLowerCase()
 
 // Homeroom — parent-arrived students highlighted + sorted to top, handover button.
-export default function HomeroomScreen({ onBack }) {
+export default function HomeroomScreen({ onBack, onNavigate }) {
   const home = useFetch(() => api.homeroom(), [])
   const picks = useFetch(() => api.pickups(), [])
   // Qarzdorlik (mijoz, 2026-10-12) — alohida so'rov: yiqilsa ham ro'yxat va topshirish ishlayveradi.
@@ -25,6 +25,10 @@ export default function HomeroomScreen({ onBack }) {
   const redById = {}
   for (const item of redList.data?.cases || []) redById[item.case.studentId] = item.case
   const redCount = redList.data?.cases?.length || 0
+  // Xulq-atvor balli (2026-11-04) — o'quvchi bosilsa baholar va ballar tarixi ochiladi.
+  const scores = useFetch(() => api.homeroomPupilScores().catch(() => []), [])
+  const scoreById = {}
+  for (const row of scores.data || []) scoreById[row.studentId] = row.score
   const redReason = (c) => {
     const what = redList.data.countExcused ? 'kelmadi' : 'sababsiz kelmadi'
     return c.trigger === 'consecutive'
@@ -45,6 +49,7 @@ export default function HomeroomScreen({ onBack }) {
   const [busy, setBusy] = useState(null) // studentId or pickupId being mutated
 
   const reload = () => { home.reload(); picks.reload() }
+  const openPupil = (studentId) => onNavigate?.('homeroomPupil', { studentId })
 
   const accept = async (id) => {
     setBusy(id)
@@ -168,13 +173,22 @@ export default function HomeroomScreen({ onBack }) {
                     style={{ border: isPending ? '1.5px solid #F59E0B80' : '1px solid var(--border)' }}
                   >
                     <Avatar name={s.fullName} size={44} />
-                    <div className="flex-1 min-w-0">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => openPupil(s.studentId)}
+                      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && openPupil(s.studentId)}
+                    >
                       <p className="text-[15px] font-bold text-text truncate">
                         {s.fullName}
                         {manyClasses && s.className && (
                           <span className="ml-1.5 text-[12px] font-semibold text-muted">{s.className}</span>
                         )}
                       </p>
+                      {scoreById[s.studentId] !== undefined && (
+                        <p className="text-[12.5px] font-semibold text-primary">{scoreById[s.studentId]} ball · baholar</p>
+                      )}
                       {isPending ? (
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="w-[7px] h-[7px] rounded-full bg-warning" />
