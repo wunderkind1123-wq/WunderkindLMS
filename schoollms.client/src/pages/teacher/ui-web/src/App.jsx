@@ -12,6 +12,7 @@ import AssignmentCreateScreen from './screens/AssignmentCreateScreen'
 import AssignmentResultsScreen from './screens/AssignmentResultsScreen'
 import ProfileScreen from './screens/ProfileScreen'
 import HomeroomScreen from './screens/HomeroomScreen'
+import HomeroomPupilScreen from './screens/HomeroomPupilScreen'
 import GroupsScreen from './screens/GroupsScreen'
 import GroupRosterScreen from './screens/GroupRosterScreen'
 import FeedbackScreen from './screens/FeedbackScreen'
@@ -37,6 +38,7 @@ const SCREENS = {
   assignmentCreate: { Comp: AssignmentCreateScreen },
   assignmentResults: { Comp: AssignmentResultsScreen },
   homeroom: { Comp: HomeroomScreen },
+  homeroomPupil: { Comp: HomeroomPupilScreen },
   groups: { Comp: GroupsScreen },
   groupRoster: { Comp: GroupRosterScreen },
   notifications: { Comp: NotificationsScreen },

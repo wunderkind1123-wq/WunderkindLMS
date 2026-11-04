@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SchoolLms.Application.Abstractions;
+using SchoolLms.Application.Dtos;
 using SchoolLms.Domain;
 
 namespace SchoolLms.Application.Services;
@@ -89,6 +90,46 @@ public static class DisciplineIncidents
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// One pupil's score and its whole history, newest first: manual entries and attendance-reason days,
+    /// only those that add up to the score (<see cref="ScoreSinceAsync"/>). The parent's cabinet and the
+    /// homeroom teacher read this same list.
+    /// </summary>
+    public static async Task<StudentDisciplineDto> HistoryAsync(
+        IAppDbContext db, string studentId, CancellationToken ct = default)
+    {
+        var since = await ScoreSinceAsync(db, ct);
+        var manual = await db.DisciplinePoints.AsNoTracking()
+            .Where(p => p.StudentId == studentId && (since == null || string.Compare(p.CreatedAt, since) >= 0))
+            .ToListAsync(ct);
+        var reasonNames = await db.DisciplineReasons.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name, ct);
+        var absenceReasons = await db.AbsenceReasons.AsNoTracking()
+            .ToDictionaryAsync(r => r.Id, r => new { r.Name, r.Points }, ct);
+
+        var items = manual.Select(p => new DisciplinePointDto(
+            p.Id, p.StudentId,
+            string.IsNullOrEmpty(p.ReasonName) ? reasonNames.GetValueOrDefault(p.ReasonId, "—") : p.ReasonName,
+            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual")).ToList();
+
+        // One day + one reason = one incident (AttendanceDisciplineDays): 7 missed lessons still count once.
+        var marks = await db.JournalEntries.AsNoTracking()
+            .Where(e => e.StudentId == studentId && e.ReasonId != null && (since == null || string.Compare(e.Date, since) >= 0))
+            .Select(e => new AttendanceDisciplineDays.Mark(e.Id, e.StudentId, e.Date, e.ReasonId!))
+            .ToListAsync(ct);
+        foreach (var d in AttendanceDisciplineDays.Collapse(marks))
+        {
+            if (!absenceReasons.TryGetValue(d.ReasonId, out var r) || r.Points == 0) continue;
+            items.Add(new DisciplinePointDto(
+                d.Id, studentId, r.Name, r.Points, AttendanceDisciplineDays.Note(d.Lessons), d.Date, "", "attendance"));
+        }
+
+        var plus = items.Where(i => i.Points > 0).Sum(i => i.Points);
+        var minus = items.Where(i => i.Points < 0).Sum(i => -i.Points);
+        return new StudentDisciplineDto(
+            BaseScore + plus - minus, plus, minus,
+            [.. items.OrderByDescending(i => i.CreatedAt, StringComparer.Ordinal)]);
     }
 
     /// <summary>Sum of today's manual points per pupil (every author).</summary>

@@ -66,6 +66,8 @@ Bundan tashqari **jurnal/baholash** endpointlari o'qituvchi **shu sinfda shu fan
 | GET | `/api/teacher/pickups` | Bugungi pickup so'rovlari (ota-ona "olishga keldim") |
 | POST | `/api/teacher/pickups/{id}/accept` | "Qabul qildim" → ota-onaga ruxsat push |
 | POST | `/api/teacher/homeroom/handover` | "Topshirdim" (farzandni topshirish) → ota-onaga push |
+| GET | `/api/teacher/homeroom/pupils` | O'z o'quvchilarining xulq-atvor balli |
+| GET | `/api/teacher/homeroom/pupils/{studentId}?quarter=` | Bitta o'quvchining baholari va ballari, kim qo'ygani bilan (boshqa sinf — 404) |
 
 ### Jurnal *(perm: journal + shu sinf+fanni o'qitish)*
 | Metod | Yo'l | Tavsif |
@@ -178,6 +180,15 @@ Reja jadvaldan, o'tilgan jurnaldagi **"dars o'tildi"** belgisidan. `quarter` ber
 
 `POST /api/teacher/homeroom/handover` `{ "studentId": "..." }` → farzandni ota-onaga topshirish
 (sana qoldiriladi) + ota-onaga push. Javob — pickup yozuvi.
+
+`GET /api/teacher/homeroom/pupils` → `[ { studentId, score } ]` — rahbarlikdagi sinf va guruh o'quvchilari.
+
+`GET /api/teacher/homeroom/pupils/{studentId}?quarter=` → faqat ko'rish, `quarter` bo'sh — joriy chorak:
+`{ studentId, fullName, group, quarter, quarters, subjects: [ { subjectId, subjectName, average } ],
+grades: [ { date, period, subjectName, grade, topic, teacherName } ],
+seasonalMarks: [ { subjectName, periodKind, year, month, quarter, score, comment, authorName } ],
+discipline: { remaining, plus, minus, items: [ { reasonName, points, note, createdAt, createdBy, source } ] } }`.
+`teacherName` jadval yoki o'rinbosarlikdan olinadi: jurnal baho muallifini saqlamaydi.
 
 ---
 

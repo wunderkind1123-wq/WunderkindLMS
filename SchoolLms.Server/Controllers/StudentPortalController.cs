@@ -392,32 +392,7 @@ public class StudentPortalController(
         var s = await TargetAsync(studentId);
         if (s is null) return NotFound();
 
-        // A new count (SchoolMeta.DisciplineScoreSince) shows the parent only the entries that add up to it.
-        var since = await DisciplineIncidents.ScoreSinceAsync(db);
-        var manual = await db.DisciplinePoints
-            .Where(p => p.StudentId == s.Id && (since == null || string.Compare(p.CreatedAt, since) >= 0)).ToListAsync();
-        var drNames = await db.DisciplineReasons.ToDictionaryAsync(r => r.Id, r => r.Name);
-        var absReasons = await db.AbsenceReasons.ToDictionaryAsync(r => r.Id, r => new { r.Name, r.Points });
-
-        var items = manual.Select(p => new DisciplinePointDto(
-            p.Id, p.StudentId,
-            string.IsNullOrEmpty(p.ReasonName) ? drNames.GetValueOrDefault(p.ReasonId, "—") : p.ReasonName,
-            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual")).ToList();
-
-        // Bitta kun + bitta sabab = bitta hodisa (AttendanceDisciplineDays): 7 darsga kelmasa ham ball bir marta.
-        var journal = await db.JournalEntries
-            .Where(e => e.StudentId == s.Id && e.ReasonId != null && (since == null || string.Compare(e.Date, since) >= 0))
-            .Select(e => new AttendanceDisciplineDays.Mark(e.Id, e.StudentId, e.Date, e.ReasonId!)).ToListAsync();
-        foreach (var d in AttendanceDisciplineDays.Collapse(journal))
-        {
-            if (!absReasons.TryGetValue(d.ReasonId, out var r) || r.Points == 0) continue;
-            items.Add(new DisciplinePointDto(d.Id, s.Id, r.Name, r.Points, AttendanceDisciplineDays.Note(d.Lessons), d.Date, "", "attendance"));
-        }
-
-        var plus = items.Where(i => i.Points > 0).Sum(i => i.Points);
-        var minus = items.Where(i => i.Points < 0).Sum(i => -i.Points);
-        var ordered = items.OrderByDescending(i => i.CreatedAt, StringComparer.Ordinal).ToList();
-        return new StudentDisciplineDto(100 + plus - minus, plus, minus, ordered);
+        return await DisciplineIncidents.HistoryAsync(db, s.Id);
     }
 
     // ---------- Jadval (o'z sinfi + guruhlari) ----------
