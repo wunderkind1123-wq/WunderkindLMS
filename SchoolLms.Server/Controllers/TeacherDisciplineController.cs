@@ -214,7 +214,7 @@ public sealed class TeacherDisciplineController(
         var studentName = await db.Students.AsNoTracking().Where(s => s.Id == point.StudentId)
             .Select(s => s.FullName).FirstOrDefaultAsync(ct) ?? point.StudentId;
         audit.Record(AuditService.EntityDisciplinePoint, point.Id, "delete",
-            $"Xulq-atvor yozuvi o'chirildi: {point.ReasonName} ({(point.Points > 0 ? "+" : "")}{point.Points}) — {studentName}",
+            $"Gamifikatsiya yozuvi o'chirildi: {point.ReasonName} ({(point.Points > 0 ? "+" : "")}{point.Points}) — {studentName}",
             before: new { point.ReasonId, point.ReasonName, point.Points, point.Note, point.CreatedAt, point.CreatedBy },
             studentId: point.StudentId, teacherId: t.Id);
         db.DisciplinePoints.Remove(point);

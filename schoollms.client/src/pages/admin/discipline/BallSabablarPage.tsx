@@ -185,7 +185,7 @@ export function BallSabablarPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Ball sabablar</h1>
           <p className="text-sm text-slate-400">
-            Xulq-atvor sabablari — har biri ijobiy (ball qo'shiladi) yoki salbiy (ball ayriladi)
+            Gamifikatsiya sabablari — har biri ijobiy (ball qo'shiladi) yoki salbiy (ball ayriladi)
           </p>
         </div>
         <Button onClick={openCreate}>

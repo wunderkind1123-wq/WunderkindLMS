@@ -60,7 +60,7 @@ export function DisciplineTab({ points, score, student, canEdit, onChanged }: Pr
 
   return (
     <ProfileSection
-      title="Xulq-atvor"
+      title="Gamifikatsiya"
       icon={ShieldAlert}
       action={
         canEdit && (

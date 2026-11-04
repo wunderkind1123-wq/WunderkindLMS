@@ -78,7 +78,7 @@ public static class McpAreas
 
     public static readonly McpArea Marketing = new("Sotuv va marketing", ["/admin/marketing/arizalar"], ["marketing"]);
 
-    public static readonly McpArea Discipline = new("Xulq-atvor",
+    public static readonly McpArea Discipline = new("Gamifikatsiya",
         ["/admin/discipline", "/admin/discipline/incidents"], ["discipline"]);
 
     public static readonly McpArea Messages = new("Xabarlar", ["/admin/messages"], ["messages"]);

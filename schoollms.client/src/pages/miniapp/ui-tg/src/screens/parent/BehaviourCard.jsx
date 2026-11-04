@@ -34,7 +34,7 @@ export function BehaviourCard({ childId }) {
 
   if (q.error || !data) {
     return (
-      <Card title="Xulq-atvor">
+      <Card title="Gamifikatsiya">
         {q.error ? (
           <p className="px-4 pb-4 pt-1 text-[13px] text-slate-500">Yuklab bo'lmadi. Ilovani qayta ochib ko'ring.</p>
         ) : (
@@ -49,7 +49,7 @@ export function BehaviourCard({ childId }) {
 
   return (
     <Card
-      title="Xulq-atvor"
+      title="Gamifikatsiya"
       action={
         items.length > PREVIEW ? (
           <button

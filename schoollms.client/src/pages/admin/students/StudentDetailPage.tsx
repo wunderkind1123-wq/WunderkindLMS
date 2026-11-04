@@ -89,7 +89,7 @@ const moreTabs: TabDef[] = [
   { id: 'attendance', label: 'Davomat', icon: CalendarCheck },
   { id: 'certificates', label: 'Sertifikatlar', icon: Award },
   { id: 'contracts', label: 'Shartnomalar', icon: FileSignature },
-  { id: 'discipline', label: 'Xulq-atvor', icon: ShieldAlert },
+  { id: 'discipline', label: 'Gamifikatsiya', icon: ShieldAlert },
   { id: 'location', label: 'Manzil', icon: MapPin },
   { id: 'activity', label: 'Harakat tarixi', icon: History },
 ]

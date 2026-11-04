@@ -246,7 +246,7 @@ public class DisciplineController(
         var before = meta.DisciplineScoreSince;
         meta.DisciplineScoreSince = value;
         audit.Record("SchoolMeta", meta.Id, "update",
-            value.Length > 0 ? $"Xulq-atvor balli {value} dan hisoblanadi" : "Xulq-atvor balli butun tarix bo'yicha hisoblanadi",
+            value.Length > 0 ? $"Gamifikatsiya balli {value} dan hisoblanadi" : "Gamifikatsiya balli butun tarix bo'yicha hisoblanadi",
             before: new { disciplineScoreSince = before }, after: new { disciplineScoreSince = value });
         await db.SaveChangesAsync();
         return new DisciplineScoreSinceDto(value);
@@ -774,7 +774,7 @@ public class DisciplineController(
             p.UpdatedAt = AppClock.Now.ToString("o");
             p.UpdatedBy = user?.FullName ?? "Administrator";
             audit.Record(AuditService.EntityDisciplinePoint, p.Id, "update",
-                $"Xulq-atvor yozuvi tahrirlandi: {p.ReasonName} ({Signed(p.Points)}) — {await StudentNameAsync(p.StudentId, ct)}",
+                $"Gamifikatsiya yozuvi tahrirlandi: {p.ReasonName} ({Signed(p.Points)}) — {await StudentNameAsync(p.StudentId, ct)}",
                 before: before, after: new { p.ReasonId, p.ReasonName, p.Points, p.Note },
                 studentId: p.StudentId);
             await db.SaveChangesAsync(ct);
@@ -793,7 +793,7 @@ public class DisciplineController(
         if (p is not null)
         {
             audit.Record(AuditService.EntityDisciplinePoint, p.Id, "delete",
-                $"Xulq-atvor yozuvi o'chirildi: {p.ReasonName} ({Signed(p.Points)}) — {await StudentNameAsync(p.StudentId)}",
+                $"Gamifikatsiya yozuvi o'chirildi: {p.ReasonName} ({Signed(p.Points)}) — {await StudentNameAsync(p.StudentId)}",
                 before: new { p.ReasonId, p.ReasonName, p.Points, p.Note, p.CreatedAt, p.CreatedBy },
                 studentId: p.StudentId);
             db.DisciplinePoints.Remove(p);

@@ -260,7 +260,7 @@ export function HarakatlarPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Harakatlar</h1>
           <p className="text-sm text-slate-400">
-            Maktab bo'ylab xulq-atvor yozuvlari — qo'lda kiritilgan (xodimlar va o'qituvchilar) va jurnal
+            Maktab bo'ylab gamifikatsiya yozuvlari — qo'lda kiritilgan (xodimlar va o'qituvchilar) va jurnal
             davomatidan kelgan ballar bir ro'yxatda.
           </p>
         </div>
