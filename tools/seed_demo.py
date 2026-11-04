@@ -813,7 +813,7 @@ def main():
             "salary": salary,
             "salaryStartMonth": "2026-09",
             "newPassword": DEMO_PASSWORD,
-            "permissions": ["journal", "assignments", "schedule", "messages", "salary"],
+            "permissions": ["journal", "assignments", "schedule", "messages", "salary", "seasonalMarks"],
             "phone": f"+998 90 {100 + i:03d} {10 + i:02d} {20 + i:02d}",
             "category": cat,
             "salaryStartDate": "2026-09-01",
@@ -826,7 +826,7 @@ def main():
                 "homeroomClass": CLASSES[i][0], "subjectIds": [subject_ids[i]],
                 "salary": salary, "salaryStartMonth": "2026-09",
                 "newPassword": DEMO_PASSWORD,
-                "permissions": ["journal", "assignments", "schedule", "messages", "salary"],
+                "permissions": ["journal", "assignments", "schedule", "messages", "salary", "seasonalMarks"],
                 "phone": f"+998 90 {100 + i:03d} {10 + i:02d} {20 + i:02d}",
                 "category": cat, "salaryStartDate": "2026-09-01",
             }, quiet=True)

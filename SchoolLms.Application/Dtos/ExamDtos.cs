@@ -341,6 +341,45 @@ public sealed record ExamTeacherRowDto(
 public sealed record ExamTeacherSaveRequest(string? OwnerId, IReadOnlyList<ExamEntrySaveRow>? Rows);
 
 // ---------------------------------------------------------------------------
+//  Family's cabinet — GET /api/student/exam-results (client, 2026-11-03)
+// ---------------------------------------------------------------------------
+
+/// <summary><c>exam-results</c>: months newest first, exams newest first.</summary>
+public sealed record PortalExamResultsDto(
+    IReadOnlyList<PortalExamMonthDto> Months, IReadOnlyList<PortalExamResultDto> Exams);
+
+/// <summary>One block of a sitting. <c>Points</c> is <c>null</c> until it is entered.</summary>
+/// <param name="Certificate">The certificate that exempted the pupil from this block.</param>
+public sealed record PortalExamBlockDto(
+    int Block, string SubjectId, string SubjectName, decimal? Points, decimal MaxPoints, string? Certificate);
+
+/// <summary>
+/// One sitting. Total and percent are given only when <paramref name="IsComplete"/>: every block is
+/// entered. Before that the total would read as a low result.
+/// </summary>
+public sealed record PortalExamResultDto(
+    string ExamId, string Title, string? TypeName, string? ExamDate, bool IsAbsent, bool IsComplete,
+    decimal? TotalPoints, decimal? MaxPoints, decimal? Percent, IReadOnlyList<PortalExamBlockDto> Blocks);
+
+/// <summary>One month of the growth view.</summary>
+/// <param name="Month">"YYYY-MM".</param>
+/// <param name="TestPercent">Mean percent of the month's complete tests.</param>
+/// <param name="TestChange">Against the previous month that has a test percent.</param>
+/// <param name="TestCount">Complete tests behind <paramref name="TestPercent"/>.</param>
+/// <param name="AbsentCount">Tests the pupil missed — not in the mean.</param>
+/// <param name="PendingCount">Tests still being entered — not in the mean.</param>
+/// <param name="MarkAverage">Mean of the month's seasonal marks (0–100).</param>
+/// <param name="MarkChange">Against the previous month that has marks.</param>
+public sealed record PortalExamMonthDto(
+    string Month,
+    decimal? TestPercent, decimal? TestChange, int TestCount, int AbsentCount, int PendingCount,
+    decimal? MarkAverage, decimal? MarkChange, int MarkCount,
+    IReadOnlyList<PortalExamMonthSubjectDto> Subjects);
+
+/// <summary>One subject of a month: all its blocks together, and its seasonal mark.</summary>
+public sealed record PortalExamMonthSubjectDto(string SubjectId, string Name, decimal? TestPercent, decimal? Mark);
+
+// ---------------------------------------------------------------------------
 //  Results register (screen 8)
 // ---------------------------------------------------------------------------
 

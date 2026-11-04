@@ -486,6 +486,20 @@ public class StudentPortalController(
     }
 
     /// <summary>
+    /// Test natijalari (blok va oylik) va oylik o'sish (mijoz, 2026-11-03) — o'zlashtirish, shuning
+    /// uchun baholar bilan bir xil bayroq ostida. Qoidalar: <see cref="PortalExamResultsService"/>.
+    /// </summary>
+    [HttpGet("exam-results")]
+    public async Task<ActionResult<PortalExamResultsDto>> ExamResults([FromQuery] string? studentId, CancellationToken ct = default)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        if (await ProgressHiddenAsync(ct)) return ProgressHidden();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+        return await PortalExamResultsService.ForStudentAsync(db, s.Id, ct);
+    }
+
+    /// <summary>
     /// O'quvchi reytingi (admin "Reyting"i bilan bir xil hisob — o'rtacha baho bo'yicha):
     /// <b>o'z sinfini to'liq</b>, <b>maktab bo'yicha esa faqat TOP 15</b> ko'radi.
     /// O'z qatori `MeStudentId` bilan, maktab o'rni (top 15 dan tashqarida bo'lsa ham) `MeSchoolRank` bilan beriladi.

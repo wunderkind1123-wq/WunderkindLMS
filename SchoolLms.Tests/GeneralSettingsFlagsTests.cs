@@ -280,7 +280,8 @@ public class GeneralSettingsFlagsTests(ApiFixture fixture)
             foreach (var url in new[]
                      {
                          "/api/student/grades", "/api/student/notebook", "/api/student/rating",
-                         "/api/student/assignment-scores", $"/api/tg/parent/children/{p.StudentId}/grades",
+                         "/api/student/assignment-scores", "/api/student/exam-results",
+                         $"/api/tg/parent/children/{p.StudentId}/grades",
                      })
                 Assert.Equal(HttpStatusCode.Forbidden, (await parent.GetAsync(url)).StatusCode);
 
