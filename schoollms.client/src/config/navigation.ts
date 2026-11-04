@@ -1,11 +1,10 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  Bot,
+  Megaphone,
   FileBadge,
   CalendarCheck,
   FlaskConical,
   LayoutDashboard,
-  UserPlus,
   GraduationCap,
   NotebookText,
   CalendarRange,
@@ -84,27 +83,28 @@ export const navByRole: Record<Role, NavItem[]> = {
     // Mijoz, 2026-09-22: "leadlar bo'limi uchun voronka kerakmas" — menyuda faqat
     // doska, ichki ro'yxatsiz. `/admin/leads/funnel` sahifasi o'chirilmadi (manzil
     // ishlaydi), faqat menyudan olindi; voronka bosh sahifada vidjet sifatida qoladi.
-    { label: 'Lidlar', to: '/admin/leads', icon: UserPlus, perm: 'leads' },
-    // Instagram/Telegram AI sotuv agenti — alohida servis, panel ramkada (docs/modules/chatbot.md).
-    // Mijoz, 2026-11-03: chatbot menyulari shu menyu ostida submenyu bo'lsin. Har biri ramkadagi
-    // panelning shu sahifasini ochadi (ChatbotPage); panelning o'z yon menyusi LMS ichida yashirin.
-    // Sozlamalar-turidagi sahifalarni panelning o'zi faqat chatbot `admin`iga ochadi (to'liq kalit).
+    // Mijoz, 2026-11-04: Lidlar va Chatbot bitta «Marketing» bo'limi ichida (ikki ustun).
+    // Sahifa manzillari va ruxsat kalitlari (`leads`, `chatbot`) o'zgarmagan — rollardagi
+    // sahifa ruxsatlari ham shu manzillarga bog'langan. `to` — faollik prefiksi uchun; ataylab
+    // `/admin/marketing` emas, aks holda Sozlamalardagi «Sotuv va marketing» ham bu bo'limni yoqardi.
+    // Chatbot — Instagram/Telegram AI sotuv agenti, panel ramkada (docs/modules/chatbot.md);
+    // Sozlamalar-turidagi sahifalarni panelning o'zi faqat chatbot `admin`iga ochadi.
     {
-      label: 'Chatbot',
-      to: '/admin/chatbot',
-      icon: Bot,
-      perm: 'chatbot',
+      label: 'Marketing',
+      to: '/admin/leads',
+      icon: Megaphone,
       children: [
-        { label: 'Umumiy ko\'rinish', to: '/admin/chatbot', end: true },
-        { label: 'Suhbatlar', to: '/admin/chatbot/inbox' },
-        { label: 'Leadlar', to: '/admin/chatbot/leads' },
-        { label: 'Voronka', to: '/admin/chatbot/funnel' },
-        { label: 'Formalar', to: '/admin/chatbot/forms' },
-        { label: 'Bilim bazasi', to: '/admin/chatbot/knowledge' },
-        { label: 'Bot menyusi', to: '/admin/chatbot/bot-menu' },
-        { label: 'Sinov', to: '/admin/chatbot/playground' },
-        { label: 'Sozlamalar', to: '/admin/chatbot/settings' },
-        { label: 'Foydalanuvchilar', to: '/admin/chatbot/users' },
+        { label: 'Lidlar', to: '/admin/leads', perm: 'leads', group: 'LIDLAR' },
+        { label: 'Umumiy ko\'rinish', to: '/admin/chatbot', end: true, perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Suhbatlar', to: '/admin/chatbot/inbox', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Leadlar', to: '/admin/chatbot/leads', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Voronka', to: '/admin/chatbot/funnel', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Formalar', to: '/admin/chatbot/forms', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Bilim bazasi', to: '/admin/chatbot/knowledge', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Bot menyusi', to: '/admin/chatbot/bot-menu', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Sinov', to: '/admin/chatbot/playground', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Sozlamalar', to: '/admin/chatbot/settings', perm: 'chatbot', group: 'CHATBOT' },
+        { label: 'Foydalanuvchilar', to: '/admin/chatbot/users', perm: 'chatbot', group: 'CHATBOT' },
       ],
     },
     {
