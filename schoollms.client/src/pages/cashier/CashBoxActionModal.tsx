@@ -18,6 +18,7 @@ import { DatePicker } from '@/components/ui/DatePicker'
 import { Select, Textarea } from '@/components/ui/Input'
 import { Notice } from '@/pages/admin/billing/BillingUi'
 import { MoneyInput } from './MoneyInput'
+import { SalaryRecipientSelect } from './SalaryRecipientSelect'
 import { formatSum, methodLabels, parseSum } from './format'
 import type { CashBoxActionMode } from './CashBoxCard'
 
@@ -222,23 +223,7 @@ export function CashBoxActionModal({ box, otherBoxes, mode, onClose, onDone }: P
 
         {isSalary && (
           <div>
-            <Select
-              label="Xodim"
-              required
-              value={recipientKey}
-              onChange={(e) => setRecipientKey(e.target.value)}
-              disabled={recipients.length === 0}
-            >
-              <option value="" disabled>
-                {recipients.length === 0 ? "Xodimlar ro'yxati yuklanmadi" : 'Tanlang...'}
-              </option>
-              {recipients.map((r) => (
-                <option key={`${r.kind}:${r.id}`} value={`${r.kind}:${r.id}`}>
-                  {r.name}
-                  {r.kind === 'teacher' ? " — o'qituvchi" : ''}
-                </option>
-              ))}
-            </Select>
+            <SalaryRecipientSelect recipients={recipients} value={recipientKey} onChange={setRecipientKey} />
             <p className="mt-1 text-xs text-slate-400">Maosh kimga berilgani — «Ish haqi» hisobotida shu xodimga yoziladi.</p>
           </div>
         )}

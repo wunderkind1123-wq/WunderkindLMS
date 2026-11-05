@@ -140,7 +140,13 @@ export function StaffFormDrawer({ editing, roles, canManageRoles, knownPositions
     >
       <form id="staff-form" onSubmit={handleSubmit} className="space-y-4">
         <PhotoUpload label="Profil rasmi" value={avatarUrl || null} onChange={(url) => setAvatarUrl(url ?? '')} />
-        <Input label="F.I.SH" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <Input
+          label="F.I.SH"
+          required
+          placeholder="Familiya Ism Sharif"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600" htmlFor="staff-position">
             Lavozim
