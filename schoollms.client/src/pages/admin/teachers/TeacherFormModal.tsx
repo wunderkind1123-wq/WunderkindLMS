@@ -165,6 +165,7 @@ export function TeacherFormModal({
         <Input
           label="F.I.SH"
           required
+          placeholder="Familiya Ism Sharif"
           value={form.fullName}
           onChange={(e) => update('fullName', e.target.value)}
         />
