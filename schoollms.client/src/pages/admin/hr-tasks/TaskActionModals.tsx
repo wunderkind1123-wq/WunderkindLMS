@@ -22,6 +22,7 @@ export function TaskEditModal({
   const due = hrTashkentParts(task.dueAt)
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? '')
+  const [startDate, setStartDate] = useState(task.periodStart ?? due?.date ?? '')
   const [date, setDate] = useState(due?.date ?? '')
   const [time, setTime] = useState(due?.time ?? '18:00')
   const [submitted, setSubmitted] = useState(false)
@@ -33,14 +34,15 @@ export function TaskEditModal({
   const descriptionError = description.trim().length > 2000 ? 'Tavsif 2000 belgidan oshmasin' : null
   const dueIso = hrToIso(date, time)
   const dueError = !date ? 'Muddatni belgilang' : !dueIso ? 'Muddat noto‘g‘ri: sana va vaqtni tanlang' : null
+  const startError = !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ? 'Boshlanish sanasini tanlang' : date && startDate > date ? 'Boshlanish muddatdan keyin bo‘lmasin' : null
 
   async function save(): Promise<void> {
     setSubmitted(true)
-    if (titleError || descriptionError || dueError || !dueIso) return
+    if (titleError || descriptionError || dueError || startError || !dueIso) return
     setBusy(true)
     setError(null)
     try {
-      await updateTask(task.id, { title: title.trim(), description: description.trim() || null, dueAt: dueIso })
+      await updateTask(task.id, { title: title.trim(), description: description.trim() || null, dueAt: dueIso, startDate })
       onSaved('Topshiriq yangilandi')
     } catch (err) {
       setError(hrErrorMessage(err))
@@ -73,7 +75,7 @@ export function TaskEditModal({
           void save()
         }}
       >
-        <p className="text-sm text-slate-400">Sarlavha, tavsif va muddat o‘zgartiriladi</p>
+        <p className="text-sm text-slate-400">Sarlavha, tavsif, boshlanish va muddat o‘zgartiriladi (faqat muddat o‘tmagan bo‘lsa)</p>
         <div>
           <p className="text-sm font-medium text-slate-600">Xodim</p>
           <p className="mt-0.5 text-sm text-slate-800">{task.employeeName ?? '—'}</p>
@@ -89,6 +91,9 @@ export function TaskEditModal({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Nima qilinishi kerakligi qisqacha"
           />
+        </Field>
+        <Field label="Boshlanish" required hint="Xodim topshiriqni shu kundan ko‘radi" error={submitted ? startError : null}>
+          <input type="date" className={inputCls} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </Field>
         <DateTimeField
           label="Muddat"

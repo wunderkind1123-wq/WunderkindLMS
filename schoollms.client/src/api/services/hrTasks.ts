@@ -544,6 +544,8 @@ export interface HrMyTask {
   id: string
   title: string
   description: string | null
+  /** `YYYY-MM-DD` — topshiriq shu kundan ko'rinadi (uzoq muddatli topshiriqda muddatdan oldin). */
+  periodStart: string | null
   kind: Task['kind']
   status: Task['status']
   source: Task['source']
@@ -574,6 +576,7 @@ function toMyTask(raw: RawMyTask): HrMyTask {
     id: raw.id ?? '',
     title: raw.title ?? '',
     description: raw.description ?? null,
+    periodStart: raw.periodStart ?? null,
     kind: raw.kind ?? 'check',
     status: raw.status ?? 'open',
     source: raw.source ?? 'director',
@@ -674,4 +677,42 @@ export async function uploadMyProof(taskId: string, vars: HrUploadVars): Promise
 export async function getMySummary(): Promise<Summary> {
   const { data } = await api.get<Summary>(`${ME}/summary`)
   return data
+}
+
+/* ------------------------------------------- own edits and recurring rules (2026-11-06) */
+
+/** `PATCH /api/hr/me/tasks/{id}` — an OWN self task, before its due time only. */
+export async function updateMyTask(
+  id: string,
+  input: { title?: string; description?: string | null; dueAt?: string; startDate?: string },
+): Promise<HrMyTask> {
+  const { data } = await api.patch<RawMyTask>(`${ME}/tasks/${id}`, input)
+  return toMyTask(data)
+}
+
+/** Recurring rules the employee made for THEMSELF (the target is always oneself). */
+export type HrMyTemplatePayload = Omit<HrTemplateCreatePayload, 'targetType' | 'targetEmployeeId' | 'targetPositionId'>
+
+export async function getMyTemplates(): Promise<HrTaskTemplate[]> {
+  const { data } = await api.get<HrTaskTemplate[]>(`${ME}/templates`)
+  return data ?? []
+}
+
+export async function createMyTemplate(payload: HrMyTemplatePayload): Promise<HrTaskTemplate> {
+  const { data } = await api.post<HrTaskTemplate>(`${ME}/templates`, payload)
+  return data
+}
+
+export async function updateMyTemplate(id: string, payload: Partial<HrMyTemplatePayload>): Promise<HrTaskTemplate> {
+  const { data } = await api.patch<HrTaskTemplate>(`${ME}/templates/${id}`, payload)
+  return data
+}
+
+export async function toggleMyTemplate(id: string): Promise<HrTaskTemplate> {
+  const { data } = await api.post<HrTaskTemplate>(`${ME}/templates/${id}/toggle`)
+  return data
+}
+
+export async function deleteMyTemplate(id: string): Promise<void> {
+  await api.delete(`${ME}/templates/${id}`)
 }

@@ -9,12 +9,15 @@
 import { useState } from 'react'
 import { Segmented } from '../../components/ui'
 import { hapticSelect } from '../../lib/telegram'
+import { RecurringScreen } from './RecurringScreen'
 import { SummaryScreen } from './SummaryScreen'
 import { TasksScreen } from './TasksScreen'
 import { t } from './texts'
 
 const VIEWS = [
   { value: 'tasks', label: t('nav.tasks') },
+  // o'ziga takroriy topshiriqlar (2026-11-06)
+  { value: 'recurring', label: t('nav.recurring') },
   { value: 'summary', label: t('nav.summary') },
 ]
 
@@ -31,5 +34,7 @@ export function HrTab({ me }) {
       }}
     />
   )
-  return view === 'tasks' ? <TasksScreen me={me} heroTop={top} /> : <SummaryScreen heroTop={top} />
+  if (view === 'tasks') return <TasksScreen me={me} heroTop={top} />
+  if (view === 'recurring') return <RecurringScreen heroTop={top} />
+  return <SummaryScreen heroTop={top} />
 }

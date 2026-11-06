@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BellRing, CheckCircle2, CornerUpLeft, FileText, Mic, Plus, RotateCcw, Search, TrendingUp, UserX } from 'lucide-react'
+import { BellRing, CheckCircle2, CornerUpLeft, FileText, Mic, Pencil, Plus, RotateCcw, Search, TrendingUp, UserX } from 'lucide-react'
 import {
   acceptMyTask,
   getMe,
@@ -18,6 +18,7 @@ import { Badge, CursorPager, EmptyState, PageHeader, ProgressBar, Skeleton, inpu
 import { useCursorStack, useDebounced, useToast } from '@/components/hr-tasks/hooks'
 import { useLoad } from '@/components/hr-tasks/useLoad'
 import {
+  hrFormatDate,
   hrFormatDateTime,
   hrFormatPercent,
   hrIsOverdue,
@@ -34,13 +35,16 @@ import {
 } from '@/components/hr-tasks/lib'
 import { cn } from '@/lib/utils'
 import { CompleteTaskModal, ProgressModal, SelfTaskModal } from './MyTaskModals'
+import { MyTemplatesSection } from './MyTemplatesSection'
 
-type MyTab = 'open' | 'done' | 'all'
+type MyTab = 'open' | 'done' | 'all' | 'recurring'
 
 const TABS: { key: MyTab; label: string }[] = [
   { key: 'open', label: 'Bajarish kerak' },
   { key: 'done', label: 'Bajarilgan' },
   { key: 'all', label: 'Hammasi' },
+  // own recurring rules (client, 2026-11-06)
+  { key: 'recurring', label: 'Takroriy' },
 ]
 
 /** `open` — includes `returned` (open again for the employee). */
@@ -50,7 +54,7 @@ function tabStatuses(tab: MyTab): HrTaskStatus[] {
   return []
 }
 
-type Action = { kind: 'complete' | 'progress'; task: HrMyTask } | { kind: 'self' } | null
+type Action = { kind: 'complete' | 'progress' | 'edit'; task: HrMyTask } | { kind: 'self' } | null
 
 /**
  * "Mening topshiriqlarim" — the user's OWN HR tasks (`/api/hr/me/*`, the old
@@ -71,7 +75,7 @@ export function HrMyTasksPage() {
   const pager = useCursorStack(filterKey)
 
   const ready = Boolean(me.data)
-  const list = useLoad(ready ? `my|${filterKey}|${pager.cursor ?? ''}|${version}` : null, () =>
+  const list = useLoad(ready && tab !== 'recurring' ? `my|${filterKey}|${pager.cursor ?? ''}|${version}` : null, () =>
     getMyTasks({
       status: tabStatuses(tab),
       q,
@@ -203,6 +207,10 @@ export function HrMyTasksPage() {
         ))}
       </div>
 
+      {tab === 'recurring' ? (
+        <MyTemplatesSection employeeId={me.data.employeeId} onMessage={(m) => toast.success(m)} onError={(m) => toast.error(m)} />
+      ) : (
+      <>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input className={cn(inputCls, 'pl-9')} placeholder="Topshiriq sarlavhasi" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -251,6 +259,7 @@ export function HrMyTasksPage() {
               onComplete={() => setAction({ kind: 'complete', task })}
               onProgress={() => setAction({ kind: 'progress', task })}
               onReopen={() => void run(task, reopenMyTask, 'Topshiriq qayta ochildi')}
+              onEdit={() => setAction({ kind: 'edit', task })}
             />
           ))}
         </ul>
@@ -264,6 +273,8 @@ export function HrMyTasksPage() {
         onPrev={pager.prev}
         onNext={() => pager.next(page?.nextCursor ?? null)}
       />
+      </>
+      )}
 
       <p className="text-xs text-slate-400">
         Topshiriqlar Telegram’dagi Mini App’da ham ko‘rinadi — u yerdan ham bajarish mumkin.
@@ -272,6 +283,7 @@ export function HrMyTasksPage() {
       {action?.kind === 'complete' && <CompleteTaskModal task={action.task} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === 'progress' && <ProgressModal task={action.task} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === 'self' && <SelfTaskModal today={today} onClose={() => setAction(null)} onDone={done} />}
+      {action?.kind === 'edit' && <SelfTaskModal today={today} task={action.task} onClose={() => setAction(null)} onDone={done} />}
       {toast.node}
     </div>
   )
@@ -285,6 +297,7 @@ function MyTaskCard({
   onComplete,
   onProgress,
   onReopen,
+  onEdit,
 }: {
   task: HrMyTask
   today: string
@@ -293,6 +306,7 @@ function MyTaskCard({
   onComplete: () => void
   onProgress: () => void
   onReopen: () => void
+  onEdit: () => void
 }) {
   const overdue = task.isOverdue ?? hrIsOverdue(task)
   const progress = hrProgressText(task)
@@ -302,6 +316,10 @@ function MyTaskCard({
   const open = task.status === 'open' || task.status === 'returned'
   // Reopen — only tasks completed today (the backend rejects the rest anyway).
   const canReopen = task.status === 'done' && hrTashkentParts(task.completedAt)?.date === today
+  // Own self task, before its due time (2026-11-06) — the server checks the same.
+  const canEdit = open && task.source === 'self' && !!task.dueAt && !overdue
+  const dueDay = hrTashkentParts(task.dueAt)?.date
+  const longTask = !!task.periodStart && !!dueDay && task.periodStart < dueDay
 
   return (
     <li className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm sm:p-4">
@@ -322,6 +340,12 @@ function MyTaskCard({
       </div>
 
       <dl className="mt-2 grid gap-1 text-sm text-slate-400 sm:grid-cols-2">
+        {longTask && (
+          <div className="flex gap-2">
+            <dt className="shrink-0">Boshlanish:</dt>
+            <dd className="tabular-nums text-slate-700">{hrFormatDate(task.periodStart)}</dd>
+          </div>
+        )}
         <div className="flex gap-2">
           <dt className="shrink-0">Muddat:</dt>
           <dd className="tabular-nums text-slate-700">{hrFormatDateTime(task.dueAt)}</dd>
@@ -376,7 +400,7 @@ function MyTaskCard({
 
       {task.proofs.length > 0 && <p className="mt-2 text-xs text-slate-400">{task.proofs.length} ta isbot biriktirilgan</p>}
 
-      {(open || canReopen) && (
+      {(open || canReopen || canEdit) && (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {open && task.needsAcceptance && (
             <Button variant="secondary" disabled={busy} onClick={onAccept}>
@@ -394,6 +418,12 @@ function MyTaskCard({
             <Button disabled={busy} onClick={onComplete}>
               <CheckCircle2 className="h-4 w-4" />
               Bajardim
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="ghost" disabled={busy} onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+              Tahrirlash
             </Button>
           )}
           {canReopen && (

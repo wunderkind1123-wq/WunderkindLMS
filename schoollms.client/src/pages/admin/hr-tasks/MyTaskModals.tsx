@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
 import { FileText, Paperclip, X } from 'lucide-react'
-import { addMyProgress, completeMyTask, createMyTask, hrErrorCode, hrErrorMessage, hrErrorStatus, uploadMyProof, type HrMyTask } from '@/api/services/hrTasks'
+import { addMyProgress, completeMyTask, createMyTask, hrErrorCode, hrErrorMessage, hrErrorStatus, updateMyTask, uploadMyProof, type HrMyTask } from '@/api/services/hrTasks'
 import { HR_MAX_PROOFS, HR_PROOF_ACCEPT } from '@/types/hrTasks'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { DateTimeField, Field, inputCls } from '@/components/hr-tasks/ui'
-import { hrFormatBytes, hrFormatDateTime, hrProgressText, hrProofFileError, hrToIso } from '@/components/hr-tasks/lib'
+import { hrFormatBytes, hrFormatDateTime, hrProgressText, hrProofFileError, hrTashkentParts, hrToIso } from '@/components/hr-tasks/lib'
 
 const footerCls = 'flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end'
 
@@ -251,20 +251,29 @@ export function ProgressModal({
   )
 }
 
-/** "+ O'zimga topshiriq" (`source = self`). */
+/**
+ * "+ O'zimga topshiriq" (`source = self`) and, with `task`, editing it (2026-11-06 — an own
+ * self task, before its due time). "Boshlanish" — the day it shows from: a task for a month is
+ * in the list from today, not only on its due day.
+ */
 export function SelfTaskModal({
   today,
+  task,
   onClose,
   onDone,
 }: {
   today: string
+  /** Set — edit this own task. */
+  task?: HrMyTask
   onClose: () => void
   onDone: (message: string) => void
 }) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [date, setDate] = useState(today)
-  const [time, setTime] = useState('18:00')
+  const due = hrTashkentParts(task?.dueAt)
+  const [title, setTitle] = useState(task?.title ?? '')
+  const [description, setDescription] = useState(task?.description ?? '')
+  const [startDate, setStartDate] = useState(task?.periodStart ?? today)
+  const [date, setDate] = useState(due?.date ?? today)
+  const [time, setTime] = useState(due?.time ?? '18:00')
   const [submitted, setSubmitted] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -272,15 +281,26 @@ export function SelfTaskModal({
   const titleError = title.trim().length < 3 ? 'Sarlavha kamida 3 ta belgi' : title.trim().length > 200 ? 'Sarlavha 200 belgidan oshmasin' : null
   const dueIso = hrToIso(date, time)
   const dueError = !dueIso ? 'Muddat noto‘g‘ri: sana va vaqtni tanlang' : null
+  const startError = !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
+    ? 'Boshlanish sanasini tanlang'
+    : startDate > date
+      ? 'Boshlanish muddatdan keyin bo‘lmasin'
+      : null
 
   async function submit(): Promise<void> {
     setSubmitted(true)
-    if (titleError || !dueIso) return
+    if (titleError || startError || !dueIso) return
     setBusy(true)
     setError(null)
     try {
-      await createMyTask({ title: title.trim(), description: description.trim() || null, dueAt: dueIso })
-      onDone('Topshiriq qo‘shildi')
+      const body = { title: title.trim(), description: description.trim() || null, dueAt: dueIso, startDate }
+      if (task) {
+        await updateMyTask(task.id, { ...body, description: body.description ?? '' })
+        onDone('Topshiriq yangilandi')
+      } else {
+        await createMyTask(body)
+        onDone('Topshiriq qo‘shildi')
+      }
     } catch (err) {
       setError(hrErrorMessage(err))
     } finally {
@@ -292,14 +312,14 @@ export function SelfTaskModal({
     <Modal
       open
       onClose={onClose}
-      title="O‘zimga topshiriq"
+      title={task ? 'Topshiriqni tahrirlash' : 'O‘zimga topshiriq'}
       footer={
         <div className={footerCls}>
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Bekor qilish
           </Button>
           <Button onClick={() => void submit()} disabled={busy}>
-            {busy ? 'Saqlanmoqda…' : 'Qo‘shish'}
+            {busy ? 'Saqlanmoqda…' : task ? 'Saqlash' : 'Qo‘shish'}
           </Button>
         </div>
       }
@@ -311,10 +331,13 @@ export function SelfTaskModal({
         <Field label="Tavsif">
           <textarea className={`${inputCls} resize-none`} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
+        <Field label="Boshlanish" required hint="Topshiriq shu kundan ro‘yxatda ko‘rinadi" error={submitted ? startError : null}>
+          <input type="date" className={inputCls} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </Field>
         <DateTimeField
           label="Muddat"
           required
-          hint="Toshkent vaqti"
+          hint="Toshkent vaqti — shu vaqtgacha bajarish mumkin"
           date={date}
           time={time}
           onDate={setDate}

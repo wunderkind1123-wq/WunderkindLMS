@@ -29,6 +29,7 @@ import {
   hrVoiceDuration,
 } from '@/components/hr-tasks/lib'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/context/auth-context'
 
 /**
  * Task detail — side drawer (the old `TaskDetailDrawer`). Action modals (edit, return,
@@ -55,6 +56,9 @@ export function TaskDetailDrawer({
 }) {
   const detail = useLoad(taskId && open ? `task|${taskId}|${version}` : null, () => getTask(taskId ?? ''))
   const task = detail.data
+  const { user } = useAuth()
+  // Only the manager who GAVE it, before its due time (2026-11-06) — the server checks the same.
+  const canEdit = !!task && !hrIsFinal(task) && task.createdBy === user?.id && !hrIsOverdue(task)
 
   const proofs = task?.proofs ?? []
   const progress = task?.progress ?? []
@@ -72,7 +76,7 @@ export function TaskDetailDrawer({
       title="Topshiriq"
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          {task && !hrIsFinal(task) && (
+          {task && canEdit && (
             <Button variant="secondary" onClick={() => onEdit(task)}>
               Tahrirlash
             </Button>

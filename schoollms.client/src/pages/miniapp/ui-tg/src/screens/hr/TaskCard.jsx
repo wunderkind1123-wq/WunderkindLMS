@@ -66,7 +66,7 @@ function Chip({ tone = 'neutral', children, title }) {
   )
 }
 
-export function TaskCard({ task, timezone, viewedDate, isToday, onComplete, onReopen, onAccept, onAddProgress }) {
+export function TaskCard({ task, timezone, viewedDate, isToday, onComplete, onReopen, onAccept, onAddProgress, onEdit }) {
   const [expanded, setExpanded] = useState(false)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -79,6 +79,8 @@ export function TaskCard({ task, timezone, viewedDate, isToday, onComplete, onRe
   const isNumeric = task.kind === 'numeric'
   const canReopen = task.status === 'done' && isToday
   const isUrgent = task.isOverdue === true && isOpen
+  // O'zi qo'shgan, muddati o'tmagan topshiriq — tahrirlash mumkin (2026-11-06; server ham tekshiradi).
+  const canEdit = isOpen && task.source === 'self' && task.isOverdue !== true && typeof onEdit === 'function'
   // `=== true` ATAYIN: maydon ixtiyoriy, `undefined` — "tugma yo'q".
   const needsAcceptance = task.needsAcceptance === true
   const voice = pickVoice(task)
@@ -293,6 +295,11 @@ export function TaskCard({ task, timezone, viewedDate, isToday, onComplete, onRe
           {isOpen && (
             <Btn variant="primary" grow onClick={() => onComplete(task)}>
               {t('tasks.complete')}
+            </Btn>
+          )}
+          {canEdit && (
+            <Btn variant="quiet" size="sm" onClick={() => onEdit(task)}>
+              {t('tasks.edit')}
             </Btn>
           )}
           {canReopen && (

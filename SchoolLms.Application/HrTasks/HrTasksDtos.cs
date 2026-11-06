@@ -204,7 +204,9 @@ public sealed record HrTaskCreateInput(
     string? Kind,
     [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal? TargetAmount,
     string? Unit,
-    bool? ProofRequired);
+    bool? ProofRequired,
+    /// <summary>"YYYY-MM-DD" — the day the task shows from (2026-11-06); omitted = today.</summary>
+    string? StartDate = null);
 
 public sealed record HrTaskReturnInput(string? Comment);
 
@@ -217,7 +219,8 @@ public sealed record HrTaskBatchItemInput(
     string? Kind,
     [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal? TargetAmount,
     string? Unit,
-    string? AttachmentId);
+    string? AttachmentId,
+    string? StartDate = null);
 
 public sealed record HrTaskBatchInput(List<string>? EmployeeIds, List<HrTaskBatchItemInput>? Items);
 
@@ -315,7 +318,8 @@ public sealed record HrAppTaskDto(
     DateTimeOffset? AcceptedAt,
     bool NeedsAcceptance,
     IReadOnlyList<HrAppAttachmentDto> Attachments,
-    string? VoiceUrl);
+    string? VoiceUrl,
+    DateOnly? PeriodStart = null);
 
 public sealed record HrTaskListDto(DateOnly Date, IReadOnlyList<HrAppTaskDto> Items);
 
@@ -327,7 +331,10 @@ public sealed record HrAppSummaryDto(
     DateOnly PeriodStart, DateOnly PeriodEnd, int Total, int Done, int Missed, int Open, int Late, double? Percent,
     IReadOnlyList<HrSummaryKpiDto> Kpi);
 
-public sealed record HrSelfTaskInput(string? Title, string? Description, string? DueAt);
+public sealed record HrSelfTaskInput(string? Title, string? Description, string? DueAt, string? StartDate = null);
+
+/// <summary>PATCH of an own self task — every field optional.</summary>
+public sealed record HrSelfTaskUpdateInput(string? Title, string? Description, string? DueAt, string? StartDate);
 
 public sealed record HrCompleteInput(string? Comment, List<string>? ProofIds);
 

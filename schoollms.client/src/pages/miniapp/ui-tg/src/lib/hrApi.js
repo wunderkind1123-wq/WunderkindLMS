@@ -99,6 +99,27 @@ export const hrApi = {
   /** `POST /hr/me/tasks/{id}/progress` — KPI qadami: `{ amount: "12.50", note }`. */
   progress: (id, input) => post(taskPath(id, 'progress'), input),
 
+  /** `PATCH /hr/me/tasks/{id}` — o'zi qo'shgan topshiriqni tahrirlash (muddat o'tmaguncha, 2026-11-06). */
+  updateTask: async (id, input) => {
+    const data = await api.patch(`${BASE}/tasks/${encodeURIComponent(id)}`, input)
+    getCache.clear()
+    return data
+  },
+
+  /** O'ziga takroriy topshiriqlar (2026-11-06): ro'yxat, yaratish, tahrirlash, yoqish/to'xtatish, o'chirish. */
+  templates: () => api.get(`${BASE}/templates`),
+  createTemplate: (input) => post(`${BASE}/templates`, input),
+  updateTemplate: async (id, input) => {
+    const data = await api.patch(`${BASE}/templates/${encodeURIComponent(id)}`, input)
+    getCache.clear()
+    return data
+  },
+  toggleTemplate: (id) => post(`${BASE}/templates/${encodeURIComponent(id)}/toggle`),
+  deleteTemplate: async (id) => {
+    await api.del(`${BASE}/templates/${encodeURIComponent(id)}`)
+    getCache.clear()
+  },
+
   /** `GET /hr/me/summary` — joriy oy bo'yicha o'z natijasi. */
   summary: () => cachedGet(`${BASE}/summary`),
 

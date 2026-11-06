@@ -71,6 +71,13 @@ public static class HrErrors
     public static HrTasksException TaskNotEditable(string action = "") =>
         new(409, "hr_task_not_editable",
             "Bu holatdagi topshiriqni o'zgartirib bo'lmaydi" + (action.Length > 0 ? $" ({action})" : ""));
+    /// <summary>Editing rules of 2026-11-06 (curriculum-monitoring.md §4).</summary>
+    public static HrTasksException NotTaskGiver() =>
+        new(403, "hr_not_task_giver", "Topshiriqni faqat uni bergan rahbar tahrirlay oladi");
+    public static HrTasksException TaskPastDue() =>
+        new(409, "hr_task_past_due", "Muddati o'tgan topshiriqni tahrirlab bo'lmaydi");
+    public static HrTasksException NotSelfTask() =>
+        new(403, "hr_not_self_task", "Faqat o'zingiz qo'shgan topshiriqni tahrirlay olasiz");
     public static HrTasksException UserAlreadyLinked() =>
         new(409, "user_already_linked", "Bu foydalanuvchiga Telegram akkaunti allaqachon bog'langan. Avval uni uzing.");
 
@@ -464,6 +471,26 @@ public static class HrReminderRules
         return [.. offsets.Where(o => o > 0 && dueAt.AddMinutes(-o) <= now).Distinct().OrderByDescending(o => o)];
     }
 
+    /// <summary>
+    /// Reminders of a LONG task (client, 2026-11-06: "faqat boshida va oxirida") — a day and two
+    /// hours before due, instead of the settings' short offsets.
+    /// </summary>
+    public static readonly int[] LongTaskOffsets = [24 * 60, 120];
+
+    /// <summary>
+    /// A long task starts on an earlier day than it is due ("bir oy davomida bajarish"). Tasks made
+    /// before 2026-11-06 always start on their due day, so none of them is long.
+    /// </summary>
+    public static bool IsLong(DateOnly periodStart, DateTimeOffset dueAt, TimeZoneInfo tz) =>
+        periodStart < HrValues.LocalDate(dueAt, tz);
+
+    /// <summary>
+    /// Whether the morning list carries a long task on <paramref name="day"/>: its start day, the
+    /// day before due and the due day, and every day once overdue — not each day in between.
+    /// </summary>
+    public static bool LongTaskInMorningList(DateOnly periodStart, DateTimeOffset dueAt, DateOnly day, TimeZoneInfo tz) =>
+        day == periodStart || day >= HrValues.LocalDate(dueAt, tz).AddDays(-1);
+
     /// <summary>No explicit due time — local 23:59 (skipped unless <c>remind_end_of_day</c>).</summary>
     public static bool IsEndOfDay(DateTimeOffset dueAt, TimeZoneInfo tz)
     {
@@ -670,10 +697,12 @@ public class HrTask
         return true;
     }
 
-    public bool UpdateDetails(DateTimeOffset now, string? title, bool setDescription, string? description, DateTimeOffset? dueAt)
+    public bool UpdateDetails(DateTimeOffset now, string? title, bool setDescription, string? description, DateTimeOffset? dueAt,
+        DateOnly? periodStart = null)
     {
         EnsureNotFinal("edit");
         var changed = false;
+        if (periodStart is { } start && start != PeriodStart) { PeriodStart = start; changed = true; }
         if (title is not null)
         {
             var cleaned = HrValues.RequireText(title, "Sarlavha", HrLimits.TitleMax);
