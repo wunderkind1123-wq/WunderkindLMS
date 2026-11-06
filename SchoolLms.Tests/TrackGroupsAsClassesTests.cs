@@ -453,17 +453,26 @@ public class TrackGroupsAsClassesTests(ApiFixture fixture) : IAsyncLifetime
         var created = await admin.PostAsJsonAsync(templates, new { name = $"Asosiy {s.Tag}" });
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         var tplId = (await created.Content.ReadFromJsonAsync<ScheduleTemplateDto>())!.Id;
-        var cell = await admin.PutAsJsonAsync($"{templates}/{tplId}/cell", new
+        try
         {
-            day = 4,
-            period = 7,
-            lessons = new[]
+            var cell = await admin.PutAsJsonAsync($"{templates}/{tplId}/cell", new
             {
-                new { day = 4, period = 7, subjectId = s.SubjectId, teacherId = s.TeacherId, subGroup = 1 },
-                new { day = 4, period = 7, subjectId = s.SubjectId, teacherId = s.TeacherId, subGroup = 2 },
-            },
-        });
-        Assert.Equal(HttpStatusCode.NoContent, cell.StatusCode);
+                day = 4,
+                period = 7,
+                lessons = new[]
+                {
+                    new { day = 4, period = 7, subjectId = s.SubjectId, teacherId = s.TeacherId, subGroup = 1 },
+                    new { day = 4, period = 7, subjectId = s.SubjectId, teacherId = s.TeacherId, subGroup = 2 },
+                },
+            });
+            Assert.Equal(HttpStatusCode.NoContent, cell.StatusCode);
+        }
+        finally
+        {
+            // Umumiy baza: StudyGroupTests guruh shabloni yo'q deb hisoblaydi. Hech qaysi haftaga
+            // biriktirilmagan shablon butunlay o'chadi.
+            Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{templates}/{tplId}")).StatusCode);
+        }
 
         var saved = await admin.PutAsJsonAsync($"/api/admin/classes/{trackId}/groups", new
         {
