@@ -279,6 +279,19 @@ builder.Services.AddRateLimiter(options =>
     // minutes — looser than the lead form, because a poll answer creates no lead and parents at a
     // school meeting answer from one Wi-Fi; one answer per browser is enforced by the service.
     // Opening the page shares `survey-read`.
+    // Onlayn monitoring testi (`/monitoring`, curriculum-monitoring.md §2): kod bilan kirish. Bitta
+    // kompyuter xonasi bitta IP ortida — 30 o'quvchi bir vaqtda boshlaydi; kod 8 belgi, 32 harfli
+    // alifbo, shuning uchun 120/daqiqa taxmin qilishni ma'nosiz qoldiradi.
+    options.AddPolicy("monitoring", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: PublicFormPartition(httpContext),
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
     options.AddPolicy("poll", httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: PublicFormPartition(httpContext),
@@ -728,9 +741,11 @@ app.MapFallback(async ctx =>
     // "Uy vazifasi bajarilishi" (docs/modules/homework-completion.md) — the same exception: the page
     // lives in the main SPA, the PWA's Profil screen links to it.
     // "Eslatmalarim" (Bilimlar bazasi, docs/modules/wiki.md) — the same exception.
+    // "Ish reja" (/teacher/ish-reja) — the same exception (curriculum-monitoring.md §1).
     if (path.StartsWith("/teacher/dars-tahlili", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/teacher/uy-vazifasi", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWith("/teacher/eslatmalar", StringComparison.OrdinalIgnoreCase))
+        || path.StartsWith("/teacher/eslatmalar", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/teacher/ish-reja", StringComparison.OrdinalIgnoreCase))
     {
         var spaIndex = Path.Combine(webRoot, "index.html");
         if (!File.Exists(spaIndex)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }

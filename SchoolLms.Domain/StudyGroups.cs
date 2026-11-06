@@ -115,6 +115,15 @@ public class StudyGroup
     /// </summary>
     public bool IsTrack { get; set; }
 
+    /// <summary>
+    /// Yo'nalishning blok testdagi 1-fani (93 ball) — faqat yo'nalish guruhida. Sertifikatning
+    /// blok-ekvivalent bali shundan hisoblanadi (mijoz, 2026-11-06; curriculum-monitoring.md §3).
+    /// </summary>
+    public string? BlockSubject1Id { get; set; }
+
+    /// <summary>Yo'nalishning blok testdagi 2-fani (63 ball). Boshqa fan — majburiy (11 ball).</summary>
+    public string? BlockSubject2Id { get; set; }
+
     /// <summary>Kim yaratgan (users.id) — JWT'dan (SPEC §4.4).</summary>
     public string CreatedBy { get; set; } = string.Empty;
 

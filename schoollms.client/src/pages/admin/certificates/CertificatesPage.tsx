@@ -9,6 +9,7 @@ import {
   deleteCertificate,
   exportCertificates,
   certificateError,
+  BLOCK_ROLE_LABEL,
   type Certificate,
   type CertificateType,
   type IssuingTeacher,
@@ -23,9 +24,10 @@ import { Loader } from '@/components/ui/Loader'
 import { formatDate, cn } from '@/lib/utils'
 import { CertificateFormModal } from './CertificateFormModal'
 import { CertificateResultsTab } from './CertificateResultsTab'
+import { CertificateRatingTab } from './CertificateRatingTab'
 import { DatePicker } from '@/components/ui/DatePicker'
 
-type Tab = 'list' | 'results'
+type Tab = 'list' | 'results' | 'rating'
 
 const control =
   'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
@@ -193,6 +195,16 @@ export function CertificatesPage() {
             >
               Natijalar
             </button>
+            <button
+              type="button"
+              onClick={() => setTab('rating')}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                tab === 'rating' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}
+            >
+              Reyting
+            </button>
           </div>
           <Link to="/admin/certificates/types">
             <Button variant="secondary">
@@ -228,6 +240,8 @@ export function CertificatesPage() {
             </Button>
           </Link>
         </Card>
+      ) : tab === 'rating' ? (
+        <CertificateRatingTab classNames={classNames} subjects={subjects} />
       ) : tab === 'results' ? (
         <CertificateResultsTab scoredTypes={scoredTypes} classNames={classNames} />
       ) : (
@@ -321,6 +335,7 @@ export function CertificatesPage() {
                     <th className="px-4 py-3">O'qituvchi</th>
                     <th className="px-4 py-3">Raqami</th>
                     <th className="px-4 py-3 text-right">Natija</th>
+                    <th className="px-4 py-3 text-right" title="Blok testdagi ekvivalent ball">Blok bali</th>
                     <th className="px-4 py-3">Berilgan</th>
                     <th className="px-4 py-3">Muddati</th>
                     <th className="px-4 py-3 text-right">Amallar</th>
@@ -345,6 +360,16 @@ export function CertificatesPage() {
                         {r.score == null && !r.level
                           ? '—'
                           : [r.score != null ? String(r.score) : null, r.level].filter(Boolean).join(' · ')}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">
+                        {r.blockPoints == null ? (
+                          <span className="text-slate-300">—</span>
+                        ) : (
+                          <span title={r.blockRole ? BLOCK_ROLE_LABEL[r.blockRole] : undefined}>
+                            {r.blockPoints}
+                            {r.blockRole && <span className="ml-1 text-xs text-slate-400">({BLOCK_ROLE_LABEL[r.blockRole]})</span>}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-500">{formatDate(r.issuedOn)}</td>
                       <td className="px-4 py-3">

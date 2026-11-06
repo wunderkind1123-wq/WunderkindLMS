@@ -367,6 +367,16 @@ public interface IAppDbContext
     /// <summary>Bilimlar bazasi — xodimlarning shaxsiy eslatmalari (Wiki.cs, docs/modules/wiki.md).</summary>
     DbSet<WikiPage> WikiPages { get; }
 
+    /// <summary>Ish reja va ichki monitoring (Curriculum.cs, Monitoring.cs — docs/modules/curriculum-monitoring.md).</summary>
+    DbSet<CurriculumPlan> CurriculumPlans { get; }
+    DbSet<CurriculumTopic> CurriculumTopics { get; }
+    DbSet<CurriculumProgress> CurriculumProgress { get; }
+    DbSet<MonitoringBank> MonitoringBanks { get; }
+    DbSet<MonitoringQuestion> MonitoringQuestions { get; }
+    DbSet<MonitoringTest> MonitoringTests { get; }
+    DbSet<MonitoringItem> MonitoringItems { get; }
+    DbSet<MonitoringParticipant> MonitoringParticipants { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 

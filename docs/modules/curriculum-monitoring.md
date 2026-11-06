@@ -26,7 +26,8 @@ file_name, academic_year, created_by, timestamps; one active plan per subject+gr
 `curriculum_progress` (topic_id, owner_kind class|group, owner_id, passed_on, marked_by;
 unique topic+owner).
 
-A teacher sees and marks the plans of the class/group + subject pairs they teach (schedule).
+A teacher sees and marks the plans of the class/group + subject pairs they teach (schedule). Teachers mark
+from the **web panel and the Telegram Mini App** (asked 2026-11-06).
 
 ## 2. Ichki monitoring (`monitoring`)
 
@@ -43,6 +44,8 @@ bo'limi tomonidan."*
 | Question source | **A separate monitoring bank** (not the block-test banks) |
 | Who sees results | **O'quv bo'limi only** — not teachers, not parents |
 | Menu | O'quv bo'limi → new column **"O'QUV REJA VA NAZORAT"** |
+| Online access | **A one-time personal code** per pupil on a public page (no pupil account), device lock like the admission test |
+| Rasch score | **T = 50 + 10·Z**: θ by joint maximum likelihood on this test's answers, Z standardised among its takers, clamped to 0–75 |
 
 National-certificate grade bands (0–75 scale): A+ ≥ 70, A ≥ 65, B+ ≥ 60, B ≥ 55, C+ ≥ 50,
 C ≥ 46, below — no grade.
@@ -70,3 +73,16 @@ Already built (2026-10-31): `certificate_types.exam_credits` + block-test credit
 
 A "long" task = start date earlier than the due's local date. Tasks created before this change
 have start = due date, so nothing about them changes.
+
+## 5. Built (2026-11-06)
+
+| Part | Where |
+|---|---|
+| Tables | migration `CurriculumMonitoring`: `curriculum_plans/_topics/_progress`, `monitoring_banks/_questions/_tests/_items/_participants`, `study_groups.block_subject1_id/_2_id`. New tables → **rerun `deploy/init-roles.sql`** on deploy |
+| Ish reja | `CurriculumService`, `CurriculumController` (`/api/admin/curriculum`, key `curriculum`), `TeacherCurriculumController` (`/api/teacher/curriculum`, own class × subject only). Pages: O'quv bo'limi → Ish rejalar / Ish reja hisoboti; teacher `/teacher/ish-reja` (SPA exception in `Program.cs`, link in the PWA profile) and the Mini App "Bugun" card |
+| Owners of a grade plan | the grade's classes (and same-subject ordinary groups) that have the subject in a non-archived template; none scheduled → every class of the grade |
+| Expected / forecast | a topic's planned day = its quarter week start; quarter only → spread over the quarter; neither → over the year. Forecast = remaining hours ÷ (passed hours per week since the year start) |
+| Monitoring | `MonitoringService`, `MonitoringScore` (pure), `MonitoringController` (`/api/admin/monitoring`, key `monitoring`), `PublicMonitoringController` (`/api/public/monitoring`, rate policy `monitoring` 120/min). Pages: Ichki monitoring, Monitoring savollari; public `/monitoring` |
+| Online attempts | finished lazily when their deadline passes (list/detail/any pupil call), and on "Yakunlash"; pupils who never started become absent |
+| Certificates | `CertificatePoints`; `GET /api/admin/certificates/rating`, `GET/PUT …/track-subjects`; Sertifikatlar → Reyting tab, "Blok bali" column, profile summary |
+| Not decided by the client | a pupil **without a track** (grades 1–8) has no total points (count only) — 1st/2nd subject is unknown |

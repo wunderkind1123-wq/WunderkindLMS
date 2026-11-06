@@ -211,6 +211,12 @@ export const navByRole: Record<Role, NavItem[]> = {
         // Sertifikat turlari SOZLAMALAR ostida emas: u yerdagi marshrut `settings`
         // ruxsatiga bog'langan, API esa `students` ga — menyu va server zid bo'lardi.
         { label: 'Sertifikat turlari', to: '/admin/certificates/types', perm: 'students', group: 'HUJJATLAR' },
+        // O'QUV REJA VA NAZORAT (mijoz, 2026-11-06 — docs/modules/curriculum-monitoring.md): ish reja
+        // (yuklash, o'tildi belgisi, hisobot) va ichki monitoring (faqat o'quv bo'limi ko'radi).
+        { label: 'Ish rejalar', to: '/admin/curriculum', end: true, perm: 'curriculum', group: "O'QUV REJA VA NAZORAT" },
+        { label: 'Ish reja hisoboti', to: '/admin/curriculum/report', perm: 'curriculum', group: "O'QUV REJA VA NAZORAT" },
+        { label: 'Ichki monitoring', to: '/admin/monitoring', end: true, perm: 'monitoring', group: "O'QUV REJA VA NAZORAT" },
+        { label: 'Monitoring savollari', to: '/admin/monitoring/banks', perm: 'monitoring', group: "O'QUV REJA VA NAZORAT" },
       ],
     },
     {
@@ -443,6 +449,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { label: 'Jurnal', to: '/teacher/journal', icon: NotebookText, perm: 'journal' },
     // Uy vazifasi bajarilishi (homework-completion.md) — a SPA page like Dars tahlilim; same `journal` key.
     { label: 'Uy vazifasi', to: '/teacher/uy-vazifasi', icon: ClipboardCheck, perm: 'journal' },
+    { label: 'Ish reja', to: '/teacher/ish-reja', icon: ListChecks },
     { label: 'Feedback', to: '/teacher/evaluation', icon: ClipboardList },
     // Dars tahlilim — o'z yakunlangan dars kuzatuvlari va ko'rsatkichi (lesson-analysis.md §7).
     { label: 'Dars tahlilim', to: '/teacher/dars-tahlili', icon: ListChecks },

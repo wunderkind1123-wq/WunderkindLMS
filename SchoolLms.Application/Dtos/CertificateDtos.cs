@@ -55,7 +55,8 @@ public record CertificateDto(
     string IssuedOn, string? ExpiresOn, bool IsExpired,
     string? FileUrl, string? Comment,
     List<string> SubjectIds, List<string> SubjectNames,
-    string? Level = null, bool TypeUsesLevel = false);
+    string? Level = null, bool TypeUsesLevel = false,
+    decimal? BlockPoints = null, string? BlockRole = null);
 
 /// <summary>
 /// Sertifikat formasi. <see cref="Score"/> FAQAT turi <c>IsScored</c> bo'lganda
@@ -113,3 +114,21 @@ public record CertificateResultsDto(
 public record PortalCertificateDto(
     Guid Id, string TypeName, List<string> SubjectNames, decimal? Score, string? Level,
     string IssuedOn, string? ExpiresOn, bool IsExpired, string? FileUrl);
+
+/// <summary>
+/// Certificate rating row (2026-11-06, curriculum-monitoring.md §3): count and total block-test
+/// equivalent. <see cref="TotalPoints"/> null — the pupil has no track, so no 1st/2nd subject.
+/// </summary>
+public record CertificateRatingRowDto(
+    string StudentId, string StudentName, string ClassName, string? TrackName,
+    int CertificateCount, decimal? TotalPoints, List<CertificateRatingItemDto> Items);
+
+/// <param name="Role"><c>first</c> (93) | <c>second</c> (63) | <c>mandatory</c> (11) | null.</param>
+/// <param name="Counted">The best certificate of its subject — the one in the total.</param>
+public record CertificateRatingItemDto(
+    Guid Id, string Label, string? SubjectName, decimal? Points, string? Role, bool Counted, bool IsExpired);
+
+/// <summary>A track group with its block 1st / 2nd subjects.</summary>
+public record TrackBlockSubjectsDto(Guid Id, string Name, string? Subject1Id, string? Subject2Id, int MemberCount);
+
+public record TrackBlockSubjectsPayload(string? Subject1Id, string? Subject2Id);

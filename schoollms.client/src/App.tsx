@@ -104,6 +104,15 @@ import { ResultsPage } from '@/pages/admin/exams/ResultsPage'
 import { ResultEntryPage } from '@/pages/admin/exams/ResultEntryPage'
 import { AttendanceDisciplineReportPage } from '@/pages/admin/discipline/AttendanceDisciplineReportPage'
 import { CertificatesPage } from '@/pages/admin/certificates/CertificatesPage'
+import { CurriculumPlansPage } from '@/pages/admin/curriculum/CurriculumPlansPage'
+import { CurriculumPlanPage } from '@/pages/admin/curriculum/CurriculumPlanPage'
+import { CurriculumReportPage } from '@/pages/admin/curriculum/CurriculumReportPage'
+import { TeacherCurriculumPage } from '@/pages/teacher/curriculum/TeacherCurriculumPage'
+import { MonitoringTestsPage } from '@/pages/admin/monitoring/MonitoringTestsPage'
+import { MonitoringTestPage } from '@/pages/admin/monitoring/MonitoringTestPage'
+import { MonitoringBanksPage } from '@/pages/admin/monitoring/MonitoringBanksPage'
+import { MonitoringBankPage } from '@/pages/admin/monitoring/MonitoringBankPage'
+import { MonitoringPublicPage } from '@/pages/public/MonitoringPublicPage'
 import { GroupsPage } from '@/pages/admin/groups/GroupsPage'
 import { RoomsPage } from '@/pages/admin/rooms/RoomsPage'
 import { TransactionsPage } from '@/pages/admin/finance/TransactionsPage'
@@ -169,6 +178,8 @@ export default function App() {
       <Route path="/r/:token" element={<ReceiptVerifyPage />} />
       {/* So'rovnoma havolasi (2026-10-15) — login'siz; server `/sorovnoma/` ni har qanday hostda SPA'ga beradi. */}
       <Route path="/sorovnoma/:token" element={<PollPublicPage />} />
+      {/* Onlayn monitoring testi — o'quvchi shaxsiy kodi bilan (curriculum-monitoring.md §2). */}
+      <Route path="/monitoring" element={<MonitoringPublicPage />} />
 
       <Route path="/" element={<RootRedirect />} />
 
@@ -250,6 +261,14 @@ export default function App() {
           <Route path="contracts" element={<RequirePerm perm="contracts"><ContractsPage /></RequirePerm>} />
           <Route path="certificates" element={<RequirePerm perm="students"><CertificatesPage /></RequirePerm>} />
           <Route path="certificates/types" element={<RequirePerm perm="students"><CertificateTypesPage /></RequirePerm>} />
+          {/* Ish reja va ichki monitoring (docs/modules/curriculum-monitoring.md). */}
+          <Route path="curriculum" element={<RequirePerm perm="curriculum"><CurriculumPlansPage /></RequirePerm>} />
+          <Route path="curriculum/report" element={<RequirePerm perm="curriculum"><CurriculumReportPage /></RequirePerm>} />
+          <Route path="curriculum/:id" element={<RequirePerm perm="curriculum"><CurriculumPlanPage /></RequirePerm>} />
+          <Route path="monitoring" element={<RequirePerm perm="monitoring"><MonitoringTestsPage /></RequirePerm>} />
+          <Route path="monitoring/banks" element={<RequirePerm perm="monitoring"><MonitoringBanksPage /></RequirePerm>} />
+          <Route path="monitoring/banks/:id" element={<RequirePerm perm="monitoring"><MonitoringBankPage /></RequirePerm>} />
+          <Route path="monitoring/:id" element={<RequirePerm perm="monitoring"><MonitoringTestPage /></RequirePerm>} />
           <Route path="attendance" element={<RequirePerm perm="attendance"><AttendancePage /></RequirePerm>} />
           <Route path="attendance/analytics" element={<RequirePerm perm="attendance"><AttendanceAnalyticsPage /></RequirePerm>} />
           {/* Davomat analitikasi 2.0 — kunduzgi + kechki dars + yotoqxona (mijoz, 2026-10-11). */}
@@ -413,6 +432,11 @@ export default function App() {
             the PWA's Profil screen links here. Own class + subject only (server gate). */}
         <Route path="/teacher/uy-vazifasi" element={<AppLayout />}>
           <Route index element={<RequirePerm perm="journal"><HomeworkCompletionPage scope="teacher" /></RequirePerm>} />
+        </Route>
+        {/* Ish reja — the same SPA exception (Program.cs MapFallback), curriculum-monitoring.md §1. */}
+        <Route path="/teacher/ish-reja" element={<AppLayout />}>
+          <Route index element={<TeacherCurriculumPage />} />
+          <Route path=":id" element={<CurriculumPlanPage teacher />} />
         </Route>
         {/* Eslatmalarim (Bilimlar bazasi, docs/modules/wiki.md) — the same SPA exception (Program.cs MapFallback). */}
         <Route path="/teacher/eslatmalar" element={<AppLayout />}>

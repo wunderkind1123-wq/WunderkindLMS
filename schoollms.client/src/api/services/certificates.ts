@@ -64,6 +64,10 @@ export interface Certificate {
   /** Daraja ("B2") — faqat `typeUsesLevel` turda. */
   level: string | null
   typeUsesLevel: boolean
+  /** Blok testdagi ekvivalent ball (A+ → 1-fan 93, 2-fan 63, majburiy 11). null — hisoblanmaydi. */
+  blockPoints?: number | null
+  /** `first` | `second` | `mandatory` */
+  blockRole?: BlockRole | null
 }
 
 export interface CertificatePayload {
@@ -274,4 +278,65 @@ export async function exportCertificates(filters: CertificateFilters = {}): Prom
 export function certificateError(err: unknown): string {
   const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
   return message ?? 'Saqlashda xatolik yuz berdi'
+}
+
+/* ------------------------------------------------ blok ballari va reyting (2026-11-06) */
+
+export type BlockRole = 'first' | 'second' | 'mandatory'
+
+export const BLOCK_ROLE_LABEL: Record<BlockRole, string> = {
+  first: '1-fan',
+  second: '2-fan',
+  mandatory: 'majburiy',
+}
+
+export interface CertificateRatingItem {
+  id: string
+  label: string
+  subjectName: string | null
+  points: number | null
+  role: BlockRole | null
+  /** Shu fandagi eng yaxshi sertifikat — jami ballga shu kiradi. */
+  counted: boolean
+  isExpired: boolean
+}
+
+export interface CertificateRatingRow {
+  studentId: string
+  studentName: string
+  className: string
+  trackName: string | null
+  certificateCount: number
+  /** null — o'quvchida yo'nalish yo'q (1-/2-fan aniqlanmaydi). */
+  totalPoints: number | null
+  items: CertificateRatingItem[]
+}
+
+export async function getCertificateRating(filters: {
+  className?: string
+  trackId?: string
+  studentId?: string
+  includeExpired?: boolean
+} = {}): Promise<CertificateRatingRow[]> {
+  const { data } = await api.get<CertificateRatingRow[]>(
+    `/admin/certificates/rating${query({ ...filters, includeExpired: filters.includeExpired ? 'true' : undefined })}`,
+  )
+  return data
+}
+
+export interface TrackBlockSubjects {
+  id: string
+  name: string
+  subject1Id: string | null
+  subject2Id: string | null
+  memberCount: number
+}
+
+export async function getTrackBlockSubjects(): Promise<TrackBlockSubjects[]> {
+  const { data } = await api.get<TrackBlockSubjects[]>('/admin/certificates/track-subjects')
+  return data
+}
+
+export async function saveTrackBlockSubjects(id: string, subject1Id: string | null, subject2Id: string | null): Promise<void> {
+  await api.put(`/admin/certificates/track-subjects/${id}`, { subject1Id, subject2Id })
 }
