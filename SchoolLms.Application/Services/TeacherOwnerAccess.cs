@@ -207,15 +207,15 @@ public static class TeacherOwnerAccess
     /// darsining BO'LINISHI (0/1/2).
     ///
     /// <para>
-    /// Guruhda bo'linish YO'Q — javob har doim 0 (§2.1.4: guruhning o'zi
-    /// allaqachon tanlangan bolalar to'plami).
+    /// Oddiy guruhda bo'linish YO'Q — javob har doim 0 (§2.1.4: guruhning o'zi
+    /// allaqachon tanlangan bolalar to'plami). Yo'nalishda katta (1) / kichik (2) guruh bor.
     /// </para>
     /// </summary>
     public static async Task<int> SubGroupAsync(
         IAppDbContext db, string teacherId, LessonOwner owner, string subjectId,
         int dayIndex, int period, CancellationToken ct = default)
     {
-        if (owner.IsGroup) return 0;
+        if (!owner.HasHalves) return 0;
 
         var groups = await db.ScheduleTemplates.AsNoTracking()
             .Where(t => t.ClassId == owner.Id && t.OwnerKind == owner.Kind)

@@ -129,8 +129,8 @@ public sealed class TelegramTeacherController(
 
         var owner = await LessonRoster.OwnerAsync(db, classId, ct);
         if (owner is null) return NotFound(new { message = "Sinf topilmadi" });
-        // Guruh darsida sinf ichidagi bo'linish yo'q — server rad etadi (§2.1.4).
-        if (owner.IsGroup && subGroup is not null and not 0)
+        // Oddiy guruh darsida bo'linish yo'q — server rad etadi (§2.1.4). Yo'nalishda katta/kichik bor.
+        if (!owner.HasHalves && subGroup is not null and not 0)
             return BadRequest(new { message = JournalService.SubGroupOnGroupMessage });
         var subjectName = await db.Subjects.AsNoTracking()
             .Where(s => s.Id == subjectId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "";
@@ -155,8 +155,8 @@ public sealed class TelegramTeacherController(
         // `FirstOrDefault` 2-guruh o'qituvchisiga 1-guruhning mavzusini ko'rsatishi mumkin edi.
         // Guruh: so'rovda aniq berilgan bo'lsa — o'sha; aks holda jadvaldan (o'qituvchining
         // shu kun va dars raqamidagi O'Z darsi); aniqlab bo'lmasa — butun sinf (0).
-        // Guruh darsida bo'linish yo'q, ya'ni har doim 0.
-        var sg = owner.IsGroup
+        // Oddiy guruh darsida bo'linish yo'q, ya'ni har doim 0.
+        var sg = !owner.HasHalves
             ? 0
             : subGroup ?? await TeacherSubGroupAsync(t.Id, owner, subjectId, day, period, ct);
         var note = (await db.LessonNotes.AsNoTracking()
@@ -175,7 +175,7 @@ public sealed class TelegramTeacherController(
             AbsenceReason? r = null;
             if (e?.ReasonId is not null) reasons.TryGetValue(e.ReasonId, out r);
             return new TgRosterStudentDto(
-                s.Id, s.FullName, owner.IsGroup ? 0 : s.SubGroup,
+                s.Id, s.FullName, owner.HasHalves ? s.SubGroup : 0,
                 e?.ReasonId, r?.Name, r?.IsLate ?? false, e?.Grade);
         }).ToList();
 

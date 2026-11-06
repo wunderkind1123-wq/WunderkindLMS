@@ -52,6 +52,7 @@ export function TemplateEditorPage() {
         <ScheduleBoard
           classId={id}
           template={template}
+          isTrack={owner?.isTrack ?? false}
           onTemplateReplaced={(t) => {
             // Faol jadvalning nusxasi olindi: sarlavha va manzil yangi versiyaga o'tadi. Sahifa qayta
             // yuklanmaydi (useParams o'zgarmaydi) — ekrandagi darslar saqlanib qoladi.

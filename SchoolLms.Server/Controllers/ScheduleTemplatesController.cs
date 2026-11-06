@@ -38,7 +38,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         t.Id, t.ClassId, t.Name,
         t.Lessons.OrderBy(l => l.Day).ThenBy(l => l.Period).ThenBy(l => l.SubGroup)
             .Select(l => new ScheduleLessonDto(l.Day, l.Period, l.SubjectId, l.TeacherId, l.SubGroup)).ToList(),
-        t.OwnerKind);
+        t.OwnerKind, t.IsArchived);
 
     /// <summary>Yo'ldagi id'ni egaga (sinf yoki guruh) aylantiradi.</summary>
     private Task<LessonOwner?> OwnerAsync(string ownerId, CancellationToken ct = default) =>
@@ -103,13 +103,21 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var tpl = await FindAsync(classId, templateId, ct);
         if (tpl is null) return NotFound();
         // 2026-10-11: o'tgan haftalarda ishlatilgan jadval (jumladan avtomatik saqlangan eski versiya
-        // "… gacha") o'chirilsa, o'sha haftalarning darslari — jurnal, davomat, maosh tarixi — yo'qolardi.
+        // "… gacha") bazadan o'chirilsa, o'sha haftalarning darslari — jurnal, davomat, maosh tarixi —
+        // yo'qolardi. 2026-11-06 (mijoz: eski jadvallarni o'chirib, yangisini qo'shish imkoni bo'lsin):
+        // bunday jadval ARXIVLANADI — ro'yxatdan yo'qoladi, joriy va kelgusi haftalardan bo'shatiladi,
+        // o'tgan haftalarda esa tarix sifatida qoladi.
         if (await LiveScheduleEdit.UsedInPastAsync(db, tpl, ct))
-            return Conflict(new
-            {
-                message = "Bu jadval o'tgan haftalarda ishlatilgan — jurnal, davomat va maosh tarixi unga "
-                          + "tayanadi, shuning uchun o'chirilmaydi.",
-            });
+        {
+            var released = await LiveScheduleEdit.ReleaseUpcomingWeeksAsync(db, tpl, ct);
+            tpl.IsArchived = true;
+            audit.Record(AuditService.EntityScheduleTemplate, tpl.Id, "delete",
+                $"Dars jadvali o'chirildi (arxivga): {await OwnerNameAsync(classId, ct)} — «{tpl.Name}» "
+                + $"({tpl.Lessons.Count} ta dars; o'tgan haftalarda tarix sifatida qoldi"
+                + (released > 0 ? $", {released} ta keyingi hafta bo'shatildi)" : ")"));
+            await db.SaveChangesAsync(ct);
+            return NoContent();
+        }
         db.ScheduleTemplates.Remove(tpl);
         audit.Record(AuditService.EntityScheduleTemplate, tpl.Id, "delete",
             $"Dars jadvali o'chirildi: {await OwnerNameAsync(classId, ct)} — «{tpl.Name}» ({tpl.Lessons.Count} ta dars)");
@@ -296,8 +304,9 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
             return "SubGroup=0 (butun sinf) bilan boshqa guruh birga bo'lmaydi";
         if (lessons.GroupBy(l => l.SubGroup).Any(g => g.Count() > 1))
             return "Bitta guruhda bir nechta dars bo'lishi mumkin emas";
-        // Guruh darsida sinf ichidagi bo'linish yo'q — guruhning o'zi tanlangan bolalar to'plami.
-        if (owner.IsGroup && lessons.Any(l => l.SubGroup != 0))
+        // Oddiy guruh darsida bo'linish yo'q — guruhning o'zi tanlangan bolalar to'plami. Yo'nalish
+        // guruhi esa katta (1) va kichik (2) guruhga bo'linadi, har biriga o'z o'qituvchisi (2026-11-06).
+        if (!owner.HasHalves && lessons.Any(l => l.SubGroup != 0))
             return "Guruh darsida sinf ichidagi 1/2-guruhga bo'linish bo'lmaydi — "
                    + "guruhning o'zi allaqachon tanlangan o'quvchilar ro'yxati.";
         return null;

@@ -13,7 +13,6 @@ import {
   createTemplate,
   renameTemplate,
   deleteTemplate,
-  isArchivedTemplateName,
 } from '@/api/services/scheduleTemplates'
 import { getSubjects } from '@/api/services/subjects'
 import { getTeachers } from '@/api/services/teachers'
@@ -64,7 +63,7 @@ export function ClassSchedulePage() {
         setSettings(st)
         setSubjects(subs)
         setTeachers(tchs)
-        setSelectedTemplateId(tpls[0]?.id ?? '')
+        setSelectedTemplateId(tpls.find((t) => !t.isArchived)?.id ?? '')
       })
       .finally(() => setLoading(false))
   }, [id])
@@ -83,6 +82,12 @@ export function ClassSchedulePage() {
     const q = settings.quarters.find((x) => x.quarter === quarter)
     return q ? getQuarterWeeks(q.startDate, q.endDate) : []
   }, [settings, quarter])
+
+  /**
+   * Ro'yxat va tanlagichdagi jadvallar. O'chirilgan (arxivlangan) jadval bu yerda yo'q — u faqat
+   * o'tgan haftalar qatorida nomi bilan ko'rinadi (2026-11-06).
+   */
+  const activeTemplates = templates.filter((t) => !t.isArchived)
 
   const assignedId = (week: number) =>
     assignments.find((a) => a.week === week)?.templateId ?? null
@@ -154,11 +159,18 @@ export function ClassSchedulePage() {
   }
 
   const handleDeleteTpl = async (t: ScheduleTemplate) => {
-    if (!confirm(`"${t.name}" jadvalini o'chirasizmi?`)) return
+    if (
+      !confirm(
+        `"${t.name}" jadvalini o'chirasizmi?\n\nJoriy va keyingi haftalar bo'shatiladi. O'tgan haftalarda ` +
+          "ishlatilgan bo'lsa, o'sha haftalarning jurnali va davomati saqlanib qoladi.",
+      )
+    )
+      return
     setAssignError(null)
     try {
-      // 2026-10-11: server o'tgan haftalarda ishlatilgan jadvalni rad etadi (tarix) — avval javobni
-      // kutamiz, aks holda quyida haftalar baribir bo'shatilib ketardi.
+      // Server o'zi hal qiladi (2026-11-06): ishlatilmagan jadval o'chiriladi, o'tgan haftalarda
+      // ishlatilgani arxivlanadi — joriy/keyingi haftalardan bo'shatiladi, o'tgan haftalar tarix
+      // bo'lib qoladi. Shuning uchun haftalarni bu yerda o'zimiz bo'shatmaymiz, serverdan qayta o'qiymiz.
       await deleteTemplate(id, t.id)
     } catch (e) {
       setAssignError(
@@ -166,13 +178,10 @@ export function ClassSchedulePage() {
       )
       return
     }
-    setTemplates((prev) => prev.filter((x) => x.id !== t.id))
-    // shu jadval biriktirilgan haftalarni bo'shatamiz
-    setAssignments((prev) => {
-      const next = prev.map((a) => (a.templateId === t.id ? { ...a, templateId: null } : a))
-      persist(next, prev)
-      return next
-    })
+    const [tpls, wa] = await Promise.all([getTemplates(id), getWeekAssignments(id, quarter)])
+    setTemplates(tpls)
+    setAssignments(wa)
+    if (selectedTemplateId === t.id) setSelectedTemplateId(tpls.find((x) => !x.isArchived)?.id ?? '')
   }
 
   return (
@@ -221,7 +230,7 @@ export function ClassSchedulePage() {
           <Card>
             <h2 className="mb-4 font-semibold text-slate-800">Jadvallar</h2>
             <div className="space-y-2">
-              {templates.map((t) => (
+              {activeTemplates.map((t) => (
                 <div
                   key={t.id}
                   className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 p-3"
@@ -245,15 +254,17 @@ export function ClassSchedulePage() {
                         setNameOpen(true)
                       }}
                     />
-                    {/* Avtomatik saqlangan eski versiya — o'tgan haftalar tarixi, o'chirilmaydi. */}
-                    {!isArchivedTemplateName(t.name) && (
-                      <IconBtn
-                        icon={Trash2}
-                        title="O'chirish"
-                        danger
-                        onClick={() => void handleDeleteTpl(t)}
-                      />
-                    )}
+                    {/*
+                      Har qanday jadval, jumladan avtomatik saqlangan eski versiya ("… gacha") ham
+                      o'chiriladi (2026-11-06): o'tgan haftalarda ishlatilgan bo'lsa server uni
+                      arxivlaydi, o'sha haftalar tarixi saqlanadi.
+                    */}
+                    <IconBtn
+                      icon={Trash2}
+                      title="O'chirish"
+                      danger
+                      onClick={() => void handleDeleteTpl(t)}
+                    />
                   </div>
                 </div>
               ))}
@@ -262,7 +273,7 @@ export function ClassSchedulePage() {
                 berk qilardi: bu yerdan qayerga borishni ayta oladigan
                 yagona joy shu (mijoz, 2026-09-19: "tushunarsiz ekan").
               */}
-              {templates.length === 0 && (
+              {activeTemplates.length === 0 && (
                 <div className="py-8 text-center">
                   <p className="text-sm text-slate-500">Hali jadval yaratilmagan</p>
                   <p className="mt-1 text-xs text-slate-400">
@@ -314,7 +325,7 @@ export function ClassSchedulePage() {
                 className={control}
               >
                 <option value="">Jadvalni tanlang</option>
-                {templates.map((t) => (
+                {activeTemplates.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
@@ -410,7 +421,7 @@ export function ClassSchedulePage() {
       <TemplateNameModal
         open={nameOpen}
         initialName={editingTpl?.name}
-        defaultName={templates.length === 0 ? 'Asosiy jadval' : undefined}
+        defaultName={activeTemplates.length === 0 ? 'Asosiy jadval' : undefined}
         onClose={() => {
           setNameOpen(false)
           setEditingTpl(null)

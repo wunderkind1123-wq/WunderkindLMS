@@ -288,8 +288,8 @@ public sealed class DailyAttendanceService(IAppDbContext db)
             var time = bells.Time(classId, l.Period);
 
             // Bo'linish: 0 — butun sinf, 1/2 — faqat o'sha guruh
-            // (`LessonRoster.ForLessonAsync` dagi qoida bilan bir xil). Guruhda bo'linish yo'q.
-            var lessonStudents = l.SubGroup == 0 || owner.IsGroup
+            // (`LessonRoster.ForLessonAsync` dagi qoida bilan bir xil). Oddiy guruhda bo'linish yo'q.
+            var lessonStudents = l.SubGroup == 0 || !owner.HasHalves
                 ? roster
                 : roster.Where(x => x.SubGroup == l.SubGroup).ToList();
 
@@ -357,8 +357,8 @@ public sealed class DailyAttendanceService(IAppDbContext db)
             .ToList();
         // Bo'lingan darsda faqat O'SHA guruh belgilanadi — qolgan yarim sinf
         // boshqa xonada va ularni "kelmadi" deb yozib qo'yish xato bo'lardi.
-        // Yo'nalish (o'quv) guruhida bo'linish yo'q — butun ro'yxat.
-        var students = lesson.SubGroup == 0 || owner.IsGroup
+        // Oddiy o'quv guruhida bo'linish yo'q — butun ro'yxat; yo'nalishda katta/kichik guruh bor.
+        var students = lesson.SubGroup == 0 || !owner.HasHalves
             ? roster
             : roster.Where(s => s.SubGroup == lesson.SubGroup).ToList();
         var studentIds = students.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
@@ -401,8 +401,8 @@ public sealed class DailyAttendanceService(IAppDbContext db)
                     StudentId = student.Id,
                     Date = req.Date,
                     Period = req.Period,
-                    // Guruh qatorlarida bo'linish har doim 0 (JournalService bilan bir xil, §2.1.3).
-                    SubGroup = owner.IsGroup ? 0 : student.SubGroup,
+                    // Oddiy guruh qatorlarida bo'linish har doim 0 (JournalService bilan bir xil, §2.1.3).
+                    SubGroup = owner.HasHalves ? student.SubGroup : 0,
                     OwnerKind = owner.Kind,
                     ReasonId = reasonId,
                 });

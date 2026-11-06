@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
 import { weekDays } from '@/config/constants'
 import { cn } from '@/lib/utils'
+import { subGroupLabel } from '@/lib/subGroups'
 import { timesOverlap, type PeriodTime } from '@/components/schedule/periodTimes'
 
 /* ==========================================================================
@@ -62,11 +63,16 @@ interface Props {
   slotTime?: PeriodTime | null
   /**
    * Tahrirlanayotgan jadval kimniki — sinfnikimi yoki o'quv guruhinikimi.
-   * Guruhda sinf ichidagi 1/2-guruhga bo'linish YO'Q (guruhning o'zi
-   * allaqachon tanlangan o'quvchilar ro'yxati), shuning uchun "Guruhga"
-   * tugmasi ko'rsatilmaydi — server ham uni rad etadi.
+   * Oddiy guruhda 1/2-guruhga bo'linish YO'Q (guruhning o'zi allaqachon
+   * tanlangan o'quvchilar ro'yxati), shuning uchun "Guruhga" tugmasi
+   * ko'rsatilmaydi — server ham uni rad etadi.
    */
   ownerKind?: LessonOwnerKind
+  /**
+   * Yo'nalish guruhi — u ham ikkiga bo'linadi: katta (1) va kichik (2) guruh, har biriga o'z
+   * o'qituvchisi (mijoz, 2026-11-06).
+   */
+  isTrack?: boolean
   onClose: () => void
   /** Yangi to'liq holatni saqlash: 1 ta = butun sinf, 2 ta (G1+G2) = bo'lingan. */
   onSave: (day: number, period: number, lessons: ScheduleLesson[]) => void
@@ -88,6 +94,7 @@ export function LessonSlotModal({
   timeLabel,
   slotTime,
   ownerKind = 'class',
+  isTrack = false,
   onClose,
   onSave,
   onClear,
@@ -225,8 +232,8 @@ export function LessonSlotModal({
       }
     >
       <div className="space-y-4">
-        {/* Rejim tanlovi — o'quv guruhi jadvalida bo'linish yo'q (Props izohiga qarang) */}
-        {ownerKind === 'class' && (
+        {/* Rejim tanlovi — oddiy o'quv guruhi jadvalida bo'linish yo'q (Props izohiga qarang) */}
+        {(ownerKind === 'class' || isTrack) && (
           <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
             <button
               type="button"
@@ -236,7 +243,7 @@ export function LessonSlotModal({
                 mode === 'whole' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500',
               )}
             >
-              <Users className="mr-1 inline h-4 w-4" /> Butun sinf
+              <Users className="mr-1 inline h-4 w-4" /> {isTrack ? "Butun yo'nalish" : 'Butun sinf'}
             </button>
             <button
               type="button"
@@ -246,7 +253,7 @@ export function LessonSlotModal({
                 mode === 'split' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500',
               )}
             >
-              <User className="mr-1 inline h-4 w-4" /> Guruhga
+              <User className="mr-1 inline h-4 w-4" /> {isTrack ? 'Katta / kichik guruh' : 'Guruhga'}
             </button>
           </div>
         )}
@@ -263,7 +270,7 @@ export function LessonSlotModal({
           <div className="space-y-3">
             <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3">
               <h4 className="mb-2 inline-flex items-center gap-1 rounded bg-sky-200 px-2 py-0.5 text-xs font-semibold text-sky-800">
-                1-guruh
+                {subGroupLabel(1, isTrack)}
               </h4>
               <RowFields
                 subjects={subjects}
@@ -275,7 +282,7 @@ export function LessonSlotModal({
             </div>
             <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3">
               <h4 className="mb-2 inline-flex items-center gap-1 rounded bg-violet-200 px-2 py-0.5 text-xs font-semibold text-violet-800">
-                2-guruh
+                {subGroupLabel(2, isTrack)}
               </h4>
               <RowFields
                 subjects={subjects}
@@ -290,6 +297,8 @@ export function LessonSlotModal({
 
         <p className="text-xs text-slate-400">
           Bo'lingan dars faqat tegishli guruh o'quvchilariga ko'rinadi.
+          {isTrack &&
+            " O'quvchilarni katta va kichik guruhga O'quv bo'limi → Sinflar sahifasidagi yo'nalish qatoridan taqsimlang."}
         </p>
       </div>
     </Modal>

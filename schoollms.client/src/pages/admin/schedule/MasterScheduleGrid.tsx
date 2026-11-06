@@ -61,6 +61,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { Toast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
+import { subGroupBadge } from '@/lib/subGroups'
 import { LessonSlotModal, type OccupiedSlots, type SlotTarget } from '../classes/LessonSlotModal'
 
 const DEFAULT_NAME = 'Asosiy'
@@ -118,7 +119,14 @@ export function MasterScheduleGrid() {
           kind: o.kind,
           isTrack: o.isTrack,
         }))
-        const tpls = await Promise.all(active.map((c) => getTemplates(c.id).catch(() => [])))
+        // "O'chirilgan" (arxivlangan) jadval bu yerda ko'rinmaydi — u faqat o'tgan haftalar tarixi (2026-11-06).
+        const tpls = await Promise.all(
+          active.map((c) =>
+            getTemplates(c.id)
+              .then((ts) => ts.filter((t) => !t.isArchived))
+              .catch(() => [] as ScheduleTemplate[]),
+          ),
+        )
         const map: Record<string, ScheduleTemplate[]> = {}
         active.forEach((c, i) => (map[c.id] = tpls[i]))
         setClasses(active)
@@ -706,7 +714,7 @@ export function MasterScheduleGrid() {
                                     style={{ backgroundColor: s?.color ? `${s.color}1F` : '#f1f5f9' }}
                                   >
                                     <span className="block truncate text-xs font-semibold text-slate-800" style={s?.color ? { color: s.color } : undefined}>
-                                      {(l.subGroup ?? 0) > 0 && <span className="mr-1 text-[10px] text-slate-500">G{l.subGroup}</span>}
+                                      {(l.subGroup ?? 0) > 0 && <span className="mr-1 text-[10px] text-slate-500">{subGroupBadge(l.subGroup ?? 0, c.isTrack)}</span>}
                                       {s?.name ?? '—'}
                                     </span>
                                     {lessons.length === 1 && l.teacherId && (
@@ -742,6 +750,7 @@ export function MasterScheduleGrid() {
         timeLabel={editing ? ownerTimeLabel(editing.cls.id, editing.slot.period) : null}
         slotTime={editing ? periodTimesOf(editing.cls.id).get(editing.slot.period) : null}
         ownerKind={editing?.cls.kind ?? 'class'}
+        isTrack={editing?.cls.isTrack ?? false}
         onClose={() => setEditing(null)}
         onSave={(d, p, lessons) => void handleSave(d, p, lessons)}
         onClear={(d, p) => void handleClear(d, p)}

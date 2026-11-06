@@ -353,6 +353,11 @@ export interface ScheduleTemplate {
   lessons: ScheduleLesson[]
   /** Egasi sinfmi yoki guruhmi. Eski javoblarda bo'lmasligi mumkin → 'class'. */
   ownerKind?: LessonOwnerKind
+  /**
+   * O'chirilgan, lekin o'tgan haftalarda ishlatilgan jadval — ro'yxat va tanlagichlarda
+   * ko'rinmaydi, o'tgan haftalarda tarix sifatida qoladi (2026-11-06).
+   */
+  isArchived?: boolean
 }
 
 /** Chorak ichidagi haftaga jadval biriktirish */

@@ -45,8 +45,8 @@ export function ClassesPage() {
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<SchoolClass | null>(null)
-  /** Sinf guruhlarini boshqarish oynasi (Guruhlar tugmasi bilan ochiladi) */
-  const [groupsFor, setGroupsFor] = useState<SchoolClass | null>(null)
+  /** Sinf (1/2) yoki yo'nalish (katta/kichik) guruhlarini boshqarish oynasi */
+  const [groupsFor, setGroupsFor] = useState<{ id: string; name: string; isTrack?: boolean } | null>(null)
   /** Sinfga ball qo'yish oynasi (C-6) */
   /** Butun sinfga — yoki yo'nalish guruhiga (9–11-sinflar) — bitta ball. */
   const [pointsFor, setPointsFor] = useState<{ id: string; name: string; isTrack?: boolean } | null>(null)
@@ -407,6 +407,12 @@ export function ClassesPage() {
                             title="Yo'nalish ro'yxati"
                             onClick={() => navigate(`/admin/groups/${g.id}/students`)}
                           />
+                          {/* 2026-11-06: yo'nalish katta va kichik guruhga bo'linadi — har biriga o'z o'qituvchisi. */}
+                          <IconBtn
+                            icon={Users}
+                            title="Katta / kichik guruh"
+                            onClick={() => setGroupsFor({ id: g.id, name: g.name, isTrack: true })}
+                          />
                           <IconBtn
                             icon={ShieldAlert}
                             title="Yo'nalishga ball qo'yish"
@@ -448,6 +454,7 @@ export function ClassesPage() {
         open={!!groupsFor}
         classId={groupsFor?.id ?? ''}
         className={groupsFor?.name ?? ''}
+        isTrack={groupsFor?.isTrack}
         onClose={() => setGroupsFor(null)}
       />
 

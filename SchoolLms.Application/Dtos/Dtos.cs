@@ -415,7 +415,7 @@ public record ScheduleLessonDto(int Day, int Period, string SubjectId, string Te
 /// </summary>
 public record ScheduleTemplateDto(
     string Id, string ClassId, string Name, List<ScheduleLessonDto> Lessons,
-    string OwnerKind = "class");
+    string OwnerKind = "class", bool IsArchived = false);
 public record CreateTemplateRequest(string Name);
 public record RenameTemplateRequest(string Name);
 /// <summary>
@@ -797,7 +797,7 @@ public record TeacherReportBreakdownDto(
     int Expected, int Conducted, int? DonePct,
     int Grades, int? TopicPct, int? HomeworkPct,
     // G-15: qator sinf darsimi yoki GURUH darsimi (LessonOwnerKind).
-    string OwnerKind = "class");
+    string OwnerKind = "class", bool IsArchived = false);
 
 /// <summary>Bitta o'qituvchining batafsil hisoboti: umumiy ko'rsatkichlar + sinf/fan yoyilmasi.</summary>
 public record TeacherReportDetailDto(
@@ -1313,7 +1313,7 @@ public record AssignmentDto(
     string? StartDate, string? DueDate, bool LateAccept, int LatePenaltyPct, int MaxScore,
     bool AutoGrade, string CreatedAt,
     List<AssignmentMaterialDto> Materials, List<TestQuestionDto> Questions,
-    string OwnerKind = "class");
+    string OwnerKind = "class", bool IsArchived = false);
 public record MaterialInput(string Name, string Url, long Size, string ContentType);
 public record QuestionInput(string Text, List<string> Options, int CorrectIndex);
 /// <summary>
@@ -1589,7 +1589,7 @@ public record TeacherSubjectProgressDto(
     string ClassId, string ClassName, string SubjectId, string SubjectName, int SubGroup,
     int Planned, int Conducted, int Remaining, int Percent, int ExpectedByToday,
     // G-15: kesim sinfniki yoki GURUHniki (LessonOwnerKind).
-    string OwnerKind = "class");
+    string OwnerKind = "class", bool IsArchived = false);
 
 /// <summary>O'qituvchining umumiy o'tilgan darslar progresi + kesimlar bo'yicha yoyilma.</summary>
 public record TeacherProgressDto(

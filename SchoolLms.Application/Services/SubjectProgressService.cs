@@ -100,7 +100,7 @@ public static class SubjectProgressService
             var monday = ScheduleMath.MondayOfISO(w.StartISO);
             foreach (var l in lessons)
             {
-                if (owner.IsClass && studentSubGroup is int sg && l.SubGroup != 0 && l.SubGroup != sg)
+                if (owner.HasHalves && studentSubGroup is int sg && l.SubGroup != 0 && l.SubGroup != sg)
                     continue;
                 var date = ScheduleMath.AddDaysISO(monday, l.Day);
                 // Hafta chorak chetidan oshib ketsa — chorak chegarasidan tashqaridagi kunni tashlaymiz.

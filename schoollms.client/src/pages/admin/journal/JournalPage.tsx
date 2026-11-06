@@ -34,6 +34,7 @@ import {
 import { quarters } from '@/config/constants'
 import { getCurrentQuarterAndWeek } from '@/lib/weeks'
 import { formatDate, cn } from '@/lib/utils'
+import { subGroupLabel } from '@/lib/subGroups'
 import { homeworkMeta } from '@/lib/homeworkStatus'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
@@ -214,8 +215,10 @@ export function JournalPage() {
   const allClassStudents = students
 
   // Sinfda guruh bo'linishi bormi (kamida bir o'quvchi G1/G2 da)? — guruh filtrini ko'rsatish-yashirish.
-  // O'quv guruhida sinf ichidagi bo'linish YO'Q (§2.1.4), shuning uchun filtr ham ko'rinmaydi.
-  const classIsGrouped = !isGroupOwner && allClassStudents.some((s) => (s.subGroup ?? 0) > 0)
+  // Oddiy o'quv guruhida bo'linish YO'Q (§2.1.4), shuning uchun filtr ham ko'rinmaydi. Yo'nalish
+  // guruhi esa katta/kichik guruhga bo'linadi (2026-11-06).
+  const ownerIsTrack = isGroupOwner && !!selectedOwner?.isTrack
+  const classIsGrouped = (!isGroupOwner || ownerIsTrack) && allClassStudents.some((s) => (s.subGroup ?? 0) > 0)
 
   // Joriy guruh filtri bo'yicha tanlangan o'quvchilar.
   // Butun sinf (0) — hamma; 1/2 — faqat shu guruh.
@@ -507,9 +510,9 @@ export function JournalPage() {
                 )}
                 title="Guruh tanlash"
               >
-                <option value={0}>Butun sinf</option>
-                <option value={1}>1-guruh</option>
-                <option value={2}>2-guruh</option>
+                <option value={0}>{ownerIsTrack ? "Butun yo'nalish" : 'Butun sinf'}</option>
+                <option value={1}>{subGroupLabel(1, ownerIsTrack)}</option>
+                <option value={2}>{subGroupLabel(2, ownerIsTrack)}</option>
               </select>
             )}
             {/* Chorak — ro'yxatdan tanlanadi (mijoz, 2026-09-23). */}
@@ -580,7 +583,7 @@ export function JournalPage() {
               <p className="py-8 text-center text-slate-400">
                 {groupFilter === 0
                   ? "Bu fan butun sinf darslarini topmadi (faqat guruhlarga bo'lingan)"
-                  : `Bu fanda ${groupFilter}-guruh uchun dars yo'q`}
+                  : `Bu fanda ${subGroupLabel(groupFilter, ownerIsTrack).toLowerCase()} uchun dars yo'q`}
               </p>
             </Card>
           ) : (
