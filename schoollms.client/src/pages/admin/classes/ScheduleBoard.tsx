@@ -19,12 +19,15 @@ import { Toast } from '@/components/ui/Toast'
 import { PeriodCell, PeriodHead } from '@/components/schedule/PeriodCell'
 import { periodTimeMapFor } from '@/components/schedule/periodTimes'
 import { cn } from '@/lib/utils'
+import { subGroupBadge } from '@/lib/subGroups'
 import { LessonSlotModal, type SlotTarget } from './LessonSlotModal'
 
 interface Props {
   /** Eganing id'si — sinf id'si yoki o'quv guruhi id'si (§2.1.4) */
   classId: string
   template: ScheduleTemplate
+  /** Yo'nalish guruhi jadvalimi — katak katta/kichik guruhga bo'linadi (2026-11-06). */
+  isTrack?: boolean
   /**
    * Faol jadval tahrirlanganda server shablonning NUSXASINI olgan bo'lsa (o'tgan haftalar eski
    * versiyada qoldi, 2026-10-11) — keyingi saqlashlar shu nusxaga boradi.
@@ -59,7 +62,7 @@ function tint(hex: string, alpha: number): string | undefined {
    esa YO'Q — bo'sh katak aynan "yangi dars qo'shish" tugmasi. Sozlamada 6
    ta dars vaqti turgan bo'lsa ham, 7-darsni shu yerdan qo'yib bo'ladi.
    ========================================================================== */
-export function ScheduleBoard({ classId, template, onTemplateReplaced }: Props) {
+export function ScheduleBoard({ classId, template, isTrack = false, onTemplateReplaced }: Props) {
   const ownerKind = template.ownerKind ?? 'class'
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -282,7 +285,7 @@ export function ScheduleBoard({ classId, template, onTemplateReplaced }: Props) 
                                             : 'bg-violet-200 text-violet-800',
                                         )}
                                       >
-                                        G{l.subGroup}
+                                        {subGroupBadge(l.subGroup ?? 0, isTrack)}
                                       </span>
                                       <span className="flex items-center gap-1 text-xs font-medium text-slate-800">
                                         {subjectColor(l.subjectId) && (
@@ -346,6 +349,7 @@ export function ScheduleBoard({ classId, template, onTemplateReplaced }: Props) 
         timeLabel={selected ? timeLabel(selected.period) : null}
         slotTime={selected ? periodTimes.get(selected.period) : null}
         ownerKind={ownerKind}
+        isTrack={isTrack}
         onClose={() => setSelected(null)}
         onSave={handleSave}
         onClear={handleClear}

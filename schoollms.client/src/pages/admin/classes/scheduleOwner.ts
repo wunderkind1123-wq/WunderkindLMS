@@ -10,13 +10,16 @@ import { getGroup } from '@/api/services/groups'
  * Guruh darsi mavjud `class_id` ustunida guruh id'sini saqlaydi, shuning
  * uchun jadval yo'llari ham (`/admin/schedule/manage/:id`) ikkala ega uchun
  * BIR XIL. Sahifa faqat id kimniki ekanini bilishi kerak — sarlavhani
- * to'g'ri yozish va guruhda 1/2-bo'linishni ko'rsatmaslik uchun.
+ * to'g'ri yozish va oddiy guruhda 1/2-bo'linishni ko'rsatmaslik uchun
+ * (yo'nalish guruhi esa katta/kichik guruhga bo'linadi).
  * </p>
  */
 export interface ScheduleOwner {
   id: string
   name: string
   kind: LessonOwnerKind
+  /** Yo'nalish guruhi — darsi katta (1) va kichik (2) guruhga bo'linadi (2026-11-06) */
+  isTrack: boolean
   /** Sarlavha ostidagi kichik matn: sinf tili/xonasi yoki guruh fani */
   subtitle: string
 }
@@ -36,6 +39,7 @@ export async function resolveScheduleOwner(id: string): Promise<ScheduleOwner | 
       id: cls.id,
       name: cls.name,
       kind: 'class',
+      isTrack: false,
       subtitle: `${cls.name}-sinf`,
     }
   }
@@ -48,6 +52,7 @@ export async function resolveScheduleOwner(id: string): Promise<ScheduleOwner | 
       id: grp.id,
       name: grp.name,
       kind: 'group',
+      isTrack: !!grp.isTrack,
       subtitle: `${grp.isTrack ? "Yo'nalish guruhi" : `O'quv guruhi · ${grp.subjectName}`}${grp.isArchived ? ' · arxivda' : ''}`,
     }
   } catch {

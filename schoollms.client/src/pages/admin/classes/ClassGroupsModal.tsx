@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { cn } from '@/lib/utils'
+import { subGroupBadge, subGroupLabel } from '@/lib/subGroups'
 import {
   getClassGroups,
   saveClassGroups,
@@ -16,16 +17,17 @@ interface Props {
   open: boolean
   classId: string
   className: string
+  /**
+   * Yo'nalish guruhi: o'quvchilar katta (1) va kichik (2) guruhga bo'linadi (mijoz, 2026-11-06).
+   * `classId` o'rnida yo'nalish id'si keladi — server ikkalasini ham taniydi.
+   */
+  isTrack?: boolean
   onClose: () => void
 }
 
 type Bucket = 0 | 1 | 2
 
-const bucketTitle: Record<Bucket, string> = {
-  0: 'Guruhsiz',
-  1: '1-guruh',
-  2: '2-guruh',
-}
+const bucketTitleFor = (b: Bucket, isTrack: boolean) => (b === 0 ? 'Guruhsiz' : subGroupLabel(b, isTrack))
 
 const bucketColor: Record<Bucket, string> = {
   0: 'bg-slate-50 border-slate-200',
@@ -48,7 +50,8 @@ const bucketBadge: Record<Bucket, string> = {
  * - O'quvchini kerakli guruhga belgilash uchun "1-guruh"/"2-guruh"/"Guruhsiz" tugmalarini bosing.
  *   "Saqlash" bosilgunicha o'zgarishlar faqat oynada turadi.
  */
-export function ClassGroupsModal({ open, classId, className, onClose }: Props) {
+export function ClassGroupsModal({ open, classId, className, isTrack = false, onClose }: Props) {
+  const bucketTitle = (b: Bucket) => bucketTitleFor(b, isTrack)
   const { user } = useAuth()
   const isSuperAdmin = user?.role === 'superadmin'
   const [data, setData] = useState<ClassGroups | null>(null)
@@ -160,8 +163,8 @@ export function ClassGroupsModal({ open, classId, className, onClose }: Props) {
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <Users className="h-4 w-4 text-slate-400" />
               <span>
-                Jami {data.students.length} o'quvchi · Guruhsiz {counts[0]} · 1-guruh{' '}
-                <b className="text-sky-700">{counts[1]}</b> · 2-guruh{' '}
+                Jami {data.students.length} o'quvchi · Guruhsiz {counts[0]} · {bucketTitle(1)}{' '}
+                <b className="text-sky-700">{counts[1]}</b> · {bucketTitle(2)}{' '}
                 <b className="text-violet-700">{counts[2]}</b>
               </span>
             </div>
@@ -227,7 +230,7 @@ export function ClassGroupsModal({ open, classId, className, onClose }: Props) {
                 )}
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-slate-700">{bucketTitle[b]}</h4>
+                  <h4 className="text-sm font-semibold text-slate-700">{bucketTitle(b)}</h4>
                   <span
                     className={cn(
                       'rounded-full px-2 text-xs font-semibold',
@@ -252,7 +255,7 @@ export function ClassGroupsModal({ open, classId, className, onClose }: Props) {
                               <button
                                 key={x}
                                 type="button"
-                                title={`${bucketTitle[x]}ga`}
+                                title={`${bucketTitle(x)}ga`}
                                 onClick={() => move(s.id, x)}
                                 className={cn(
                                   'rounded px-1.5 py-0.5 text-[11px] font-semibold transition-colors',
@@ -260,7 +263,7 @@ export function ClassGroupsModal({ open, classId, className, onClose }: Props) {
                                   'hover:brightness-95',
                                 )}
                               >
-                                {x === 0 ? 'X' : `G${x}`}
+                                {x === 0 ? 'X' : subGroupBadge(x, isTrack)}
                               </button>
                             ))}
                         </div>
@@ -275,12 +278,21 @@ export function ClassGroupsModal({ open, classId, className, onClose }: Props) {
             ))}
           </div>
 
-          <p className="text-xs text-slate-400">
-            Eslatma: guruhlash faqat o'quv yili boshida (jurnalga yozuv kiritilmasdan oldin)
-            o'zgartirilishi mumkin — odatdagi admin uchun. Superadmin (tizim egasi) qulflangan
-            bo'lsa ham istalgan vaqtda o'zgartira oladi. Bo'lingan darslar (jadvalda
-            1-guruh/2-guruh sifatida belgilangan) faqat shu guruh o'quvchilariga ko'rinadi.
-          </p>
+          {isTrack ? (
+            <p className="text-xs text-slate-400">
+              Eslatma: yo'nalishning bo'lingan darslari (jadvalda katta/kichik guruh sifatida
+              belgilangan) faqat shu guruh o'quvchilariga ko'rinadi — o'qituvchi jurnal va
+              davomatda o'z guruhini ko'radi. Bo'lingan darsga jurnal yozuvi kiritilgach,
+              taqsimotni faqat superadmin o'zgartira oladi.
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400">
+              Eslatma: guruhlash faqat o'quv yili boshida (jurnalga yozuv kiritilmasdan oldin)
+              o'zgartirilishi mumkin — odatdagi admin uchun. Superadmin (tizim egasi) qulflangan
+              bo'lsa ham istalgan vaqtda o'zgartira oladi. Bo'lingan darslar (jadvalda
+              1-guruh/2-guruh sifatida belgilangan) faqat shu guruh o'quvchilariga ko'rinadi.
+            </p>
+          )}
         </div>
       )}
     </Modal>

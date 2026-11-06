@@ -468,34 +468,54 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
         return NoContent();
     }
 
-    /* ---------- Sinf ichidagi guruhlar ---------- */
+    /* ---------- Sinf (yoki yo'nalish) ichidagi guruhlar ---------- */
 
     /// <summary>
-    /// Sinfdagi o'quvchilarning ikki guruhga taqsimoti. Locked=true bo'lsa — o'quv yili
-    /// boshlangan (jurnalda yozuv bor). CanEdit = !Locked YOKI joriy foydalanuvchi superadmin
-    /// (tizim egasi muzlatishni o'tib o'zgartira oladi).
+    /// Ikki yarimga bo'linadigan ega: sinf (1-/2-guruh) yoki yo'nalish guruhi — katta (1) va
+    /// kichik (2) guruh (mijoz, 2026-11-06). Yarmi o'quvchining <see cref="Student.SubGroup"/>
+    /// qiymati (<see cref="LessonOwner.HasHalves"/>). Oddiy o'quv guruhi — null (404).
+    /// </summary>
+    private async Task<LessonOwner?> HalvesOwnerAsync(string id)
+    {
+        var owner = await LessonRoster.OwnerAsync(db, id);
+        return owner is { HasHalves: true } ? owner : null;
+    }
+
+    /// <summary>
+    /// O'quv yili boshlanganmi — taqsimotni faqat superadmin o'zgartiradi. Sinf: jurnalda yozuv
+    /// bor. Yo'nalish: jurnalda BO'LINGAN darsning yozuvi bor — yil o'rtasida yo'nalishni birinchi
+    /// marta katta/kichik guruhga bo'lish ochiq qoladi (shu paytgacha uning yozuvlari 0 bilan).
+    /// </summary>
+    private Task<bool> HalvesLockedAsync(LessonOwner owner) => owner.IsClass
+        ? db.JournalEntries.AnyAsync(e => e.ClassId == owner.Id && e.OwnerKind == owner.Kind)
+        : db.JournalEntries.AnyAsync(e => e.ClassId == owner.Id && e.OwnerKind == owner.Kind && e.SubGroup != 0);
+
+    /// <summary>
+    /// Sinfdagi (yoki yo'nalishdagi) o'quvchilarning ikki guruhga taqsimoti. Locked=true bo'lsa —
+    /// o'quv yili boshlangan (<see cref="HalvesLockedAsync"/>). CanEdit = !Locked YOKI joriy
+    /// foydalanuvchi superadmin (tizim egasi muzlatishni o'tib o'zgartira oladi).
     /// </summary>
     [HttpGet("{id}/groups")]
     public async Task<ActionResult<ClassGroupsDto>> GetGroups(string id)
     {
-        var cls = await db.Classes.FindAsync(id);
-        if (cls is null) return NotFound();
+        var owner = await HalvesOwnerAsync(id);
+        if (owner is null) return NotFound();
 
-        var students = await db.Students.Where(s => s.ClassName == cls.Name)
+        var students = await LessonRoster.Query(db, owner)
             .OrderBy(s => s.FullName).ToListAsync();
 
-        var hasJournal = await db.JournalEntries.AnyAsync(e => e.ClassId == cls.Id);
+        var hasJournal = await HalvesLockedAsync(owner);
         var locked = hasJournal;
         var isSuper = User.IsInRole(Roles.SuperAdmin);
         var canEdit = !locked || isSuper;
         var lockReason = hasJournal
             ? (isSuper
                 ? "O'quv yili boshlangan (jurnalda yozuv bor) — siz superadmin sifatida o'zgartira olasiz"
-                : "Bu sinf uchun jurnalga yozuv kiritilgan — o'quv yili boshlangan, faqat superadmin o'zgartira oladi")
+                : (owner.IsClass ? "Bu sinf" : "Bu yo'nalish") + " uchun jurnalga yozuv kiritilgan — o'quv yili boshlangan, faqat superadmin o'zgartira oladi")
             : null;
 
         return new ClassGroupsDto(
-            cls.Id, cls.Name, locked, lockReason, canEdit,
+            owner.Id, owner.Name, locked, lockReason, canEdit,
             students.Count(s => s.SubGroup == 0),
             students.Count(s => s.SubGroup == 1),
             students.Count(s => s.SubGroup == 2),
@@ -509,11 +529,10 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
     [HttpPut("{id}/groups")]
     public async Task<IActionResult> SaveGroups(string id, SaveGroupsRequest req)
     {
-        var cls = await db.Classes.FindAsync(id);
-        if (cls is null) return NotFound();
+        var owner = await HalvesOwnerAsync(id);
+        if (owner is null) return NotFound();
 
-        var hasJournal = await db.JournalEntries.AnyAsync(e => e.ClassId == cls.Id);
-        if (hasJournal && !User.IsInRole(Roles.SuperAdmin))
+        if (await HalvesLockedAsync(owner) && !User.IsInRole(Roles.SuperAdmin))
             return BadRequest(new { message = "Guruhni o'zgartirib bo'lmaydi: o'quv yili allaqachon boshlangan. Faqat superadmin o'zgartira oladi." });
 
         var assignments = req.Assignments ?? new();
@@ -524,7 +543,7 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
         }
 
         var ids = assignments.Select(a => a.StudentId).ToList();
-        var students = await db.Students.Where(s => ids.Contains(s.Id) && s.ClassName == cls.Name).ToListAsync();
+        var students = await LessonRoster.Query(db, owner).Where(s => ids.Contains(s.Id)).ToListAsync();
         foreach (var s in students)
         {
             var a = assignments.First(x => x.StudentId == s.Id);
@@ -542,14 +561,13 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
     [HttpPost("{id}/groups/auto-split")]
     public async Task<ActionResult<ClassGroupsDto>> AutoSplit(string id)
     {
-        var cls = await db.Classes.FindAsync(id);
-        if (cls is null) return NotFound();
+        var owner = await HalvesOwnerAsync(id);
+        if (owner is null) return NotFound();
 
-        var hasJournal = await db.JournalEntries.AnyAsync(e => e.ClassId == cls.Id);
-        if (hasJournal && !User.IsInRole(Roles.SuperAdmin))
+        if (await HalvesLockedAsync(owner) && !User.IsInRole(Roles.SuperAdmin))
             return BadRequest(new { message = "Avtomatik bo'lishni qo'llab bo'lmaydi: o'quv yili allaqachon boshlangan. Faqat superadmin override qila oladi." });
 
-        var students = await db.Students.Where(s => s.ClassName == cls.Name)
+        var students = await LessonRoster.Query(db, owner)
             .OrderBy(s => s.FullName).ToListAsync();
         for (var i = 0; i < students.Count; i++)
             students[i].SubGroup = i % 2 == 0 ? 1 : 2;

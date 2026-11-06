@@ -26,8 +26,9 @@ namespace SchoolLms.Application.Services;
 public static class JournalService
 {
     /// <summary>
-    /// Guruh darsi jurnalda BUTUN guruh uchun bitta ustun: sinf ichidagi
-    /// 1/2-guruhga bo'linish guruhga tegishli emas (§2.1.4).
+    /// Oddiy guruh darsi jurnalda BUTUN guruh uchun bitta ustun: sinf ichidagi
+    /// 1/2-guruhga bo'linish unga tegishli emas (§2.1.4). Yo'nalish guruhida esa
+    /// katta/kichik guruh bor (<see cref="LessonOwner.HasHalves"/>).
     /// </summary>
     public const string SubGroupOnGroupMessage =
         "Guruh darsida sinf ichidagi 1/2-guruhga bo'linish bo'lmaydi — "
@@ -147,9 +148,9 @@ public static class JournalService
             e.StudentId == req.StudentId && e.Date == req.Date && e.Period == req.Period &&
             e.OwnerKind == ownerKind);
         // O'quvchining guruhi — yozuvga ham, mos LessonNote'ga ham SubGroup sifatida yoziladi.
-        // GURUH darsida bo'linish yo'q: qator har doim 0 bilan yoziladi (§2.1.3).
+        // ODDIY guruh darsida bo'linish yo'q: qator har doim 0 bilan yoziladi (§2.1.3).
         var student = await db.Students.FindAsync(req.StudentId);
-        var subGroup = owner?.IsGroup == true ? 0 : student?.SubGroup ?? 0;
+        var subGroup = owner?.HasHalves == false ? 0 : student?.SubGroup ?? 0;
 
         // A kept reason is the nurse's, not this write's — it does not close the lesson by itself.
         var touched = req.Grade.HasValue || (!keepStoredReason && req.ReasonId is not null)
@@ -358,8 +359,8 @@ public static class JournalService
         {
             // O'chirgich o'chiq ekan guruh jurnaliga yozib bo'lmaydi (§4.3).
             if (!await LessonRoster.LessonsLiveAsync(db, owner)) return GroupLessonsOffMessage;
-            // Guruhda sinf ichidagi bo'linish yo'q — server rad etadi (§2.1.4).
-            if (req.SubGroup != 0) return SubGroupOnGroupMessage;
+            // Oddiy guruhda bo'linish yo'q — server rad etadi (§2.1.4). Yo'nalishda katta/kichik bor.
+            if (!owner.HasHalves && req.SubGroup != 0) return SubGroupOnGroupMessage;
         }
         var ownerKind = owner?.Kind ?? LessonOwnerKind.Class;
 

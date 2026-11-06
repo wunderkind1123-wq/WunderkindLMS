@@ -381,6 +381,138 @@ public class TrackGroupsAsClassesTests(ApiFixture fixture) : IAsyncLifetime
     }
 
     /* =====================================================================
+     *  7. Katta va kichik guruh (mijoz, 2026-11-06)
+     * ================================================================== */
+
+    /// <summary>
+    /// Yo'nalish darsi ikkiga bo'linadi: katta guruh (1) bir o'qituvchida, kichik guruh (2)
+    /// boshqasida. Har yarmning ro'yxati, jurnal qatori, o'qituvchining yarmi va o'quvchi jadvali
+    /// faqat o'sha yarmni ko'radi. Oddiy guruhda bo'linish hamon yo'q.
+    /// </summary>
+    [Fact]
+    public async Task Yonalish_katta_va_kichik_guruhga_bolinadi_har_yarmi_oz_oqituvchisida()
+    {
+        await using var db = await NewDbAsync("halves");
+        var w = await SeedAsync(db);
+        var second = new Teacher { FullName = "Kichik guruh ustozi" };
+        db.Teachers.Add(second);
+        (await db.Students.FindAsync(w.P9A))!.SubGroup = 1;
+        (await db.Students.FindAsync(w.P9B))!.SubGroup = 2;
+        var tpl = await db.ScheduleTemplates.Include(t => t.Lessons).FirstAsync(t => t.Id == w.TrackTemplateId);
+        tpl.Lessons.Clear();
+        tpl.Lessons.Add(new ScheduleLesson { Day = 0, Period = TrackPeriod, SubjectId = w.Physics, TeacherId = w.TeacherId, SubGroup = 1 });
+        tpl.Lessons.Add(new ScheduleLesson { Day = 0, Period = TrackPeriod, SubjectId = w.Math, TeacherId = second.Id, SubGroup = 2 });
+        await db.SaveChangesAsync();
+
+        // Ro'yxat — har yarmi o'z o'quvchilari; butun yo'nalish — ikkalasi.
+        Assert.Equal([w.P9A], (await LessonRoster.ForLessonAsync(db, w.TrackId, 1)).Select(s => s.Id));
+        Assert.Equal([w.P9B], (await LessonRoster.ForLessonAsync(db, w.TrackId, 2)).Select(s => s.Id));
+        Assert.Equal(2, (await LessonRoster.ForLessonAsync(db, w.TrackId, 0)).Count);
+        // Oddiy guruhda bo'linish yo'q — yarmi so'ralsa ham butun guruh.
+        Assert.Equal([w.P5], (await LessonRoster.ForLessonAsync(db, w.OrdinaryId, 1)).Select(s => s.Id));
+
+        // Jurnal qatori o'quvchining yarmini oladi; yarim izohi rad etilmaydi.
+        Assert.Null(await JournalService.SetEntryAsync(db, new SetJournalEntryRequest(
+            w.TrackId, w.Math, Quarter, w.P9B, Monday, TrackPeriod, 4, null)));
+        Assert.Equal(2, (await db.JournalEntries.SingleAsync(e => e.ClassId == w.TrackId)).SubGroup);
+
+        // O'qituvchining yarmi — jadvaldan.
+        var owner = (await LessonRoster.OwnerAsync(db, w.TrackId))!;
+        Assert.True(owner.HasHalves);
+        Assert.Equal(1, await TeacherOwnerAccess.SubGroupAsync(db, w.TeacherId, owner, w.Physics, 0, TrackPeriod));
+        Assert.Equal(2, await TeacherOwnerAccess.SubGroupAsync(db, second.Id, owner, w.Math, 0, TrackPeriod));
+
+        // Kunlik davomat: ikki dars, har birida o'z yarmi belgilanadi.
+        var service = new DailyAttendanceService(db);
+        var day = (await service.ClassDayAsync(w.TrackId, Monday))!;
+        Assert.Equal([1, 2], day.Lessons.Select(l => l.SubGroup).Order());
+        Assert.Null(await service.SaveAsync(new SaveDailyAttendanceRequest(
+            w.TrackId, Monday, w.Physics, TrackPeriod, [new(w.P9A, w.AbsentReasonId)], SubGroup: 1), w.UserId));
+        var mark = await db.JournalEntries.SingleAsync(e => e.ClassId == w.TrackId && e.StudentId == w.P9A);
+        Assert.Equal(1, mark.SubGroup);
+
+        // O'quvchi jadvali: kichik guruhdagi bola faqat o'z darsini ko'radi.
+        var p9b = await db.Students.AsNoTracking().FirstAsync(s => s.Id == w.P9B);
+        var lessons = await PupilTimetable.ForWeekAsync(db, p9b, Quarter, 1);
+        var trackLesson = Assert.Single(lessons, l => l.Owner.Id == w.TrackId);
+        Assert.Equal(w.Math, trackLesson.SubjectId);
+    }
+
+    /// <summary>
+    /// API: yo'nalish jadvalida katakni katta/kichik guruhga bo'lish qabul qilinadi; o'quvchilarni
+    /// yarimlarga taqsimlash "Guruhlar" oynasining o'sha endpoint'i orqali (yo'nalish id'si bilan).
+    /// </summary>
+    [Fact]
+    public async Task Yonalish_katagini_bolish_va_oquvchilarni_taqsimlash_api()
+    {
+        var s = await SeedSharedAsync();
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+        var trackId = await CreateTrackAsync(admin, s, $"Bo'linadigan {s.Tag}", [s.StudentA, s.StudentB]);
+        var templates = $"/api/admin/classes/{trackId}/schedule-templates";
+
+        var created = await admin.PostAsJsonAsync(templates, new { name = $"Asosiy {s.Tag}" });
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var tplId = (await created.Content.ReadFromJsonAsync<ScheduleTemplateDto>())!.Id;
+        var cell = await admin.PutAsJsonAsync($"{templates}/{tplId}/cell", new
+        {
+            day = 4,
+            period = 7,
+            lessons = new[]
+            {
+                new { day = 4, period = 7, subjectId = s.SubjectId, teacherId = s.TeacherId, subGroup = 1 },
+                new { day = 4, period = 7, subjectId = s.SubjectId, teacherId = s.TeacherId, subGroup = 2 },
+            },
+        });
+        Assert.Equal(HttpStatusCode.NoContent, cell.StatusCode);
+
+        var saved = await admin.PutAsJsonAsync($"/api/admin/classes/{trackId}/groups", new
+        {
+            assignments = new[] { new { studentId = s.StudentA, subGroup = 1 }, new { studentId = s.StudentB, subGroup = 2 } },
+        });
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+        var groups = (await admin.GetFromJsonAsync<ClassGroupsDto>($"/api/admin/classes/{trackId}/groups"))!;
+        Assert.False(groups.Locked);
+        Assert.Equal(1, groups.Group1Count);
+        Assert.Equal(1, groups.Group2Count);
+    }
+
+    /* =====================================================================
+     *  8. Eski jadvalni o'chirish (mijoz, 2026-11-06)
+     * ================================================================== */
+
+    /// <summary>
+    /// O'tgan haftalarda ishlatilgan jadval o'chirilganda: o'tgan hafta biriktirilganicha qoladi
+    /// (tarix), joriy va keyingi haftalar bo'shatiladi.
+    /// </summary>
+    [Fact]
+    public async Task Ishlatilgan_jadval_otgan_haftalarda_qoladi_keyingilaridan_boshatiladi()
+    {
+        await using var db = await NewDbAsync("archive");
+        var w = await SeedAsync(db);
+        // Bugundan 5 hafta oldin boshlanib, 10 hafta keyin tugaydigan chorak.
+        var monday = DateOnly.ParseExact(LiveScheduleEdit.ThisMonday(), "yyyy-MM-dd");
+        db.Quarters.Add(new QuarterPeriod
+        {
+            Quarter = 2, StartDate = monday.AddDays(-35).ToString("yyyy-MM-dd"),
+            EndDate = monday.AddDays(70).ToString("yyyy-MM-dd"), GradesOpen = true,
+        });
+        db.WeekAssignments.AddRange(
+            new WeekAssignment { ClassId = w.TrackId, Quarter = 2, Week = 2, TemplateId = w.TrackTemplateId, OwnerKind = LessonOwnerKind.Group },
+            new WeekAssignment { ClassId = w.TrackId, Quarter = 2, Week = 9, TemplateId = w.TrackTemplateId, OwnerKind = LessonOwnerKind.Group });
+        await db.SaveChangesAsync();
+        var tpl = await db.ScheduleTemplates.FirstAsync(t => t.Id == w.TrackTemplateId);
+
+        Assert.True(await LiveScheduleEdit.UsedInPastAsync(db, tpl));
+        Assert.Equal(1, await LiveScheduleEdit.ReleaseUpcomingWeeksAsync(db, tpl));
+        await db.SaveChangesAsync();
+
+        var rows = await db.WeekAssignments.AsNoTracking()
+            .Where(a => a.ClassId == w.TrackId && a.Quarter == 2).ToDictionaryAsync(a => a.Week);
+        Assert.Equal(w.TrackTemplateId, rows[2].TemplateId);
+        Assert.Null(rows[9].TemplateId);
+    }
+
+    /* =====================================================================
      *  Yordamchilar
      * ================================================================== */
 

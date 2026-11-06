@@ -127,3 +127,28 @@ kiradigan o'qituvchiga o'zi kiradigan yo'nalishidagi o'quvchilar ro'yxati chiqis
 - `ExamService.SaveEntryAsync` now runs under a per-exam advisory lock: teachers save one exam concurrently, and
   each save recomputes the pupil's total from the stored cells.
 - Migration `ExamSectionSubjectWeight`. Tests: `TeacherBlockExamTests`.
+
+## Katta va kichik guruh, eski jadvalni o'chirish — 2026-11-06
+
+Client: *"bitta fan uchun ikkita o'qituvchi kirishi mumkin … yo'nalishlarda baz guruhlar ikkiga bo'lingan holda
+katta guruh va kichik guruh … katta guruhga boshqa o'qituvchi, kichik guruhga boshqa o'qituvchi … eski dars
+jadvallarini o'chirib, yangisini qo'shish imkoni bo'lsin."*
+
+- **A track lesson splits like a class lesson.** `LessonOwner.HasHalves` (= class or track) replaces the old
+  "groups never split" checks: a track cell may hold two lessons, `sub_group` 1 = **katta guruh**, 2 = **kichik
+  guruh**, each with its own subject and teacher. Ordinary (subject) groups still never split.
+- **The half is the pupil's `students.sub_group`.** A grade 9–11 pupil studies only in their track (the home class
+  has no lessons), so the existing per-pupil half serves as the track half — roster, journal, lesson notes, daily
+  attendance, homework, teacher's half (`TeacherOwnerAccess.SubGroupAsync`), pupil timetable and subject progress
+  all use the same `0 || == student.SubGroup` rule they use for classes. One partition per track, not per subject.
+- **Assigning halves:** O'quv bo'limi → Sinflar → track row → "Katta / kichik guruh" — the class "Guruhlar" modal and
+  `GET/PUT /api/admin/classes/{id}/groups` (+ `auto-split`) now accept a track id. Lock: a class locks on any journal
+  entry; a track only on a journal entry of a split lesson (`sub_group <> 0`), so tracks can be split mid-year.
+- **Schedule editor:** the cell modal of a track shows "Butun yo'nalish" / "Katta / kichik guruh"; board badges read
+  "Katta"/"Kichik". Admin journal shows the half filter for tracks.
+- **Deleting an old timetable:** `DELETE …/schedule-templates/{id}` on a template used in past weeks no longer returns
+  409 — it sets `schedule_templates.is_archived`, releases the current and upcoming weeks
+  (`LiveScheduleEdit.ReleaseUpcomingWeeksAsync`), and keeps past weeks pointing at it (journal, attendance, salary
+  history intact). Unused templates are still deleted outright. Archived templates are hidden from the template list,
+  the week picker and the master grid; the auto-saved "… gacha" versions can now be deleted the same way.
+- Migration `ScheduleTemplateArchive`. Tests: `TrackGroupsAsClassesTests` §7–8.

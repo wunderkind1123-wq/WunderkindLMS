@@ -118,7 +118,14 @@ export function MasterScheduleGrid() {
           kind: o.kind,
           isTrack: o.isTrack,
         }))
-        const tpls = await Promise.all(active.map((c) => getTemplates(c.id).catch(() => [])))
+        // "O'chirilgan" (arxivlangan) jadval bu yerda ko'rinmaydi — u faqat o'tgan haftalar tarixi (2026-11-06).
+        const tpls = await Promise.all(
+          active.map((c) =>
+            getTemplates(c.id)
+              .then((ts) => ts.filter((t) => !t.isArchived))
+              .catch(() => [] as ScheduleTemplate[]),
+          ),
+        )
         const map: Record<string, ScheduleTemplate[]> = {}
         active.forEach((c, i) => (map[c.id] = tpls[i]))
         setClasses(active)

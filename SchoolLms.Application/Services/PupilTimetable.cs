@@ -22,10 +22,10 @@ namespace SchoolLms.Application.Services;
 //  faqat sinfni qaytaradi, ya'ni natija — bugungi ikki qatorning aynan o'zi.
 //  Buni `LessonRosterTests` isbotlaydi.
 //
-//  BO'LINISH (SubGroup) — FAQAT SINFDA
-//  -----------------------------------
-//  Guruh darsida bo'linish yo'q (guruhning o'zi allaqachon tanlangan
-//  bolalar to'plami), shuning uchun filtr faqat sinf darslariga qo'llanadi.
+//  BO'LINISH (SubGroup) — SINFDA VA YO'NALISHDA
+//  ------------------------------------------
+//  Oddiy guruh darsida bo'linish yo'q (guruhning o'zi allaqachon tanlangan
+//  bolalar to'plami). Yo'nalishda katta (1) / kichik (2) guruh — Student.SubGroup.
 // ===========================================================================
 
 /// <summary>O'quvchining jadvalidagi bitta dars — egasi bilan birga.</summary>
@@ -83,8 +83,8 @@ public static class PupilTimetable
             if (!templates.TryGetValue(a.TemplateId!, out var tpl)) continue;
             foreach (var l in tpl.Lessons)
             {
-                // Bo'linish filtri — faqat sinf darsida (fayl boshidagi izoh).
-                if (owner.IsClass && l.SubGroup != 0 && l.SubGroup != student.SubGroup) continue;
+                // Bo'linish filtri — sinf va yo'nalish darsida (fayl boshidagi izoh).
+                if (owner.HasHalves && l.SubGroup != 0 && l.SubGroup != student.SubGroup) continue;
                 result.Add(new PupilLesson(owner, l.Day, l.Period, l.SubjectId, l.TeacherId, l.SubGroup));
             }
         }

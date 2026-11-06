@@ -169,7 +169,7 @@ public static class HomeworkCompletionService
         var columnStatuses = lessonKeys.Select(_ => new List<int>()).ToList();
         foreach (var s in students)
         {
-            var studentSubGroup = owner.IsGroup ? 0 : s.SubGroup;
+            var studentSubGroup = owner.HasHalves ? s.SubGroup : 0;
             var cells = new List<HomeworkCellDto>(lessonKeys.Count);
             for (var i = 0; i < lessonKeys.Count; i++)
             {
@@ -229,12 +229,12 @@ public static class HomeworkCompletionService
         var keys = new HashSet<(string Date, int Period, int SubGroup)>();
         foreach (var quarter in quarters)
             foreach (var c in await JournalService.ComputeColumnsAsync(db, owner.Id, subjectId, quarter))
-                if (InRange(c.Date)) keys.Add((c.Date, c.Period, owner.IsGroup ? 0 : c.SubGroup));
+                if (InRange(c.Date)) keys.Add((c.Date, c.Period, owner.HasHalves ? c.SubGroup : 0));
 
         // 2. What happened: conducted notes and attendance marks (HeldLessons — the statistics' rule).
         var held = (await HeldLessons.ListAsync(db, [owner.Id], fromIso, lastIso, ct))
             .Where(h => h.SubjectId == subjectId && h.OwnerKind == owner.Kind)
-            .Select(h => (h.Date, h.Period, SubGroup: owner.IsGroup ? 0 : h.SubGroup))
+            .Select(h => (h.Date, h.Period, SubGroup: owner.HasHalves ? h.SubGroup : 0))
             .ToList();
         // 3. Lessons that set homework text, and cells that already carry a status.
         var noted = await db.LessonNotes.AsNoTracking()
@@ -252,7 +252,7 @@ public static class HomeworkCompletionService
         // timetable has none. (A note's half is not trusted next to the timetable: the automatic
         // "o'tildi" note takes the pupil's half even in a whole-class lesson.)
         var scheduledSlots = keys.Select(k => (k.Date, k.Period)).ToHashSet();
-        foreach (var k in held.Concat(noted.Select(n => (n.Date, n.Period, SubGroup: owner.IsGroup ? 0 : n.SubGroup))))
+        foreach (var k in held.Concat(noted.Select(n => (n.Date, n.Period, SubGroup: owner.HasHalves ? n.SubGroup : 0))))
             if (InRange(k.Date) && !scheduledSlots.Contains((k.Date, k.Period))) keys.Add(k);
         var slots = keys.Select(k => (k.Date, k.Period)).ToHashSet();
         foreach (var m in marked)
@@ -320,7 +320,7 @@ public static class HomeworkCompletionService
             if (!TryDate(m.Date, out _)) return "Sana noto'g'ri — yyyy-MM-dd ko'rinishida bo'lsin.";
             if (m.Period <= 0) return "Dars raqami noto'g'ri.";
             if (m.SubGroup is < 0 or > 2) return "subGroup 0, 1 yoki 2 bo'lishi kerak.";
-            if (owner.IsGroup && m.SubGroup != 0) return JournalService.SubGroupOnGroupMessage;
+            if (!owner.HasHalves && m.SubGroup != 0) return JournalService.SubGroupOnGroupMessage;
         }
         if (string.IsNullOrWhiteSpace(subjectId) || !await db.Subjects.AnyAsync(s => s.Id == subjectId, ct))
             return SubjectNotFoundMessage;
@@ -387,8 +387,8 @@ public static class HomeworkCompletionService
                     StudentId = m.StudentId,
                     Date = m.Date,
                     Period = m.Period,
-                    // The journal's rule (SetEntryAsync): the pupil's half; a group has none.
-                    SubGroup = owner.IsGroup ? 0 : roster[m.StudentId].SubGroup,
+                    // The journal's rule (SetEntryAsync): the pupil's half; an ordinary group has none.
+                    SubGroup = owner.HasHalves ? roster[m.StudentId].SubGroup : 0,
                     OwnerKind = owner.Kind,
                     Homework = m.Status,
                 });

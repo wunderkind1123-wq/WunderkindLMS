@@ -61,6 +61,15 @@ public sealed record LessonOwner(
     public bool IsGroup => Kind == LessonOwnerKind.Group;
 
     public bool IsClass => Kind == LessonOwnerKind.Class;
+
+    /// <summary>
+    /// Darsi ikki yarimga (<c>SubGroup</c> 1/2) bo'linadimi. Sinf — ha (1-/2-guruh). Yo'nalish
+    /// guruhi — ha: katta guruh (1) va kichik guruh (2), har biriga o'z o'qituvchisi (mijoz,
+    /// 2026-11-06). Yarmi o'quvchining <see cref="Student.SubGroup"/> qiymati — 9–11-sinf
+    /// o'quvchisining hamma darsi yo'nalishda, uy sinfida dars yo'q, shuning uchun bu qiymat
+    /// yo'nalishdagi yarmini bildiradi. Oddiy guruh — yo'q: u o'zi tanlangan bolalar ro'yxati.
+    /// </summary>
+    public bool HasHalves => !IsGroup || IsTrack;
 }
 
 /// <summary>
@@ -316,10 +325,10 @@ public static class LessonRoster
     /// filtri.
     ///
     /// <para>
-    /// Bo'linish (<c>SubGroup</c> 1/2) — SINF ichidagi narsa. Guruhda u yo'q:
-    /// guruh darsida uning hamma faol a'zosi qatnashadi, shuning uchun
-    /// <paramref name="subGroup"/> guruh uchun e'tiborga olinmaydi (§2.1.3 —
-    /// guruh qatorlarida <c>sub_group</c> 0 bo'lishi kerak).
+    /// Bo'linish (<c>SubGroup</c> 1/2) — sinf va yo'nalish guruhida bor
+    /// (<see cref="LessonOwner.HasHalves"/>). Oddiy guruhda yo'q: uning darsida
+    /// hamma faol a'zosi qatnashadi, shuning uchun <paramref name="subGroup"/>
+    /// u uchun e'tiborga olinmaydi (§2.1.3 — qatorlarida <c>sub_group</c> 0).
     /// </para>
     /// </summary>
     public static async Task<List<Student>> ForLessonAsync(
@@ -329,7 +338,7 @@ public static class LessonRoster
         var q = Query(db, owner, asOf);
         if (!includeArchived) q = q.Where(s => !s.IsArchived);
         var list = await q.OrderBy(s => s.FullName).ToListAsync(ct);
-        return owner.IsGroup || subGroup == 0
+        return !owner.HasHalves || subGroup == 0
             ? list
             : [.. list.Where(s => s.SubGroup == subGroup)];
     }

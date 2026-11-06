@@ -149,6 +149,25 @@ public static class LiveScheduleEdit
         return uses.Any(a => weeks.TryGetValue((a.Quarter, a.Week), out var w) && string.CompareOrdinal(w.Start, boundary) < 0);
     }
 
+    /// <summary>
+    /// Arxivlanayotgan shablonni chegaradan (joriy haftadan) boshlab barcha haftalardan bo'shatadi —
+    /// o'tgan haftalar unga biriktirilganicha qoladi (tarix). Sanasi noma'lum hafta o'tgan deb
+    /// hisoblanmaydi (<see cref="UsedInPastAsync"/> bilan bir xil). Saqlashni chaqiruvchi qiladi.
+    /// </summary>
+    /// <returns>Bo'shatilgan haftalar soni.</returns>
+    public static async Task<int> ReleaseUpcomingWeeksAsync(IAppDbContext db, ScheduleTemplate tpl, CancellationToken ct = default)
+    {
+        var rows = await db.WeekAssignments
+            .Where(a => a.TemplateId == tpl.Id && a.ClassId == tpl.ClassId).ToListAsync(ct);
+        if (rows.Count == 0) return 0;
+        var boundary = EditBoundary();
+        var weeks = await WeeksAsync(db, ct);
+        var upcoming = rows.Where(a =>
+            !weeks.TryGetValue((a.Quarter, a.Week), out var w) || string.CompareOrdinal(w.Start, boundary) >= 0).ToList();
+        foreach (var a in upcoming) a.TemplateId = null;
+        return upcoming.Count;
+    }
+
     /// <summary>Joriy kalendar haftasining dushanbasi ("yyyy-MM-dd").</summary>
     public static string ThisMonday() =>
         ScheduleMath.MondayOfISO(AppClock.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));

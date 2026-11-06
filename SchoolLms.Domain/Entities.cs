@@ -551,6 +551,15 @@ public class ScheduleTemplate
     /// ishlaydi (students-parity.md §2.1.4, §3.1).
     /// </summary>
     public string OwnerKind { get; set; } = LessonOwnerKind.Class;
+
+    /// <summary>
+    /// "O'chirilgan" eski jadval (mijoz, 2026-11-06: eski jadvallarni o'chirib, yangisini qo'shish
+    /// imkoni bo'lsin). O'tgan haftalarda ishlatilgan jadval bazadan O'CHIRILMAYDI — o'sha
+    /// haftalarning jurnali, davomati va maoshi unga tayanadi. U ro'yxat va tanlagichlardan
+    /// yashiriladi, kelgusi haftalardagi biriktirishlari bo'shatiladi, o'tgan haftalarda esa
+    /// tarix sifatida ishlayveradi.
+    /// </summary>
+    public bool IsArchived { get; set; }
 }
 
 /// <summary>Jadvaldagi bitta dars katagi.</summary>
