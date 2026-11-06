@@ -56,7 +56,7 @@ public record CertificateDto(
     string? FileUrl, string? Comment,
     List<string> SubjectIds, List<string> SubjectNames,
     string? Level = null, bool TypeUsesLevel = false,
-    decimal? BlockPoints = null, string? BlockRole = null);
+    decimal? BlockPoints = null, string? BlockRole = null, decimal? BlockMandatoryPoints = null);
 
 /// <summary>
 /// Sertifikat formasi. <see cref="Score"/> FAQAT turi <c>IsScored</c> bo'lganda
@@ -125,8 +125,10 @@ public record CertificateRatingRowDto(
 
 /// <param name="Role"><c>first</c> (93) | <c>second</c> (63) | <c>mandatory</c> (11) | null.</param>
 /// <param name="Counted">The best certificate of its subject — the one in the total.</param>
+/// <param name="MandatoryPoints">11 when a 1st/2nd-subject certificate also covers the mandatory block (in <paramref name="Points"/>).</param>
 public record CertificateRatingItemDto(
-    Guid Id, string Label, string? SubjectName, decimal? Points, string? Role, bool Counted, bool IsExpired);
+    Guid Id, string Label, string? SubjectName, decimal? Points, string? Role, bool Counted, bool IsExpired,
+    decimal? MandatoryPoints = null);
 
 /// <summary>A track group with its block 1st / 2nd subjects.</summary>
 public record TrackBlockSubjectsDto(Guid Id, string Name, string? Subject1Id, string? Subject2Id, int MemberCount);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Award, Download, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Student, Subject, Teacher } from '@/types'
 import type { Certificate, CertificateRatingRow, CertificateType } from '@/api/services/certificates'
-import { BLOCK_ROLE_LABEL, deleteCertificate, getCertificateRating, getCertificateTypes, getCertificates } from '@/api/services/certificates'
+import { blockRoleLabel, deleteCertificate, getCertificateRating, getCertificateTypes, getCertificates } from '@/api/services/certificates'
 import { getSubjects } from '@/api/services/subjects'
 import { getTeachers } from '@/api/services/teachers'
 import { CertificateFormModal } from '@/pages/admin/certificates/CertificateFormModal'
@@ -135,7 +135,7 @@ export function CertificatesTab({ student }: { student: Student }) {
                   )}
                   {row.blockPoints != null && (
                     <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700" title="Blok testdagi ekvivalent">
-                      = {row.blockPoints} ball{row.blockRole ? ` (${BLOCK_ROLE_LABEL[row.blockRole]})` : ''}
+                      = {row.blockPoints} ball{row.blockRole ? ` (${blockRoleLabel(row.blockRole, row.blockMandatoryPoints)})` : ''}
                     </span>
                   )}
                   {row.isExpired && (

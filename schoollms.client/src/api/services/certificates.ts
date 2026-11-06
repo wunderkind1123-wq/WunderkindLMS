@@ -68,6 +68,8 @@ export interface Certificate {
   blockPoints?: number | null
   /** `first` | `second` | `mandatory` */
   blockRole?: BlockRole | null
+  /** 11 — 1-/2-fan sertifikati majburiy blokni ham qoplaydi (blockPoints ichida). */
+  blockMandatoryPoints?: number | null
 }
 
 export interface CertificatePayload {
@@ -290,6 +292,11 @@ export const BLOCK_ROLE_LABEL: Record<BlockRole, string> = {
   mandatory: 'majburiy',
 }
 
+/** Rol yorlig'i; 1-/2-fan sertifikati majburiy fanni ham qoplasa — "1-fan + majburiy". */
+export function blockRoleLabel(role: BlockRole, mandatoryPoints?: number | null): string {
+  return mandatoryPoints ? `${BLOCK_ROLE_LABEL[role]} + majburiy` : BLOCK_ROLE_LABEL[role]
+}
+
 export interface CertificateRatingItem {
   id: string
   label: string
@@ -299,6 +306,8 @@ export interface CertificateRatingItem {
   /** Shu fandagi eng yaxshi sertifikat — jami ballga shu kiradi. */
   counted: boolean
   isExpired: boolean
+  /** 11 — majburiy blok ham qoplangan (points ichida). */
+  mandatoryPoints?: number | null
 }
 
 export interface CertificateRatingRow {

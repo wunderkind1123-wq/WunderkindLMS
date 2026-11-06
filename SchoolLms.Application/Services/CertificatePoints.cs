@@ -23,6 +23,13 @@ namespace SchoolLms.Application.Services;
 /// A pupil's TOTAL takes the best certificate per subject — two IELTS do not add up, just as the
 /// block test credits only the best one (<see cref="ExamCertificateCredits"/>).
 /// </para>
+///
+/// <para>
+/// A certificate in the track's 1st/2nd subject that is ALSO a mandatory block subject (ona tili,
+/// matematika, tarix) covers both blocks (client, 2026-11-06: "asosiy fani uchun olingan sertifikat
+/// majburiy fanga ham o'tadi"): its 93/63-based points plus the full mandatory 11 — all 10
+/// questions counted as right, whatever the level (<see cref="IsMandatorySubject"/>).
+/// </para>
 /// </summary>
 public static class CertificatePoints
 {
@@ -34,7 +41,25 @@ public static class CertificatePoints
     public const string RoleSecond = "second";
     public const string RoleMandatory = "mandatory";
 
-    public sealed record Info(decimal? Points, string? Role, string? SubjectId);
+    /// <param name="Points">Block points, <paramref name="MandatoryPoints"/> included.</param>
+    /// <param name="MandatoryPoints">11 when the certificate also covers the mandatory block, else null.</param>
+    public sealed record Info(decimal? Points, string? Role, string? SubjectId, decimal? MandatoryPoints = null);
+
+    /// <summary>
+    /// A mandatory block subject (ona tili, matematika, tarix), by name — the subject list has no
+    /// such flag and holds variants ("Ona tili va adabiyot", "Matematika (majburiy)").
+    /// "Mantiqiy matematika" and the like are not mandatory.
+    /// </summary>
+    public static bool IsMandatorySubject(string name)
+    {
+        var n = name.Trim().ToLowerInvariant();
+        return n.StartsWith("ona tili") || n.StartsWith("matematika") || n.StartsWith("tarix")
+            || n.Contains("o'zbekiston tarixi") || n.Contains("o‘zbekiston tarixi");
+    }
+
+    private static async Task<HashSet<string>> MandatorySubjectsAsync(IAppDbContext db, CancellationToken ct) =>
+        [.. (await db.Subjects.AsNoTracking().Select(s => new { s.Id, s.Name }).ToListAsync(ct))
+            .Where(s => IsMandatorySubject(s.Name)).Select(s => s.Id)];
 
     private sealed record TrackSubjects(Guid Id, string Name, string? First, string? Second);
 
@@ -62,7 +87,7 @@ public static class CertificatePoints
             .ToLookup(cs => cs.CertificateId, cs => cs.SubjectId);
 
     /// <summary>The best (subject, points) of one certificate for a pupil's track.</summary>
-    private static Info Evaluate(Row c, IEnumerable<string> subjects, TrackSubjects? track)
+    private static Info Evaluate(Row c, IEnumerable<string> subjects, TrackSubjects? track, HashSet<string> mandatory)
     {
         var all = subjects.Append(c.SubjectId).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
         if (track is null || all.Count == 0) return new Info(null, null, all.FirstOrDefault());
@@ -73,7 +98,9 @@ public static class CertificatePoints
         {
             var (max, role) = CeilingFor(subject, track.First, track.Second);
             var points = Math.Round(max * pct / 100m, 1, MidpointRounding.AwayFromZero);
-            if (best is null || points > best.Points) best = new Info(points, role, subject);
+            decimal? cover = role != RoleMandatory && mandatory.Contains(subject) ? MandatoryMax : null;
+            points += cover ?? 0;
+            if (best is null || points > best.Points) best = new Info(points, role, subject, cover);
         }
         return best!;
     }
@@ -86,7 +113,8 @@ public static class CertificatePoints
         var rows = await RowsAsync(db, db.Certificates.AsNoTracking().Where(c => certificateIds.Contains(c.Id)), ct);
         var tracks = await TracksAsync(db, [.. rows.Select(r => r.StudentId).Distinct()], ct);
         var subjects = await SubjectsAsync(db, [.. rows.Select(r => r.Id)], ct);
-        return rows.ToDictionary(r => r.Id, r => Evaluate(r, subjects[r.Id], tracks.GetValueOrDefault(r.StudentId)));
+        var mandatory = await MandatorySubjectsAsync(db, ct);
+        return rows.ToDictionary(r => r.Id, r => Evaluate(r, subjects[r.Id], tracks.GetValueOrDefault(r.StudentId), mandatory));
     }
 
     private static Task<List<Row>> RowsAsync(IAppDbContext db, IQueryable<Certificate> q, CancellationToken ct) =>
@@ -115,6 +143,7 @@ public static class CertificatePoints
         var tracks = await TracksAsync(db, studentIds, ct);
         var subjects = await SubjectsAsync(db, [.. rows.Select(r => r.Id)], ct);
         var subjectNames = await db.Subjects.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        HashSet<string> mandatory = [.. subjectNames.Where(kv => IsMandatorySubject(kv.Value)).Select(kv => kv.Key)];
 
         var result = new List<CertificateRatingRowDto>();
         foreach (var group in rows.GroupBy(r => r.StudentId))
@@ -125,7 +154,7 @@ public static class CertificatePoints
             if (trackId is { } tid && track?.Id != tid) continue;
 
             var items = group
-                .Select(c => (Cert: c, Info: Evaluate(c, subjects[c.Id], track)))
+                .Select(c => (Cert: c, Info: Evaluate(c, subjects[c.Id], track, mandatory)))
                 .OrderByDescending(x => x.Info.Points ?? -1).ThenByDescending(x => x.Cert.IssuedOn)
                 .ToList();
             // best per subject — the one that counts
@@ -140,7 +169,7 @@ public static class CertificatePoints
                     x.Cert.Id, ExamCertificateCredits.LabelOf(x.Cert.TypeName, x.Cert.Level, x.Cert.Score),
                     x.Info.SubjectId is { } sid ? subjectNames.GetValueOrDefault(sid) : null,
                     x.Info.Points, x.Info.Role, counted.Contains(x.Cert.Id),
-                    x.Cert.ExpiresOn is { } e && e < today))]));
+                    x.Cert.ExpiresOn is { } e && e < today, x.Info.MandatoryPoints))]));
         }
         return [.. result.OrderByDescending(r => r.TotalPoints ?? -1).ThenByDescending(r => r.CertificateCount).ThenBy(r => r.StudentName)];
     }

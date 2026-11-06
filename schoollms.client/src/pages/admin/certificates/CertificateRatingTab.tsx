@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Settings2, Trophy } from 'lucide-react'
 import type { Subject } from '@/types'
 import {
-  BLOCK_ROLE_LABEL,
+  blockRoleLabel,
   certificateError,
   getCertificateRating,
   getTrackBlockSubjects,
@@ -177,7 +177,7 @@ function RatingRow({ index, row, open, onToggle }: { index: number; row: Certifi
                 <li key={it.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
                   <span className={cn('font-medium', it.isExpired ? 'text-slate-400 line-through' : 'text-slate-700')}>{it.label}</span>
                   <span className="text-slate-500">{it.subjectName ?? '—'}</span>
-                  {it.role && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{BLOCK_ROLE_LABEL[it.role]}</span>}
+                  {it.role && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{blockRoleLabel(it.role, it.mandatoryPoints)}</span>}
                   <span className={cn('tabular-nums', it.counted ? 'font-semibold text-brand-700' : 'text-slate-400')}>
                     {it.points == null ? 'ball hisoblanmaydi' : `${fmt(it.points)} ball`}
                     {it.points != null && !it.counted && ' (shu fanda yaxshiroq sertifikat bor)'}

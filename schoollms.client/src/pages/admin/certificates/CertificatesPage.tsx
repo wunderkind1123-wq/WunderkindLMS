@@ -9,7 +9,7 @@ import {
   deleteCertificate,
   exportCertificates,
   certificateError,
-  BLOCK_ROLE_LABEL,
+  blockRoleLabel,
   type Certificate,
   type CertificateType,
   type IssuingTeacher,
@@ -365,9 +365,9 @@ export function CertificatesPage() {
                         {r.blockPoints == null ? (
                           <span className="text-slate-300">—</span>
                         ) : (
-                          <span title={r.blockRole ? BLOCK_ROLE_LABEL[r.blockRole] : undefined}>
+                          <span title={r.blockRole ? blockRoleLabel(r.blockRole, r.blockMandatoryPoints) : undefined}>
                             {r.blockPoints}
-                            {r.blockRole && <span className="ml-1 text-xs text-slate-400">({BLOCK_ROLE_LABEL[r.blockRole]})</span>}
+                            {r.blockRole && <span className="ml-1 text-xs text-slate-400">({blockRoleLabel(r.blockRole, r.blockMandatoryPoints)})</span>}
                           </span>
                         )}
                       </td>

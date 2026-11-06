@@ -433,7 +433,8 @@ public static class CertificateService
                 subs is null ? [] : [.. subs.Select(s => s.Id)],
                 subs is null ? [] : [.. subs.Select(s => s.Name)],
                 r.Cert.Level, r.Type.UsesLevel,
-                points.GetValueOrDefault(r.Cert.Id)?.Points, points.GetValueOrDefault(r.Cert.Id)?.Role);
+                points.GetValueOrDefault(r.Cert.Id)?.Points, points.GetValueOrDefault(r.Cert.Id)?.Role,
+                points.GetValueOrDefault(r.Cert.Id)?.MandatoryPoints);
         })];
     }
 

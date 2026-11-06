@@ -369,7 +369,7 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
                 ExpiresOn = expires, CreatedBy = by, CreatedAt = DateTimeOffset.UtcNow,
             };
             db.Certificates.AddRange(
-                Cert(pupil.Id, math.Id, "A+"),          // 1st subject: 93
+                Cert(pupil.Id, math.Id, "A+"),          // 1st subject: 93, and maths is mandatory too: + 11
                 Cert(pupil.Id, math.Id, "B"),           // worse in the same subject: not in the total
                 Cert(pupil.Id, physics.Id, "A"),        // 2nd subject: 63 × 93.3% = 58.8
                 Cert(pupil.Id, history.Id, "A+"),       // mandatory: 11
@@ -386,10 +386,12 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
 
         var row = Assert.Single((await admin.GetFromJsonAsync<List<CertificateRatingRowDto>>($"/api/admin/certificates/rating?studentId={pupil.Id}", Json))!);
         Assert.Equal(4, row.CertificateCount);
-        Assert.Equal(93m + 58.8m + 11m, row.TotalPoints);
+        Assert.Equal(93m + 11m + 58.8m + 11m, row.TotalPoints);
         Assert.Equal(track.Name, row.TrackName);
-        Assert.Single(row.Items, i => i.Points == 93m && i.Role == CertificatePoints.RoleFirst && i.Counted);
-        Assert.Single(row.Items, i => i.Points == 74.4m && !i.Counted); // B in maths: 93 × 80%
+        Assert.Single(row.Items, i => i.Points == 104m && i.Role == CertificatePoints.RoleFirst && i.MandatoryPoints == 11m && i.Counted);
+        Assert.Single(row.Items, i => i.Points == 58.8m && i.MandatoryPoints == null); // physics is not mandatory
+        Assert.Single(row.Items, i => i.Points == 11m && i.Role == CertificatePoints.RoleMandatory && i.MandatoryPoints == null && i.Counted);
+        Assert.Single(row.Items, i => i.Points == 85.4m && !i.Counted); // B in maths: 93 × 80% + 11
 
         var withExpired = Assert.Single((await admin.GetFromJsonAsync<List<CertificateRatingRowDto>>($"/api/admin/certificates/rating?studentId={pupil.Id}&includeExpired=true", Json))!);
         Assert.Equal(5, withExpired.CertificateCount);
@@ -401,5 +403,11 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
 
         var list = (await admin.GetFromJsonAsync<List<CertificateDto>>($"/api/admin/certificates?studentId={pupil.Id}", Json))!;
         Assert.Contains(list, c => c.BlockPoints == 58.8m && c.BlockRole == CertificatePoints.RoleSecond);
+        Assert.Contains(list, c => c.BlockPoints == 104m && c.BlockMandatoryPoints == 11m);
+
+        Assert.True(CertificatePoints.IsMandatorySubject("Ona tili va adabiyot"));
+        Assert.True(CertificatePoints.IsMandatorySubject("Matematika (majburiy)"));
+        Assert.False(CertificatePoints.IsMandatorySubject("Mantiqiy matematika"));
+        Assert.False(CertificatePoints.IsMandatorySubject("Chet tili"));
     }
 }
