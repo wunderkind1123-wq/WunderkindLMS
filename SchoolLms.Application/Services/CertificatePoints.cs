@@ -13,7 +13,8 @@ namespace SchoolLms.Application.Services;
 /// <para>
 /// Points = the type's <see cref="CertificateType.ExamCredits"/> percent × the subject's ceiling in
 /// the pupil's block: the track's 1st subject 93 (30 × 3.1), its 2nd 63 (30 × 2.1), any other
-/// subject a mandatory one, 11 (10 × 1.1). The 1st/2nd subjects come from the pupil's current
+/// subject a mandatory one, a flat 11 (10 × 1.1) for any credited level — client, 2026-11-06: "C, C+,
+/// B, B+, A, A+ … majburiy fanni to'liq qoplab beradi". The 1st/2nd subjects come from the pupil's current
 /// track group (<see cref="StudyGroup.BlockSubject1Id"/>). A pupil without a track, a type
 /// without a credit rule, or a result below every threshold has no points — the certificate
 /// still counts.
@@ -97,7 +98,11 @@ public static class CertificatePoints
         foreach (var subject in all)
         {
             var (max, role) = CeilingFor(subject, track.First, track.Second);
-            var points = Math.Round(max * pct / 100m, 1, MidpointRounding.AwayFromZero);
+            // a credited level (C and up) closes the mandatory block in full — the level scales only
+            // the 1st/2nd subject's points
+            var points = role == RoleMandatory
+                ? (pct > 0 ? MandatoryMax : 0)
+                : Math.Round(max * pct / 100m, 1, MidpointRounding.AwayFromZero);
             decimal? cover = role != RoleMandatory && mandatory.Contains(subject) ? MandatoryMax : null;
             points += cover ?? 0;
             if (best is null || points > best.Points) best = new Info(points, role, subject, cover);

@@ -372,7 +372,7 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
                 Cert(pupil.Id, math.Id, "A+"),          // 1st subject: 93, and maths is mandatory too: + 11
                 Cert(pupil.Id, math.Id, "B"),           // worse in the same subject: not in the total
                 Cert(pupil.Id, physics.Id, "A"),        // 2nd subject: 63 × 93.3% = 58.8
-                Cert(pupil.Id, history.Id, "A+"),       // mandatory: 11
+                Cert(pupil.Id, history.Id, "B"),        // mandatory: a flat 11, not 11 × 80%
                 Cert(pupil.Id, history.Id, "A+", today.AddDays(-1)), // expired
                 Cert(noTrack.Id, math.Id, "A+"));
             await db.SaveChangesAsync();
