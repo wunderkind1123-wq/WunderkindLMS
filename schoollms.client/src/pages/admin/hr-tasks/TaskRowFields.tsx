@@ -84,6 +84,11 @@ export function TaskRowFields({
               </select>
             </Field>
           ) : (
+            <>
+            <Field label="Boshlanish" required hint="Xodim topshiriqni shu kundan ko‘radi" error={errors.start}>
+              <input type="date" className={inputCls} value={row.startDate} disabled={disabled} onChange={(e) => onChange({ startDate: e.target.value })} />
+            </Field>
+          ) : (
             <DateTimeField
               label="Muddat"
               required
@@ -95,6 +100,7 @@ export function TaskRowFields({
               onDate={(dueDate) => onChange({ dueDate })}
               onTime={(dueTime) => onChange({ dueTime })}
             />
+            </>
           )}
 
           <Field label="Turi">

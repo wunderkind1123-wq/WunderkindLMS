@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Award, Download, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Student, Subject, Teacher } from '@/types'
-import type { Certificate, CertificateType } from '@/api/services/certificates'
-import { deleteCertificate, getCertificateTypes, getCertificates } from '@/api/services/certificates'
+import type { Certificate, CertificateRatingRow, CertificateType } from '@/api/services/certificates'
+import { BLOCK_ROLE_LABEL, deleteCertificate, getCertificateRating, getCertificateTypes, getCertificates } from '@/api/services/certificates'
 import { getSubjects } from '@/api/services/subjects'
 import { getTeachers } from '@/api/services/teachers'
 import { CertificateFormModal } from '@/pages/admin/certificates/CertificateFormModal'
@@ -33,6 +33,14 @@ export function CertificatesTab({ student }: { student: Student }) {
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Certificate | null>(null)
+  // amaldagi sertifikatlar soni va blok testdagi jami bali (2026-11-06) — serverda hisoblanadi
+  const [summary, setSummary] = useState<CertificateRatingRow | null>(null)
+
+  useEffect(() => {
+    getCertificateRating({ studentId: student.id })
+      .then((list) => setSummary(list[0] ?? null))
+      .catch(() => setSummary(null))
+  }, [student.id, rows])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -91,6 +99,21 @@ export function CertificatesTab({ student }: { student: Student }) {
         <ProfileEmpty>Bu o'quvchida hujjat yo'q</ProfileEmpty>
       ) : (
         <div className="space-y-2">
+          {summary && (
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg bg-brand-50/60 px-3 py-2 text-sm">
+              <span className="text-slate-600">
+                Amaldagi sertifikatlar: <b className="text-slate-800">{summary.certificateCount} ta</b>
+              </span>
+              <span className="text-slate-600">
+                Blok testdagi jami ball:{' '}
+                <b className="text-brand-700">{summary.totalPoints == null ? '—' : summary.totalPoints}</b>
+              </span>
+              {summary.totalPoints == null && (
+                <span className="text-xs text-slate-400">O'quvchi yo'nalish guruhida emas — ball hisoblanmaydi</span>
+              )}
+              {summary.trackName && <span className="text-xs text-slate-400">{summary.trackName}</span>}
+            </div>
+          )}
           {rows.map((row) => (
             <div
               key={row.id}
@@ -108,6 +131,11 @@ export function CertificatesTab({ student }: { student: Student }) {
                   {row.level && (
                     <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
                       {row.level}
+                    </span>
+                  )}
+                  {row.blockPoints != null && (
+                    <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700" title="Blok testdagi ekvivalent">
+                      = {row.blockPoints} ball{row.blockRole ? ` (${BLOCK_ROLE_LABEL[row.blockRole]})` : ''}
                     </span>
                   )}
                   {row.isExpired && (

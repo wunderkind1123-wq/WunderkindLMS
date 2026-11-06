@@ -121,4 +121,30 @@ public sealed class HrMeController(HrTasksService service) : ControllerBase
     /// <summary>"Natijam" — this month.</summary>
     [HttpGet("summary")]
     public Task<ActionResult> Summary() => Run(me => service.MySummaryAsync(me, Ct));
+
+    /// <summary>Edit an own self task before its due time (2026-11-06) — else 409 <c>task_past_due</c>.</summary>
+    [HttpPatch("tasks/{id}")]
+    public Task<ActionResult> UpdateSelf(string id, HrSelfTaskUpdateInput input) =>
+        Run(me => service.UpdateSelfTaskAsync(me, id, input, Ct));
+
+    // ---- own recurring rules (2026-11-06, curriculum-monitoring.md §4) ----
+
+    [HttpGet("templates")]
+    public Task<ActionResult> Templates() => Run(me => service.MyTemplatesAsync(me, Ct));
+
+    [HttpPost("templates")]
+    public Task<ActionResult> CreateTemplate(HrTemplateCreateInput input) =>
+        Run(me => service.CreateMyTemplateAsync(me, input, Ct), StatusCodes.Status201Created);
+
+    [HttpPatch("templates/{id}")]
+    public Task<ActionResult> UpdateTemplate(string id, [FromBody] System.Text.Json.JsonElement body) =>
+        Run(me => service.UpdateMyTemplateAsync(me, id, body, Ct));
+
+    [HttpPost("templates/{id}/toggle")]
+    public Task<ActionResult> ToggleTemplate(string id, [FromQuery] bool? isActive = null) =>
+        Run(me => service.ToggleMyTemplateAsync(me, id, isActive, Ct));
+
+    [HttpDelete("templates/{id}")]
+    public Task<ActionResult> DeleteTemplate(string id) =>
+        Run(async me => { await service.DeleteMyTemplateAsync(me, id, Ct); return new { ok = true }; });
 }

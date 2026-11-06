@@ -215,7 +215,8 @@ public sealed partial class HrTasksService
     // =====================================================================
 
     private HrTask NewDirectorTask(string employeeId, string? title, string? description, DateTimeOffset dueAt, string? kind,
-        decimal? targetAmount, string? unit, bool proofRequired, string actorId, TimeZoneInfo tz, DateTimeOffset now)
+        decimal? targetAmount, string? unit, bool proofRequired, string actorId, TimeZoneInfo tz, DateTimeOffset now,
+        string? startDate = null)
     {
         var cleanTitle = HrValues.RequireText(title, "Sarlavha", HrLimits.TitleMax);
         if (cleanTitle.Length < 2) throw HrErrors.Validation("Sarlavha kamida 2 belgi bo'lishi kerak");
@@ -233,7 +234,7 @@ public sealed partial class HrTasksService
             Unit = cleanUnit,
             ProofRequired = proofRequired,
             OverduePolicy = HrOverduePolicies.KeepOpen,
-            PeriodStart = HrValues.LocalDate(dueAt, tz),
+            PeriodStart = StartDateFor(startDate, dueAt, now, tz),
             DueAt = dueAt,
             Status = HrTaskStatuses.Open,
             CreatedBy = actorId,
@@ -249,7 +250,7 @@ public sealed partial class HrTasksService
         if (!employee.IsActive) throw HrErrors.EmployeeInactive(); // scope first (404), then activity (409)
         var now = Now;
         var task = NewDirectorTask(employee.Id, input.Title, input.Description, ParseInstant(input.DueAt, "dueAt", tz),
-            input.Kind, input.TargetAmount, input.Unit, input.ProofRequired ?? true, panel.Actor.UserId, tz, now);
+            input.Kind, input.TargetAmount, input.Unit, input.ProofRequired ?? true, panel.Actor.UserId, tz, now, input.StartDate);
         db.HrTasks.Add(task);
         await db.SaveChangesAsync(ct);
         await SendToUserAsync(employee.UserId, HrTasksTexts.Assigned(task.Title, task.DueAt, tz), ct);
@@ -285,7 +286,7 @@ public sealed partial class HrTasksService
             { skipped.Add(new HrBatchSkippedDto(employeeId, "not_found")); continue; }
             if (!employee.IsActive) { skipped.Add(new HrBatchSkippedDto(employeeId, "inactive")); continue; }
             var batch = parsed.Select(p => NewDirectorTask(employee.Id, p.Item.Title, p.Item.Description, p.DueAt,
-                p.Item.Kind, p.Item.TargetAmount, p.Item.Unit, true, panel.Actor.UserId, tz, now)).ToList();
+                p.Item.Kind, p.Item.TargetAmount, p.Item.Unit, true, panel.Actor.UserId, tz, now, p.Item.StartDate)).ToList();
             perEmployee.Add((employee, batch));
         }
         var created = perEmployee.SelectMany(p => p.Tasks).ToList();
@@ -327,17 +328,24 @@ public sealed partial class HrTasksService
         return new HrBatchResultDto(created.Count, skipped, [.. created.Select(t => t.Id)], null);
     }
 
-    /// <summary>PATCH: title / description / dueAt (/ proofRequired). A new due time restarts reminders.</summary>
+    /// <summary>
+    /// PATCH: title / description / startDate / dueAt (/ proofRequired). A new due time restarts
+    /// reminders. Only the manager who GAVE the task, and only before its due time (client,
+    /// 2026-11-06: "xato yuklangan vazifani edit qilish … faqat muddati o'tmagan bo'lsa").
+    /// </summary>
     public async Task<HrTaskDto> UpdateTaskAsync(HrPanel panel, string id, JsonElement body, CancellationToken ct = default)
     {
         var task = await ScopedTaskAsync(panel.Scope, id, ct);
+        if (task.CreatedBy != panel.Actor.UserId) throw HrErrors.NotTaskGiver();
         var tz = (await GetOrCreateSettingsAsync(ct)).Zone;
         var now = Now;
+        if (task.DueAt <= now) throw HrErrors.TaskPastDue();
         var title = Has(body, "title") ? Str(body, "title") : null;
         if (title is not null && title.Trim().Length < 2) throw HrErrors.Validation("Sarlavha kamida 2 belgi bo'lishi kerak");
         DateTimeOffset? dueAt = Has(body, "dueAt") && Str(body, "dueAt") is { } rawDue ? ParseInstant(rawDue, "dueAt", tz) : null;
+        var start = EditedStart(task, Has(body, "startDate") ? Str(body, "startDate") : null, dueAt, tz);
         var previousDue = task.DueAt;
-        var changed = task.UpdateDetails(now, title, Has(body, "description"), Str(body, "description"), dueAt);
+        var changed = task.UpdateDetails(now, title, Has(body, "description"), Str(body, "description"), dueAt, start);
         if (Bool(body, "proofRequired") is { } proof && proof != task.ProofRequired)
         {
             task.ProofRequired = proof;
@@ -667,7 +675,7 @@ public sealed partial class HrTasksService
                 [.. (proofs.GetValueOrDefault(t.Id) ?? []).Select(p => new HrAppProofDto(p.Id, p.Kind, ProofUrl(p), p.OriginalName))],
                 t.AcceptedAt, t.NeedsAcceptance,
                 [.. mine.Select(a => new HrAppAttachmentDto(a.Id, a.Kind, files.UrlFor(a.FilePath), a.ContentType, a.SizeBytes, a.DurationSeconds))],
-                voice is null ? null : files.UrlFor(voice.FilePath));
+                voice is null ? null : files.UrlFor(voice.FilePath), t.PeriodStart);
         })];
     }
 
@@ -701,7 +709,7 @@ public sealed partial class HrTasksService
             Kind = HrTaskKinds.Check,
             ProofRequired = true,
             OverduePolicy = HrOverduePolicies.KeepOpen,
-            PeriodStart = HrValues.LocalDate(dueAt, tz),
+            PeriodStart = StartDateFor(input.StartDate, dueAt, now, tz),
             DueAt = dueAt,
             CreatedAt = now,
             UpdatedAt = now,
@@ -709,6 +717,42 @@ public sealed partial class HrTasksService
         db.HrTasks.Add(task);
         await db.SaveChangesAsync(ct);
         return await AppTaskAsync(task, ct);
+    }
+
+    /// <summary>
+    /// Edit an own SELF task (client, 2026-11-06) — open and before its due time only. Tasks from a
+    /// manager or a recurring rule are not the employee's to change.
+    /// </summary>
+    public async Task<HrAppTaskDto> UpdateSelfTaskAsync(HrEmployee me, string id, HrSelfTaskUpdateInput input, CancellationToken ct = default)
+    {
+        var task = await OwnTaskAsync(me, id, ct);
+        if (task.Source != HrTaskSources.Self) throw HrErrors.NotSelfTask();
+        var tz = (await GetOrCreateSettingsAsync(ct)).Zone;
+        var now = Now;
+        if (task.DueAt <= now) throw HrErrors.TaskPastDue();
+        if (input.Title is { } title && title.Trim().Length < 2) throw HrErrors.Validation("Sarlavha kamida 2 belgi bo'lishi kerak");
+        DateTimeOffset? dueAt = string.IsNullOrWhiteSpace(input.DueAt) ? null : ParseInstant(input.DueAt, "dueAt", tz);
+        var start = EditedStart(task, input.StartDate, dueAt, tz);
+        var previousDue = task.DueAt;
+        // description: an explicit "" clears it, null leaves it alone
+        if (task.UpdateDetails(now, input.Title, input.Description is not null, input.Description, dueAt, start))
+        {
+            if (task.DueAt != previousDue) await ForgetRemindersAsync(task.Id, ct);
+            await db.SaveChangesAsync(ct);
+        }
+        return await AppTaskAsync(task, ct);
+    }
+
+    /// <summary>
+    /// The start day an edit leaves: a given one (checked against the new or current due day), or
+    /// the current one pulled back to the due day when the due moved before it; null = unchanged.
+    /// </summary>
+    private DateOnly? EditedStart(HrTask task, string? rawStart, DateTimeOffset? newDue, TimeZoneInfo tz)
+    {
+        var due = newDue ?? task.DueAt;
+        if (!string.IsNullOrWhiteSpace(rawStart)) return StartDateFor(rawStart, due, Now, tz);
+        var dueDay = HrValues.LocalDate(due, tz);
+        return task.PeriodStart > dueDay ? dueDay : null;
     }
 
     /// <summary>"Bajardim": the proof count is read from the DATABASE, never from <c>proofIds</c>.</summary>

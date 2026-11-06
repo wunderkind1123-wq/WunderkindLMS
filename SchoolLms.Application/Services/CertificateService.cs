@@ -413,6 +413,8 @@ public static class CertificateService
         var subjectsByCert = subjectLinks
             .GroupBy(x => x.CertificateId)
             .ToDictionary(g => g.Key, g => g.ToList());
+        // block-test equivalent points (2026-11-06, curriculum-monitoring.md §3)
+        var points = await CertificatePoints.ForAsync(db, certIds, ct);
 
         return [.. rows.Select(r =>
         {
@@ -430,7 +432,8 @@ public static class CertificateService
                 r.Cert.FileUrl, r.Cert.Comment,
                 subs is null ? [] : [.. subs.Select(s => s.Id)],
                 subs is null ? [] : [.. subs.Select(s => s.Name)],
-                r.Cert.Level, r.Type.UsesLevel);
+                r.Cert.Level, r.Type.UsesLevel,
+                points.GetValueOrDefault(r.Cert.Id)?.Points, points.GetValueOrDefault(r.Cert.Id)?.Role);
         })];
     }
 

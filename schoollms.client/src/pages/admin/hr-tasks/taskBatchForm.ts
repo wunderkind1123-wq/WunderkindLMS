@@ -27,6 +27,8 @@ export interface HrTaskRow {
   key: string
   title: string
   description: string
+  /** `yyyy-MM-dd` — the day a one-off task shows from (2026-11-06: long tasks, e.g. a month). */
+  startDate: string
   /** `yyyy-MM-dd` + `HH:mm` (Tashkent) — for a one-off task. */
   dueDate: string
   dueTime: string
@@ -51,6 +53,7 @@ export type HrTaskRowField =
   | 'title'
   | 'description'
   | 'due'
+  | 'start'
   | 'targetAmount'
   | 'unit'
   | 'weekdays'
@@ -66,6 +69,7 @@ export function hrEmptyTaskRow(today: string): HrTaskRow {
     key: rowKey(),
     title: '',
     description: '',
+    startDate: today,
     dueDate: today,
     dueTime: HR_DEFAULT_DUE_TIME,
     kind: 'check',
@@ -103,6 +107,8 @@ export function hrTaskRowErrors(row: HrTaskRow, recurring: boolean): HrTaskRowEr
   if (!recurring) {
     if (!row.dueDate) errors.due = 'Muddatni belgilang'
     else if (hrToIso(row.dueDate, row.dueTime) === null) errors.due = 'Muddat noto‘g‘ri: sana va vaqtni tanlang'
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row.startDate)) errors.start = 'Boshlanish sanasini tanlang'
+    else if (row.dueDate && row.startDate > row.dueDate) errors.start = 'Boshlanish muddatdan keyin bo‘lmasin'
     return errors
   }
 
@@ -161,6 +167,7 @@ export function hrToBatchItem(row: HrTaskRow): HrTaskBatchItem {
   return {
     title: row.title.trim(),
     dueAt: hrToIso(row.dueDate, row.dueTime) ?? '',
+    startDate: row.startDate,
     description: row.description.trim() || null,
     kind: row.kind,
     targetAmount: numeric ? Number(row.targetAmount.trim().replace(',', '.')) : null,

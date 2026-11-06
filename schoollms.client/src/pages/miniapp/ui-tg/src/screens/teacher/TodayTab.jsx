@@ -38,8 +38,9 @@ import { LessonAnalysisCard } from './LessonAnalysis'
 import { boardingSessions } from './BoardingScreen'
 import { SeasonalCard } from './SeasonalScreen'
 import { BlockExamsCard } from './BlockExamsScreen'
+import { CurriculumCard } from './CurriculumScreen'
 
-export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams }) {
+export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams, onOpenCurriculum }) {
   const perms = profile.permissions || []
   const canSchedule = perms.includes('schedule')
   const canJournal = perms.includes('journal')
@@ -134,6 +135,7 @@ export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOp
 
             {/* Blok test natijalari (2026-11-03) — ro'yxat dars jadvalidan chiqadi. */}
             {onOpenBlockExams && <BlockExamsCard onOpen={onOpenBlockExams} />}
+            {onOpenCurriculum && <CurriculumCard onOpen={onOpenCurriculum} />}
 
             {/* Qizil ro'yxat (2026-10-15): ota-ona bilan bog'lanish kerak bo'lgan o'quvchilar — faqat holat bo'lsa. */}
             {profile.homeroomClass && <RedListCard />}

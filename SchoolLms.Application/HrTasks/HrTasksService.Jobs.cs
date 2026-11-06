@@ -199,6 +199,10 @@ public sealed partial class HrTasksService
                                 && t.PeriodStart <= target
                           orderby e.FullName, t.DueAt, t.Id
                           select new { Task = t, e.UserId, EmployeeId = e.Id }).ToListAsync(ct);
+        // a long task (start before its due day) is listed only at its start and near the end (2026-11-06)
+        rows = [.. rows.Where(r => r.Task.Source == HrTaskSources.Template
+            || !HrReminderRules.IsLong(r.Task.PeriodStart, r.Task.DueAt, tz)
+            || HrReminderRules.LongTaskInMorningList(r.Task.PeriodStart, r.Task.DueAt, target, tz))];
         if (rows.Count == 0) return 0;
         var proofs = await ProofCountsAsync([.. rows.Select(r => r.Task.Id)], ct);
         var chats = await ChatsAsync(rows.Select(r => r.UserId), ct);
@@ -237,14 +241,16 @@ public sealed partial class HrTasksService
         if (!settings.ReminderEnabled || settings.ReminderOffsets.Length == 0 || !telegram.IsConfigured) return 0;
         var tz = settings.Zone;
         var offsets = settings.ReminderOffsets.Select(o => (int)o).ToArray();
-        var horizon = now.AddMinutes(offsets.Max());
+        var horizon = now.AddMinutes(Math.Max(offsets.Max(), HrReminderRules.LongTaskOffsets.Max()));
         var tasks = await (from t in db.HrTasks.AsNoTracking()
                            join e in db.HrEmployees.AsNoTracking() on t.EmployeeId equals e.Id
                            where e.IsActive && (t.Status == HrTaskStatuses.Open || t.Status == HrTaskStatuses.Returned)
                                  && t.DueAt > now && t.DueAt <= horizon
                            orderby t.DueAt, t.Id
                            select new { Task = t, e.UserId }).ToListAsync(ct);
-        tasks = [.. tasks.Where(x => settings.RemindEndOfDay || !HrReminderRules.IsEndOfDay(x.Task.DueAt, tz))];
+        // a long task: a day and two hours before due, whatever its due time (2026-11-06)
+        bool IsLong(HrTask t) => t.Source != HrTaskSources.Template && HrReminderRules.IsLong(t.PeriodStart, t.DueAt, tz);
+        tasks = [.. tasks.Where(x => IsLong(x.Task) || settings.RemindEndOfDay || !HrReminderRules.IsEndOfDay(x.Task.DueAt, tz))];
         if (tasks.Count == 0) return 0;
 
         var chats = await ChatsAsync(tasks.Select(x => x.UserId), ct);
@@ -258,7 +264,7 @@ public sealed partial class HrTasksService
         foreach (var x in tasks)
         {
             int? winner = null;
-            foreach (var offset in HrReminderRules.DueOffsets(x.Task.DueAt, now, offsets))
+            foreach (var offset in HrReminderRules.DueOffsets(x.Task.DueAt, now, IsLong(x.Task) ? HrReminderRules.LongTaskOffsets : offsets))
             {
                 if (!claimed.Add((x.Task.Id, offset))) continue;
                 db.HrTaskReminders.Add(new HrTaskReminder { TaskId = x.Task.Id, OffsetMinutes = (short)offset, SentAt = now });

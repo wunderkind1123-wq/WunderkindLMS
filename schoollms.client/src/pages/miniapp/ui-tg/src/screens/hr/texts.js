@@ -18,6 +18,7 @@ const MESSAGES = {
   // ── Pastki menyu
   'nav.tasks': 'Topshiriqlar',
   'nav.summary': 'Natijam',
+  'nav.recurring': 'Takroriy',
 
   // ── Sana tanlagich
   'date.today': 'Bugun',
@@ -129,6 +130,12 @@ const MESSAGES = {
   'new.due_past': 'O‘tgan sanaga topshiriq qo‘yib bo‘lmaydi.',
   'new.due_past_time': 'Bu vaqt allaqachon o‘tib ketdi — kechroq soatni tanlang.',
   'new.submit': 'Qo‘shish',
+  'new.start_label': 'Boshlanish',
+  'new.start_hint': 'Topshiriq shu kundan ro‘yxatda ko‘rinadi — muddatgacha istalgan kuni bajarish mumkin.',
+  'new.start_after_due': 'Boshlanish sanasi muddatdan keyin bo‘lmasin.',
+  'edit.title': 'Topshiriqni tahrirlash',
+  'edit.submit': 'Saqlash',
+  'tasks.edit': 'Tahrirlash',
 
   // ── Natijam ekrani
   'summary.title': 'Natijam',

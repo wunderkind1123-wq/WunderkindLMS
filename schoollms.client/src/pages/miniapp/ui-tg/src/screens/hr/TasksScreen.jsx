@@ -188,7 +188,14 @@ export function TasksScreen({ me, heroTop }) {
 
   const handleCreated = (created) => {
     setSheet(null)
-    const createdDate = instantDate(created?.dueAt, timezone) ?? date
+    // edited: replace in place (2026-11-06)
+    if (list?.items.some((x) => x.id === created?.id)) {
+      setList((current) => ({ ...current, items: current.items.map((x) => (x.id === created.id ? created : x)) }))
+      return
+    }
+    // a task shows from its start day (`periodStart`) to completion — today's list already has it
+    const dueDate = instantDate(created?.dueAt, timezone) ?? date
+    const createdDate = created?.periodStart && created.periodStart <= date && date <= dueDate ? date : created?.periodStart ?? dueDate
     if (createdDate === date) {
       setList((current) =>
         current === null ? { date, items: [created] } : { ...current, items: [...current.items, created] },
@@ -286,6 +293,7 @@ export function TasksScreen({ me, heroTop }) {
                 onReopen={handleReopen}
                 onAccept={handleAccept}
                 onAddProgress={handleProgress}
+                onEdit={(target) => setSheet({ kind: 'edit', task: target })}
               />
             ))}
           </div>
@@ -307,6 +315,9 @@ export function TasksScreen({ me, heroTop }) {
 
       {sheet?.kind === 'new' && (
         <NewTaskSheet today={today} timezone={timezone} onClose={closeSheet} onCreated={handleCreated} />
+      )}
+      {sheet?.kind === 'edit' && (
+        <NewTaskSheet key={sheet.task.id} today={today} timezone={timezone} task={sheet.task} onClose={closeSheet} onCreated={handleCreated} />
       )}
     </>
   )

@@ -8,7 +8,7 @@
  */
 import { useState } from 'react'
 import { hrApi, hrErrorMessage } from '../../lib/hrApi'
-import { addDays, localIsoAt, todayIn } from '../../lib/hrFormat'
+import { addDays, instantDate, instantTime, localIsoAt, todayIn } from '../../lib/hrFormat'
 import { hapticNotify, hapticSelect } from '../../lib/telegram'
 import { BottomSheet, Btn, FieldLabel, Hint, INPUT_CLASS, Notice } from './shared'
 import { t } from './texts'
@@ -51,12 +51,18 @@ function DueChip({ active, disabled, onClick, children }) {
   )
 }
 
-export function NewTaskSheet({ today, timezone, onCreated, onClose }) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [due, setDue] = useState(today)
-  const [time, setTime] = useState(DEFAULT_TIME)
-  const [customOpen, setCustomOpen] = useState(false)
+/**
+ * `task` berilsa — o'zi qo'shgan topshiriqni TAHRIRLASH (2026-11-06, muddat o'tmaguncha).
+ * "Boshlanish" — topshiriq shu kundan ro'yxatda ko'rinadi (bir oylik ish bugundan ko'rinsin).
+ */
+export function NewTaskSheet({ today, timezone, task = null, onCreated, onClose }) {
+  const initialDue = task ? instantDate(task.dueAt, timezone) ?? today : today
+  const [title, setTitle] = useState(task?.title ?? '')
+  const [description, setDescription] = useState(task?.description ?? '')
+  const [start, setStart] = useState(task?.periodStart ?? today)
+  const [due, setDue] = useState(initialDue)
+  const [time, setTime] = useState(task ? instantTime(task.dueAt, timezone) ?? DEFAULT_TIME : DEFAULT_TIME)
+  const [customOpen, setCustomOpen] = useState(initialDue !== today && initialDue !== addDays(today, 1))
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -80,6 +86,11 @@ export function NewTaskSheet({ today, timezone, onCreated, onClose }) {
       hapticNotify('warning')
       return
     }
+    if (!start || start > due) {
+      setError(t('new.start_after_due'))
+      hapticNotify('warning')
+      return
+    }
     const { hours, minutes } = parseTime(time)
     const dueAt = localIsoAt(due, hours, minutes, timezone)
     if (due === today && isPastMoment(dueAt, today, timezone)) {
@@ -91,11 +102,15 @@ export function NewTaskSheet({ today, timezone, onCreated, onClose }) {
     setError(null)
     setSaving(true)
     try {
-      const created = await hrApi.createTask({
+      const body = {
         title: trimmedTitle,
         description: description.trim().length > 0 ? description.trim() : null,
         dueAt,
-      })
+        startDate: start,
+      }
+      const created = task
+        ? await hrApi.updateTask(task.id, { ...body, description: body.description ?? '' })
+        : await hrApi.createTask(body)
       hapticNotify('success')
       onCreated(created)
     } catch (e) {
@@ -114,12 +129,12 @@ export function NewTaskSheet({ today, timezone, onCreated, onClose }) {
 
   return (
     <BottomSheet
-      title={t('new.title')}
+      title={task ? t('edit.title') : t('new.title')}
       busy={saving}
       onClose={onClose}
       footer={
         <Btn variant="primary" block loading={saving} disabled={trimmedTitle.length === 0} onClick={() => void submit()}>
-          {saving ? t('common.sending') : t('new.submit')}
+          {saving ? t('common.sending') : task ? t('edit.submit') : t('new.submit')}
         </Btn>
       }
     >
@@ -155,6 +170,20 @@ export function NewTaskSheet({ today, timezone, onCreated, onClose }) {
         onChange={(e) => setDescription(e.target.value)}
         className={INPUT_CLASS + ' resize-none leading-snug'}
       />
+
+      <FieldLabel htmlFor="hr-new-start">{t('new.start_label')}</FieldLabel>
+      <input
+        id="hr-new-start"
+        type="date"
+        value={start}
+        disabled={saving}
+        onChange={(e) => {
+          setStart(e.target.value)
+          setError(null)
+        }}
+        className={INPUT_CLASS + ' min-h-[44px]'}
+      />
+      <Hint>{t('new.start_hint')}</Hint>
 
       <FieldLabel>{t('new.due_label')}</FieldLabel>
       <div className="flex flex-wrap gap-2">

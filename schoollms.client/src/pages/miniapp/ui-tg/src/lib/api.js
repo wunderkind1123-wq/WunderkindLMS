@@ -146,6 +146,7 @@ export const api = {
   get: (p) => request('GET', p),
   post: (p, b, headers) => request('POST', p, b ?? {}, headers),
   put: (p, b) => request('PUT', p, b ?? {}),
+  patch: (p, b) => request('PATCH', p, b ?? {}),
   // DELETE tanasiz ketadi — parametrlar so'rov satrida (backend shunday kutadi).
   del: (p, headers) => request('DELETE', p, undefined, headers),
   /** Multipart POST — matn + rasm (taklif va shikoyatlar). */

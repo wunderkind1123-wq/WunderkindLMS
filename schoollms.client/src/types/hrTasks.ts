@@ -701,6 +701,8 @@ export interface HrTaskCreatePayload {
   targetAmount?: HrAmount | null
   unit?: string | null
   proofRequired?: boolean
+  /** `YYYY-MM-DD` — shu kundan ko'rinadi (2026-11-06). Yo'q = bugun. */
+  startDate?: string
 }
 
 /** `PATCH /hr/tasks/{id}` — faqat sarlavha/tavsif/muddat (SPEC §6.1). */
@@ -708,6 +710,7 @@ export interface HrTaskUpdatePayload {
   title?: string
   description?: string | null
   dueAt?: string
+  startDate?: string
 }
 
 /** `POST /hr/tasks/{id}/return` — qaytarish izohi xodimga darhol boradi. */
@@ -734,6 +737,8 @@ export interface HrTaskBatchItem {
   title: string
   /** UTC ISO (`toIsoFromTashkentInput` orqali tayyorlanadi). */
   dueAt: string
+  /** `YYYY-MM-DD` — boshlanish kuni (2026-11-06). Yo'q = bugun. */
+  startDate?: string
   description?: string | null
   kind?: HrTaskKind
   targetAmount?: HrAmount | null
@@ -1202,6 +1207,8 @@ export interface CreateTaskInput {
   description: string | null
   /** ISO-8601, mintaqa siljishi bilan: `2026-09-02T23:59:00+05:00`. */
   dueAt: string
+  /** `YYYY-MM-DD` — shu kundan ko'rinadi. Yo'q = bugun. */
+  startDate?: string
 }
 
 /** `POST /hr/app/tasks/{id}/complete` so'rovi. */

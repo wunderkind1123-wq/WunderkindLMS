@@ -52,6 +52,10 @@ export const teacherApi = {
 
   /** Har (imtihon, yo'nalish) uchun bir qator — dars jadvalidagi o'z fanlari bo'yicha. */
   blockExams: () => api.get(`${BASE}/block-exams`),
+  /** Ish reja (curriculum-monitoring.md §1): o'z sinf/guruh × fan rejalari, mavzular, "o'tildi" belgisi. */
+  curriculum: () => api.get(`${BASE}/curriculum`),
+  curriculumPlan: (id) => api.get(`${BASE}/curriculum/${id}`),
+  markTopic: (body) => api.put(`${BASE}/curriculum/progress`, body),
   /** O'qituvchi bloklari va shu yo'nalish o'quvchilari. */
   blockExamEntry: (examId, ownerId) => api.get(`${BASE}/block-exams/${examId}/entry${qs({ ownerId })}`),
   /** Faqat o'zgargan qatorlar: `{ ownerId, rows }`. */

@@ -118,6 +118,50 @@ public class CertificatesController(AppDbContext db, AuditService audit) : Contr
     }
 
     /// <summary>
+    /// Sertifikat reytingi (2026-11-06, curriculum-monitoring.md §3): har o'quvchining
+    /// sertifikatlari soni va blok testdagi jami ekvivalent bali. Sukut bo'yicha faqat
+    /// amaldagilar; <paramref name="includeExpired"/> — muddati o'tganlar ham.
+    /// </summary>
+    [HttpGet("rating")]
+    public async Task<ActionResult<IEnumerable<CertificateRatingRowDto>>> Rating(
+        [FromQuery] string? className, [FromQuery] Guid? trackId, [FromQuery] string? studentId,
+        [FromQuery] bool includeExpired = false, CancellationToken ct = default)
+        => await CertificatePoints.RatingAsync(db, className, trackId, studentId, includeExpired, ct);
+
+    /// <summary>Yo'nalish guruhlari va ularning blok testdagi 1-, 2-fani (ball shundan hisoblanadi).</summary>
+    [HttpGet("track-subjects")]
+    public async Task<ActionResult<IEnumerable<TrackBlockSubjectsDto>>> TrackSubjects(CancellationToken ct = default)
+        => await db.StudyGroups.AsNoTracking()
+            .Where(g => g.IsTrack && !g.IsArchived)
+            .OrderBy(g => g.Name)
+            .Select(g => new TrackBlockSubjectsDto(g.Id, g.Name, g.BlockSubject1Id, g.BlockSubject2Id,
+                db.StudyGroupMembers.Count(m => m.GroupId == g.Id && m.LeftOn == null)))
+            .ToListAsync(ct);
+
+    [HttpPut("track-subjects/{id:guid}")]
+    public async Task<IActionResult> SaveTrackSubjects(Guid id, TrackBlockSubjectsPayload p, CancellationToken ct = default)
+    {
+        var group = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == id && g.IsTrack, ct);
+        if (group is null) return NotFound(new { message = "Yo'nalish guruhi topilmadi" });
+        var first = string.IsNullOrWhiteSpace(p.Subject1Id) ? null : p.Subject1Id;
+        var second = string.IsNullOrWhiteSpace(p.Subject2Id) ? null : p.Subject2Id;
+        if (first is not null && first == second)
+            return BadRequest(new { message = "1-fan va 2-fan bir xil bo'lmasin" });
+        foreach (var sid in new[] { first, second }.OfType<string>())
+            if (!await db.Subjects.AnyAsync(s => s.Id == sid, ct))
+                return BadRequest(new { message = "Fan topilmadi" });
+
+        var before = new { group.BlockSubject1Id, group.BlockSubject2Id };
+        group.BlockSubject1Id = first;
+        group.BlockSubject2Id = second;
+        audit.Record("study_group", group.Id.ToString(), "update",
+            $"Yo'nalish \"{group.Name}\": blok fanlari o'zgartirildi",
+            before: before, after: new { group.BlockSubject1Id, group.BlockSubject2Id });
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
     /// Sertifikat BERGAN o'qituvchilar — o'quvchilar ro'yxatidagi
     /// <c>certificateTeacherId</c> filtrining tanlovi. Barcha o'qituvchilar emas:
     /// hech qachon sertifikat bermagan o'qituvchi bu filtrda bo'sh natija beradi.

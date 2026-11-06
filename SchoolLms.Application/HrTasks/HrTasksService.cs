@@ -252,6 +252,25 @@ public sealed partial class HrTasksService(
         throw HrErrors.Validation($"{field} noto'g'ri sana-vaqt: '{raw}'");
     }
 
+    /// <summary>
+    /// The day a new task shows from (client, 2026-11-06 — curriculum-monitoring.md §4): the given
+    /// start, else today, so a task due in a month is in the list from the day it is given. Never
+    /// after the due day; a task given already overdue starts on its due day, as before.
+    /// </summary>
+    public static DateOnly StartDateFor(string? raw, DateTimeOffset dueAt, DateTimeOffset now, TimeZoneInfo tz)
+    {
+        var dueDay = HrValues.LocalDate(dueAt, tz);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            var today = HrValues.LocalDate(now, tz);
+            return today < dueDay ? today : dueDay;
+        }
+        if (!DateOnly.TryParseExact(raw.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start))
+            throw HrErrors.Validation($"startDate noto'g'ri sana (YYYY-MM-DD kutilgan): '{raw}'");
+        if (start > dueDay) throw HrErrors.Validation("Boshlanish sanasi muddatdan keyin bo'lishi mumkin emas");
+        return start;
+    }
+
     private static bool Has(JsonElement body, string name) =>
         body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out _);
 

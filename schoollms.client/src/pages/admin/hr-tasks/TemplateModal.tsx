@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { createTemplate, hrErrorMessage, updateTemplate } from '@/api/services/hrTasks'
+import { createMyTemplate, createTemplate, hrErrorMessage, updateMyTemplate, updateTemplate } from '@/api/services/hrTasks'
 import type { HrEmployee, HrPosition, HrRecurrence, HrTargetType, HrTaskKind, HrTaskTemplate } from '@/types/hrTasks'
 import { HR_RECURRENCES, HR_WEEKDAYS } from '@/types/hrTasks'
 import { Button } from '@/components/ui/Button'
@@ -29,6 +29,7 @@ export function TemplateModal({
   employees,
   positions,
   canManagePositions,
+  selfEmployeeId,
   onClose,
   onSaved,
 }: {
@@ -37,11 +38,15 @@ export function TemplateModal({
   employees: HrEmployee[]
   positions: HrPosition[]
   canManagePositions: boolean
+  /** Set — a rule for ONESELF ("Mening topshiriqlarim", 2026-11-06): no target picker, `/api/hr/me`. */
+  selfEmployeeId?: string
   onClose: () => void
   onSaved: (message: string) => void
 }) {
   const [values, setValues] = useState<TemplateFormValues>(() =>
-    template ? toTemplateFormValues(template) : emptyTemplateForm(),
+    template
+      ? toTemplateFormValues(template)
+      : { ...emptyTemplateForm(), ...(selfEmployeeId ? { targetEmployeeId: selfEmployeeId } : {}) },
   )
   const [submitted, setSubmitted] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -65,7 +70,13 @@ export function TemplateModal({
     setError(null)
     try {
       const payload = toTemplatePayload(values)
-      if (template) {
+      if (selfEmployeeId) {
+        const { targetType: _t, targetEmployeeId: _e, targetPositionId: _p, ...own } = payload
+        void _t; void _e; void _p
+        if (template) await updateMyTemplate(template.id, own)
+        else await createMyTemplate(own)
+        onSaved(template ? 'Takroriy topshiriq yangilandi' : 'Takroriy topshiriq qo‘shildi')
+      } else if (template) {
         await updateTemplate(template.id, payload)
         onSaved('Shablon yangilandi')
       } else {
@@ -121,6 +132,7 @@ export function TemplateModal({
           </Field>
         </section>
 
+        {!selfEmployeeId && (
         <section className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2 sm:p-4">
           <Field label="Kimga" required>
             <select
@@ -185,6 +197,7 @@ export function TemplateModal({
             />
           )}
         </section>
+        )}
 
         <section className={box}>
           <div className="grid gap-3 sm:grid-cols-2">

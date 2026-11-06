@@ -286,6 +286,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Bilimlar bazasi — shaxsiy eslatmalar (Wiki.cs). Configuration: WikiModel.cs.
     public DbSet<WikiPage> WikiPages => Set<WikiPage>();
 
+    // Ish reja va ichki monitoring (CurriculumMonitoringModel.cs).
+    public DbSet<CurriculumPlan> CurriculumPlans => Set<CurriculumPlan>();
+    public DbSet<CurriculumTopic> CurriculumTopics => Set<CurriculumTopic>();
+    public DbSet<CurriculumProgress> CurriculumProgress => Set<CurriculumProgress>();
+    public DbSet<MonitoringBank> MonitoringBanks => Set<MonitoringBank>();
+    public DbSet<MonitoringQuestion> MonitoringQuestions => Set<MonitoringQuestion>();
+    public DbSet<MonitoringTest> MonitoringTests => Set<MonitoringTest>();
+    public DbSet<MonitoringItem> MonitoringItems => Set<MonitoringItem>();
+    public DbSet<MonitoringParticipant> MonitoringParticipants => Set<MonitoringParticipant>();
+
     /// <inheritdoc />
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default) =>
@@ -530,6 +540,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         AutoMessagesModel.Apply(b);
         TeacherAllowancesModel.Apply(b);
         ExamAwardsModel.Apply(b);
+        // Ish reja, ichki monitoring, yo'nalish blok fanlari (curriculum-monitoring.md, 2026-11-06).
+        CurriculumMonitoringModel.Apply(b);
         AttendanceRedListModel.Apply(b);
         // Audit screen indexes + student_events (audit-log.md, student-flow.md, 2026-10-15).
         AuditAndStudentFlowModel.Apply(b);

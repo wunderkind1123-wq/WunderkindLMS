@@ -22,6 +22,7 @@ import { ScheduleTab } from './teacher/ScheduleTab'
 import { BoardingScreen } from './teacher/BoardingScreen'
 import { SeasonalScreen } from './teacher/SeasonalScreen'
 import { BlockExamsScreen } from './teacher/BlockExamsScreen'
+import { CurriculumScreen } from './teacher/CurriculumScreen'
 import { AssignmentsTab } from './teacher/AssignmentsTab'
 import { HrTab } from './hr/HrTab'
 
@@ -73,6 +74,7 @@ export function TeacherPanel() {
   const [seasonal, setSeasonal] = useState(false)
   // Blok test natijalari (2026-11-03): "Bugun" dagi kartadan.
   const [blockExams, setBlockExams] = useState(false)
+  const [curriculum, setCurriculum] = useState(false)
 
   if (ctx.loading && ctx.data === null) {
     return (
@@ -108,12 +110,13 @@ export function TeacherPanel() {
     setBoarding(null)
     setSeasonal(false)
     setBlockExams(false)
+    setCurriculum(false)
     setTab(next)
   }
 
   return (
     <>
-      {active === 'home' && !boarding && !seasonal && !blockExams && (
+      {active === 'home' && !boarding && !seasonal && !blockExams && !curriculum && (
         <TodayTab
           profile={profile}
           meta={meta}
@@ -121,10 +124,12 @@ export function TeacherPanel() {
           onOpenBoarding={setBoarding}
           onOpenSeasonal={() => setSeasonal(true)}
           onOpenBlockExams={() => setBlockExams(true)}
+          onOpenCurriculum={() => setCurriculum(true)}
         />
       )}
       {active === 'home' && seasonal && <SeasonalScreen profile={profile} onBack={() => setSeasonal(false)} />}
       {active === 'home' && blockExams && <BlockExamsScreen onBack={() => setBlockExams(false)} />}
+      {active === 'home' && curriculum && <CurriculumScreen onBack={() => setCurriculum(false)} />}
       {active === 'home' && boarding && (
         <BoardingScreen
           key={boarding}

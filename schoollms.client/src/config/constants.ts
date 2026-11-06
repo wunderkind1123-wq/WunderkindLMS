@@ -95,6 +95,9 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'exams', label: 'Blok Test' },
   { key: 'seasonalMarks', label: 'Imtihonlar (mavsumiy baholash)' },
   { key: 'students', label: "O'quvchilar" },
+  // Ish reja va ichki monitoring (docs/modules/curriculum-monitoring.md, 2026-11-06).
+  { key: 'curriculum', label: 'Ish reja' },
+  { key: 'monitoring', label: 'Ichki monitoring' },
   { key: 'teachers', label: "O'qituvchilar" },
   { key: 'attendance', label: "Davomat (ko'rish va analitika)" },
   // Belgilash alohida (2026-10-11): "kunduzgi davomat faqat hamshirada" — rahbarlar ko'radi, hamshira belgilaydi.
@@ -137,7 +140,7 @@ export const adminPermissions: { key: string; label: string }[] = [
 export const adminPermissionGroups: { label: string; keys: string[] }[] = [
   { label: 'Asosiy', keys: ['dashboard', 'leads', 'chatbot', 'marketing', 'admission'] },
   { label: 'Moliya', keys: ['finance', 'contracts'] },
-  { label: "O'quv bo'limi", keys: ['students', 'classes', 'teachers', 'journal', 'schedule'] },
+  { label: "O'quv bo'limi", keys: ['students', 'classes', 'teachers', 'journal', 'schedule', 'curriculum', 'monitoring'] },
   { label: 'Davomat', keys: ['attendance', 'attendanceMark', 'attendanceCases', 'attendanceEvening', 'attendanceDorm'] },
   { label: 'Baholash', keys: ['exams', 'seasonalMarks', 'gradesReport', 'teacherReports', 'discipline'] },
   { label: 'Aloqa va ilova', keys: ['messages', 'app', 'feedback', 'polls'] },
