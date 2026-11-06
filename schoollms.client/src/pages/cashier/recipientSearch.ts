@@ -17,16 +17,17 @@ function words(text: string): string[] {
 }
 
 /**
- * Word order does not matter, because a name pasted from a message may be in either order.
- * A pasted full name may also carry a patronymic the stored name lacks, so from three words up
- * two matching words are enough.
+ * Each typed word must be the START of a word of the name (client, 2026-11-06: "anv" or "bek"
+ * finds "Anvarjonov Bekzodbek", but "bek" does not find "Ziyodbek"). Word order does not matter,
+ * because a name pasted from a message may be in either order. A pasted full name may also carry
+ * a patronymic the stored name lacks, so from three words up two matching words are enough.
  */
 export function filterRecipients(recipients: SalaryRecipient[], query: string): SalaryRecipient[] {
   const wanted = words(query)
   if (wanted.length === 0) return recipients
   const required = wanted.length >= 3 ? 2 : wanted.length
   return recipients.filter((r) => {
-    const name = normalize(r.name)
-    return wanted.filter((w) => name.includes(w)).length >= required
+    const nameWords = words(r.name)
+    return wanted.filter((w) => nameWords.some((n) => n.startsWith(w))).length >= required
   })
 }
