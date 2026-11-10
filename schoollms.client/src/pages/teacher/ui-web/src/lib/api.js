@@ -196,6 +196,15 @@ export const api = {
   blockExamEntry: (examId, ownerId) => GET(`/teacher/block-exams/${examId}/entry`, { ownerId }),
   saveBlockExamEntry: (examId, body) => POST(`/teacher/block-exams/${examId}/entry`, body),
 
+  // ---- Oraliq testlar — yo'nalishlarning haftalik testi (2026-11-10) ----
+  interimOptions: () => GET('/teacher/interim-tests/options'),
+  interimTests: (query) => GET('/teacher/interim-tests', query),
+  createInterimTest: (body) => POST('/teacher/interim-tests', body),
+  updateInterimTest: (id, body) => PUT(`/teacher/interim-tests/${id}`, body),
+  deleteInterimTest: (id) => DEL(`/teacher/interim-tests/${id}`),
+  interimEntry: (id) => GET(`/teacher/interim-tests/${id}/entry`),
+  saveInterimEntry: (id, rows) => POST(`/teacher/interim-tests/${id}/entry`, { rows }),
+
   // ---- Topshiriqlar ----
   assignments: () => GET('/teacher/assignments'),
   createAssignment: (body) => POST('/teacher/assignments', body),

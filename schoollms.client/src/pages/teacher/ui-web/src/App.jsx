@@ -24,6 +24,8 @@ import LmsStudentTopicsScreen from './screens/LmsStudentTopicsScreen'
 import LmsTopicDetailScreen from './screens/LmsTopicDetailScreen'
 import BlockExamsScreen from './screens/BlockExamsScreen'
 import BlockExamEntryScreen from './screens/BlockExamEntryScreen'
+import InterimTestsScreen from './screens/InterimTestsScreen'
+import InterimTestEntryScreen from './screens/InterimTestEntryScreen'
 import SeasonalMarksScreen from './screens/SeasonalMarksScreen'
 import SeasonalEntryScreen from './screens/SeasonalEntryScreen'
 
@@ -52,6 +54,8 @@ const SCREENS = {
   lmsTopicDetail: { Comp: LmsTopicDetailScreen },
   blockExams: { Comp: BlockExamsScreen },
   blockExamEntry: { Comp: BlockExamEntryScreen },
+  interimTests: { Comp: InterimTestsScreen },
+  interimTestEntry: { Comp: InterimTestEntryScreen },
   seasonalMarks: { Comp: SeasonalMarksScreen },
   seasonalEntry: { Comp: SeasonalEntryScreen },
 }

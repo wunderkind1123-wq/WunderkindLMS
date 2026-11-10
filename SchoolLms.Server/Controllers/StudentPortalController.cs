@@ -508,6 +508,88 @@ public class StudentPortalController(
         return new PortalRatingDto(s.Id, classRows, schoolRows, meSchoolRank, school.Count);
     }
 
+    /// <summary>
+    /// Leaderboard ota-ona/o'quvchi uchun (mijoz, 2026-11-10): FAQAT farzandning o'z sinfi va (bo'lsa)
+    /// o'z yo'nalishi — maktab bo'yicha umumiy reyting ko'rsatilmaydi. Boshqa o'quvchilardan faqat ism,
+    /// sinf va jami ball; o'z farzandining ballari esa qismlari bilan. Hisob — LeaderboardService
+    /// (admin leaderboardi bilan bir xil).
+    /// </summary>
+    [HttpGet("leaderboard")]
+    public async Task<IActionResult> Leaderboard([FromQuery] string? studentId, CancellationToken ct)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        if (await ProgressHiddenAsync(ct)) return ProgressHidden();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+
+        var result = await LeaderboardService.BuildAsync(db, AppClock.Today, ct);
+        var me = result.Rows.FirstOrDefault(r => r.StudentId == s.Id);
+        if (me is null) return Ok(new { From = Iso(result.From), To = Iso(result.To), Me = (object?)null, Scopes = Array.Empty<object>() });
+
+        object Scope(string kind, string id, string name, IEnumerable<LeaderboardRow> rows)
+        {
+            var ranked = LeaderboardService.Rank(rows);
+            var mine = ranked.FirstOrDefault(x => x.Row.StudentId == s.Id);
+            return new
+            {
+                Kind = kind, Id = id, Name = name, Count = ranked.Count, MyRank = mine.Row is null ? (int?)null : mine.Rank,
+                Rows = ranked.Select(x => new { x.Rank, x.Row.FullName, x.Row.ClassName, x.Row.Total, IsMe = x.Row.StudentId == s.Id }),
+            };
+        }
+
+        var scopes = new List<object>();
+        if (me.ClassId.Length > 0)
+            scopes.Add(Scope("class", me.ClassId, me.ClassName, result.Rows.Where(r => r.ClassId == me.ClassId)));
+        foreach (var track in result.Tracks.Where(t => me.TrackIds.Contains(t.Id)))
+            scopes.Add(Scope("track", track.Id, track.Name, result.Rows.Where(r => r.TrackIds.Contains(track.Id))));
+
+        return Ok(new
+        {
+            From = Iso(result.From),
+            To = Iso(result.To),
+            Weights = new
+            {
+                Grades = LeaderboardService.GradesWeight, Attendance = LeaderboardService.AttendanceWeight,
+                Monthly = LeaderboardService.MonthlyWeight, Behaviour = LeaderboardService.BehaviourWeight,
+            },
+            Me = new
+            {
+                me.Grades, me.GradeCount, me.IsTrack, me.Interim, me.InterimCount, me.Attendance, me.Lessons, me.Absent,
+                me.MonthlyTest, me.MonthlyCount, me.Behaviour, me.ManualPoints, me.Base, me.Total,
+            },
+            Scopes = scopes,
+        });
+    }
+
+    /// <summary>Farzandning oraliq test natijalari (yo'nalish o'quvchisi, 2026-11-10) — yangisi birinchi.</summary>
+    [HttpGet("interim-tests")]
+    public async Task<IActionResult> InterimTests([FromQuery] string? studentId, CancellationToken ct)
+    {
+        if (User.IsInRole("admin") && string.IsNullOrWhiteSpace(studentId)) return NeedStudentId();
+        if (await ProgressHiddenAsync(ct)) return ProgressHidden();
+        var s = await TargetAsync(studentId);
+        if (s is null) return NotFound();
+
+        var rows = await (from r in db.InterimTestResults.AsNoTracking()
+                          join t in db.InterimTests.AsNoTracking() on r.TestId equals t.Id
+                          join g in db.StudyGroups.AsNoTracking() on t.GroupId equals g.Id
+                          join sub in db.Subjects.AsNoTracking() on t.SubjectId equals sub.Id
+                          where r.StudentId == s.Id
+                          orderby t.Date descending, sub.Name
+                          select new { t.Date, GroupName = g.Name, SubjectName = sub.Name, t.QuestionCount, t.Topic, r.Correct, r.Absent })
+            .Take(200)
+            .ToListAsync(ct);
+        var items = rows.Select(r => new
+        {
+            Date = Iso(r.Date), r.GroupName, r.SubjectName, r.QuestionCount, r.Topic, r.Correct, r.Absent,
+            Percent = r.Correct is { } c ? InterimTestService.Percent(c, r.QuestionCount) : (double?)null,
+        }).ToList();
+        var scored = items.Where(i => i.Percent != null).Select(i => i.Percent!.Value).ToList();
+        return Ok(new { Average = scored.Count > 0 ? Math.Round(scored.Average(), 1) : (double?)null, Items = items });
+    }
+
+    private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd");
+
     // ---------- Uyga vazifa va dars mavzulari (o'z sinfi) ----------
 
     /// <summary>

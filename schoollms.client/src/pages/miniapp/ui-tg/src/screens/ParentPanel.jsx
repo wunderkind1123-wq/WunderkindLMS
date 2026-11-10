@@ -13,7 +13,7 @@
  * hammasi yangi farzandning holatiga tozalanadi.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarDays, GraduationCap, Home, UserRoundX, UtensilsCrossed, Wallet } from 'lucide-react'
+import { CalendarDays, GraduationCap, Home, Trophy, UserRoundX, UtensilsCrossed, Wallet } from 'lucide-react'
 import { EmptyState, ErrorState, Hero, Loader, Screen, TabBar } from '../components/ui'
 import { ProfileButton, ProfileSheet } from './parent/ProfileSheet'
 import { FeedbackSheet } from '../components/FeedbackSheet'
@@ -30,10 +30,13 @@ import { GradesTab } from './parent/GradesTab'
 import { ScheduleTab } from './parent/ScheduleTab'
 import { FinanceTab } from './parent/FinanceTab'
 import { MenuTab } from './parent/MenuTab'
+import { LeaderboardTab } from './parent/LeaderboardTab'
 
 const TABS = [
   { value: 'home', label: 'Bosh', icon: Home },
   { value: 'grades', label: 'Baholar', icon: GraduationCap },
+  // Liderbord (2026-11-10) — faqat farzandning sinfi va yo'nalishi; baholar yopiq bo'lsa chiqmaydi.
+  { value: 'leaderboard', label: 'Liderbord', icon: Trophy },
   { value: 'schedule', label: 'Jadval', icon: CalendarDays },
   { value: 'finance', label: "To'lov", icon: Wallet },
   { value: 'menu', label: 'Ovqat', icon: UtensilsCrossed },
@@ -50,7 +53,7 @@ export function ParentPanel({ user }) {
   const showGrades = progress.data !== false
   // "To'lov" is hidden while SHOW_PARENT_FINANCE is off (client, 2026-10-14).
   const tabs = TABS.filter(
-    (t) => (showGrades || t.value !== 'grades') && (SHOW_PARENT_FINANCE || t.value !== 'finance'),
+    (t) => (showGrades || (t.value !== 'grades' && t.value !== 'leaderboard')) && (SHOW_PARENT_FINANCE || t.value !== 'finance'),
   )
   const children = state.data ?? []
   // Shu Telegram'dagi boshqa akkauntlar (o'qituvchi ota-ona) — hero'da ko'rinib turadi.
@@ -66,7 +69,7 @@ export function ParentPanel({ user }) {
 
   // Baholar tabi ochiq turganda yopilib qolsa — Boshga qaytamiz.
   useEffect(() => {
-    if (!showGrades && tab === 'grades') setTab('home')
+    if (!showGrades && (tab === 'grades' || tab === 'leaderboard')) setTab('home')
   }, [showGrades, tab])
 
   // Profil — butun ekranni yopadigan varaq (sarlavhadagi avatar ochadi).
@@ -144,6 +147,7 @@ export function ParentPanel({ user }) {
           />
         )}
         {child && showGrades && tab === 'grades' && <GradesTab key={child.id} child={child} />}
+        {child && showGrades && tab === 'leaderboard' && <LeaderboardTab key={child.id} child={child} />}
         {child && tab === 'schedule' && <ScheduleTab key={child.id} child={child} />}
         {child && SHOW_PARENT_FINANCE && tab === 'finance' && <FinanceTab key={child.id} child={child} />}
         {child && tab === 'menu' && <MenuTab key={child.id} child={child} />}

@@ -20,7 +20,7 @@ internal static class AutoMessagesModel
                 // Templates staff create (2026-10-26) are "c_" and 8 hex digits, with a schedule;
                 // the built-in rules have none.
                 t.HasCheckConstraint("ck_auto_message_rules_key",
-                    "key in ('absence','invoice','debt','birthday','payment') or key ~ '^c_[0-9a-f]{8}$'");
+                    "key in ('absence','invoice','debt','birthday','payment','weekly_report') or key ~ '^c_[0-9a-f]{8}$'");
                 t.HasCheckConstraint("ck_auto_message_rules_schedule",
                     "(key ~ '^c_' and schedule in ('once','daily','weekly','monthly')) or (key !~ '^c_' and schedule is null)");
                 t.HasCheckConstraint("ck_auto_message_rules_audience",

@@ -10,7 +10,7 @@
 import { api, USE_MOCK } from '../client'
 
 /** Asosiy qoidalar; xodim yaratgan shablon kaliti — "c_" va 8 belgi. */
-export type BuiltInAutoMessageKey = 'absence' | 'invoice' | 'debt' | 'birthday' | 'payment'
+export type BuiltInAutoMessageKey = 'absence' | 'weekly_report' | 'invoice' | 'debt' | 'birthday' | 'payment'
 export type AutoMessageKey = BuiltInAutoMessageKey | `c_${string}`
 
 export type AutoMessageSchedule = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -263,6 +263,32 @@ export async function downloadAutoMessageLog(filters: AutoMessageLogFilters): Pr
   const cd = (res.headers['content-disposition'] as string | undefined) ?? ''
   const m = cd.match(/filename="?([^";]+)"?/)
   a.download = m?.[1] ?? `avto-xabarlar_${new Date().toISOString().slice(0, 10)}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Bitta o'quvchining haftalik hisoboti (PDF) — qoidani yoqishdan oldin ko'rish uchun, hech kimga yubormaydi.
+ * `date` — haftaning istalgan kuni (yakshanba — tugagan hafta); bo'sh — bugun. `studentId` bo'sh — birinchi o'quvchi.
+ */
+export async function downloadWeeklyReportSample(params: { studentId?: string; date?: string } = {}): Promise<void> {
+  if (USE_MOCK) {
+    alert('Namuna PDF faqat real serverda ishlaydi (VITE_USE_MOCK=false).')
+    return
+  }
+  const res = await api.get('/admin/auto-messages/weekly-report/sample', {
+    params: { studentId: params.studentId || undefined, date: params.date || undefined },
+    responseType: 'blob',
+  })
+  // Yuklab olinadi (so'rovdan keyingi window.open'ni brauzer bloklaydi).
+  const url = URL.createObjectURL(new Blob([res.data as Blob], { type: 'application/pdf' }))
+  const a = document.createElement('a')
+  a.href = url
+  const cd = (res.headers['content-disposition'] as string | undefined) ?? ''
+  const m = cd.match(/filename="?([^";]+)"?/)
+  a.download = m?.[1] ?? 'Haftalik_hisobot.pdf'
   document.body.appendChild(a)
   a.click()
   a.remove()

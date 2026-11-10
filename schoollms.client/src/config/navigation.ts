@@ -200,6 +200,8 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: "Arxiv o'quvchilar", to: '/admin/students/arxiv', perm: 'students', group: "O'QUVCHILAR" },
         // Kelgan / ketgan o'quvchilar va ketish sabablari (client, 2026-10-15; student-flow.md).
         { label: "O'quvchilar oqimi", to: '/admin/students/oqim', perm: 'students', group: "O'QUVCHILAR" },
+        // O'quvchilar leaderboardi — butun o'quv yili (client, 2026-11-08), O'quv bo'limida.
+        { label: 'Leaderboard', to: '/admin/leaderboard', perm: 'students', group: "O'QUVCHILAR" },
         // Manzil va Ota-onalar `app` ("Ilova") dan `students` ga KO'CHDI —
         // menyu, marshrut va controller bir vaqtda. `app` mobil ilova davridan
         // qolgan kalit edi; ikkala ekran endi O'quv bo'limida turibdi, shuning
@@ -377,6 +379,8 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Imtihonlar', to: '/admin/exams/list', group: 'BLOK TEST' },
         { label: 'Imtihon turi', to: '/admin/exams/types', group: 'BLOK TEST' },
         { label: 'Natijalar', to: '/admin/exams/results', group: 'BLOK TEST' },
+        // Yo'nalishlarning haftalik oraliq testi (2026-11-10).
+        { label: 'Oraliq testlar', to: '/admin/exams/interim', group: 'BLOK TEST' },
       ],
     },
     {

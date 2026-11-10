@@ -241,6 +241,15 @@ export const getDiscipline = (childId) => api.get('/student/discipline' + forChi
  */
 export const getExamResults = (childId) => api.get('/student/exam-results' + forChild(childId))
 
+/**
+ * Liderbord (mijoz, 2026-11-10): FAQAT farzandning o'z sinfi va (bo'lsa) o'z yo'nalishi.
+ * `{ me, scopes: [{ kind, name, count, myRank, rows: [{ rank, fullName, className, total, isMe }] }] }`.
+ */
+export const getLeaderboard = (childId) => api.get('/student/leaderboard' + forChild(childId))
+
+/** Oraliq test natijalari (yo'nalish o'quvchisi): `{ average, items }`, yangisi tepada. */
+export const getInterimTests = (childId) => api.get('/student/interim-tests' + forChild(childId))
+
 /** Sertifikatlar (ball / daraja), yangisi tepada — "hozircha necha balli" (mijoz, 2026-10-07). */
 export const getCertificates = (childId) => api.get('/student/certificates' + forChild(childId))
 

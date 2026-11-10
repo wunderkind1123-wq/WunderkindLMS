@@ -11,9 +11,10 @@
  * kartasida sozlash (shu muharrir) va o'chirish tugmalari bor.
  */
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, CalendarClock, Eye, Plus, RotateCcw, Save, Settings2, Trash2 } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Eye, FileDown, Plus, RotateCcw, Save, Settings2, Trash2 } from 'lucide-react'
 import {
   deleteAutoMessageRule,
+  downloadWeeklyReportSample,
   getAutoMessageClasses,
   getAutoMessageRules,
   previewAutoMessage,
@@ -168,6 +169,22 @@ function RuleCard({
     ? { title: ruleTitle(rule), hint: templateHint(rule, classes) }
     : TITLES[rule.key as BuiltInAutoMessageKey]
   const isAbsence = rule.key === 'absence'
+  // Haftalik hisobotning ilovasi — PDF; rasm qo'shilmaydi.
+  const isWeekly = rule.key === 'weekly_report'
+  const withImages = !rule.eventDriven && !isWeekly
+  const [pdfBusy, setPdfBusy] = useState(false)
+
+  const samplePdf = async () => {
+    setPdfBusy(true)
+    setMsg(null)
+    try {
+      await downloadWeeklyReportSample()
+    } catch (e) {
+      setMsg({ ok: false, text: errorText(e, "Namuna PDF'ni olib bo'lmadi.") })
+    } finally {
+      setPdfBusy(false)
+    }
+  }
 
   // Shablon oynasida oyning kuni o'zgarsa, karta ham shuni ko'rsatsin (eskisini qayta saqlamasin).
   useEffect(() => setDay(rule.dayOfMonth), [rule.dayOfMonth])
@@ -194,7 +211,7 @@ function RuleCard({
     text !== rule.text ||
     (!rule.eventDriven && approval !== rule.requiresApproval) ||
     (isAbsence && cutoff !== (rule.cutoffTime ?? '')) ||
-    (!rule.eventDriven && images.join('\n') !== (rule.imageUrls ?? []).join('\n'))
+    (withImages && images.join('\n') !== (rule.imageUrls ?? []).join('\n'))
 
   const save = async (nextEnabled = enabled) => {
     setBusy(true)
@@ -208,7 +225,7 @@ function RuleCard({
         text,
         requiresApproval: rule.eventDriven ? undefined : approval,
         cutoffTime: isAbsence ? cutoff || null : undefined,
-        imageUrls: rule.eventDriven ? undefined : images,
+        imageUrls: withImages ? images : undefined,
       })
       setEnabled(saved.enabled)
       onSaved(saved)
@@ -387,9 +404,7 @@ function RuleCard({
         </div>
       </div>
 
-      {!rule.eventDriven && (
-        <BroadcastImagePicker value={images} onChange={setImages} onBusyChange={setUploading} />
-      )}
+      {withImages && <BroadcastImagePicker value={images} onChange={setImages} onBusyChange={setUploading} />}
 
       {preview && (
         <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
@@ -438,6 +453,16 @@ function RuleCard({
           )}
         </p>
         <div className="flex gap-2">
+          {isWeekly && (
+            <Button
+              variant="secondary"
+              onClick={() => void samplePdf()}
+              disabled={pdfBusy}
+              title="Shu hafta bo'yicha birinchi o'quvchining hisoboti — hech kimga yuborilmaydi"
+            >
+              <FileDown className="h-4 w-4" /> {pdfBusy ? 'Tayyorlanmoqda…' : 'Namuna PDF'}
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => void runPreview()} disabled={previewBusy}>
             <Eye className="h-4 w-4" /> {previewBusy ? 'Tekshirilmoqda…' : 'Namuna'}
           </Button>

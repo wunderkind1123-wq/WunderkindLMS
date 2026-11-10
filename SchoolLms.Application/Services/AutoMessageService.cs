@@ -82,7 +82,12 @@ public sealed partial class AutoMessageService(
             "🎉 **Tug'ilgan kuningiz muborak!**\n\nHurmatli ota-ona, bugun farzandingiz {ism}ning tug'ilgan kuni. Wunderkind maktabi jamoasi uni chin qalbdan tabriklaydi: sog'lik, baxt va yangi yutuqlar tilaymiz!",
         [AutoMessageKind.Payment] =
             "✅ **To'lov qabul qilindi**\n\nHurmatli ota-ona, farzandingiz {fish} ({sinf}) uchun {summa} so'm to'lov qabul qilindi.\nChek № {chek} · {sana} {vaqt}\nTo'lov usuli: {usul}\nQolgan qarzdorlik: {qarzdorlik} so'm",
+        [AutoMessageKind.WeeklyReport] =
+            "📊 **Haftalik hisobot**\n\nHurmatli ota-ona, farzandingiz {fish} ({sinf}) ning {hafta} kunlaridagi o'qishi bo'yicha haftalik hisobot ilova qilindi: baholar, davomat va intizom.\n\nHurmat bilan, maktab o'quv bo'limi.",
     };
+
+    /// <summary>A Telegram document caption may hold this many characters; a longer text follows the PDF.</summary>
+    private const int MaxCaption = 1024;
 
     private static readonly AutoMessageTokenDto[] Common =
     [
@@ -118,6 +123,10 @@ public sealed partial class AutoMessageService(
             new("{sana}", "To'lov kuni (15.10.2026)", "Sana"), new("{vaqt}", "To'lov vaqti (14:35)", "Vaqt"),
             new("{chek}", "Chek raqami", "Chek №"), new("{usul}", "To'lov usuli (Naqd pul, Bank kartasi)", "To'lov usuli"),
             new("{qarzdorlik}", "To'lovdan keyin qolgan qarz, so'm", "Qarzdorlik"),
+        ],
+        AutoMessageKind.WeeklyReport =>
+        [
+            .. Common, new("{hafta}", "Hisobot haftasi (02–07 noyabr 2026)", "Hafta"), SendDay, SendClock,
         ],
         // Templates staff create (2026-10-26) also take the announcement's money and phone tokens.
         _ when AutoMessageKind.IsCustom(key) =>
@@ -546,6 +555,7 @@ public sealed partial class AutoMessageService(
             AutoMessageKind.Birthday => new Source(await BirthdayItemsAsync(DayOf(period), ct)),
             AutoMessageKind.Invoice => await InvoiceItemsAsync(MonthOf(period), ct) is { } invoices ? new Source(invoices) : null,
             AutoMessageKind.Debt => new Source(await DebtItemsAsync(rule.MinAmount, ct)),
+            AutoMessageKind.WeeklyReport => new Source(await WeeklyReportItemsAsync(DayOf(period), ct)),
             var key when AutoMessageKind.IsCustom(key) => new Source(await AudienceItemsAsync(rule, ct)),
             _ => new Source([]),
         };
@@ -770,6 +780,19 @@ public sealed partial class AutoMessageService(
         })];
     }
 
+    /// <summary>
+    /// The weekly report (2026-11-08): every pupil with something in the week the run's day closes
+    /// (<see cref="WeeklyReport.WeekOf"/>) — the PDF itself is built when it is sent.
+    /// </summary>
+    private async Task<List<Item>> WeeklyReportItemsAsync(DateOnly day, CancellationToken ct)
+    {
+        var (from, to) = WeeklyReport.WeekOf(day);
+        var ids = await WeeklyReport.PupilsAsync(db, from, to, ct);
+        var names = await NamesAsync(ids, ct);
+        var label = WeeklyReport.Label(from, to);
+        return [.. ids.Select(id => new Item(id, Values(names, id, new() { ["{hafta}"] = label })))];
+    }
+
     private sealed record Names(string FullName, string FirstName, string ClassName);
 
     private async Task<Dictionary<string, Names>> NamesAsync(List<string> ids, CancellationToken ct) =>
@@ -894,9 +917,10 @@ public sealed partial class AutoMessageService(
             .OrderBy(l => l.StudentId).ThenBy(l => l.ChatId)
             .ToListAsync(ct);
         var isAbsence = rule.Key == AutoMessageKind.Absence;
+        var isWeekly = rule.Key == AutoMessageKind.WeeklyReport;
         var day = isAbsence ? DayOf(run.Period) : default;
         // Read once per send: the first chat uploads the files, every next one gets Telegram's file_id.
-        var photos = rows.Count > 0 ? await PhotosAsync(run, ct) : [];
+        var photos = rows.Count > 0 && !isWeekly ? await PhotosAsync(run, ct) : [];
 
         int sent = 0, failed = 0;
         foreach (var pupil in rows.GroupBy(r => r.StudentId, StringComparer.Ordinal))
@@ -924,15 +948,36 @@ public sealed partial class AutoMessageService(
                 }
             }
 
+            // The weekly report: one PDF per pupil, built now (the week is over), sent to each parent chat.
+            (byte[] Bytes, string FileName)? report = null;
+            string? reportError = null;
+            if (isWeekly)
+            {
+                try
+                {
+                    var (from, to) = WeeklyReport.WeekOf(DayOf(run.Period));
+                    if (await WeeklyReport.BuildAsync(db, pupil.Key, from, to, ct) is { } model)
+                        report = (new WeeklyReportDocument(model).Render(), WeeklyReportDocument.FileName(model));
+                    else reportError = "O'quvchi topilmadi";
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    log.LogError(ex, "Haftalik hisobot ({Student}, {Period}) tayyorlanmadi", pupil.Key, run.Period);
+                    reportError = "Hisobotni tayyorlab bo'lmadi";
+                }
+            }
+
             var delivered = 0;
             foreach (var row in pupil)
             {
-                var ok = photos.Count == 0
-                    ? await telegram.SendRichAsync(row.ChatId!.Value, row.Text, ct)
-                    : await telegram.SendPhotosWithTextAsync(row.ChatId!.Value, photos, row.Text, ct);
+                var ok = isWeekly
+                    ? report is { } pdf && await SendReportAsync(row.ChatId!.Value, pdf.Bytes, pdf.FileName, row.Text, ct)
+                    : photos.Count == 0
+                        ? await telegram.SendRichAsync(row.ChatId!.Value, row.Text, ct)
+                        : await telegram.SendPhotosWithTextAsync(row.ChatId!.Value, photos, row.Text, ct);
                 row.Attempts++;
                 row.Status = ok ? BroadcastDelivery.Sent : BroadcastDelivery.Failed;
-                row.Error = ok ? null : RejectedByTelegram;
+                row.Error = ok ? null : reportError ?? RejectedByTelegram;
                 row.At = AppClock.NowInstant;
                 if (ok) { sent++; delivered++; } else failed++;
                 if (SendPause > TimeSpan.Zero) await Task.Delay(SendPause, ct);
@@ -951,6 +996,18 @@ public sealed partial class AutoMessageService(
             await db.SaveChangesAsync(ct);
         }
         return (sent, failed);
+    }
+
+    /// <summary>
+    /// The weekly report PDF with the rule's text as its caption; a text longer than a caption may be
+    /// goes as a message right after the file (as the payment receipt does).
+    /// </summary>
+    private async Task<bool> SendReportAsync(long chatId, byte[] pdf, string fileName, string html, CancellationToken ct)
+    {
+        if (TelegramHtml.ToPlain(html).Length <= MaxCaption)
+            return await telegram.SendDocumentHtmlAsync(chatId, pdf, fileName, html, ct);
+        return await telegram.SendDocumentAsync(chatId, pdf, fileName, null, ct)
+               && await telegram.SendRichAsync(chatId, html, ct);
     }
 
     /// <summary>

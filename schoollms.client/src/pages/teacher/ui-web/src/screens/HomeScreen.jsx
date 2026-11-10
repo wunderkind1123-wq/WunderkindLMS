@@ -201,6 +201,22 @@ export default function HomeScreen({ onNavigate, onSwitchTab }) {
           </TapScale>
         </div>
 
+        {/* Oraliq testlar (2026-11-10) — yo'nalishlarning haftalik testi, ro'yxat dars jadvalidan. */}
+        <div className="px-4 pb-4">
+          <TapScale onClick={() => onNavigate?.('interimTests')}>
+            <div className="p-3.5 rounded-3xl bg-surface border border-border flex items-center gap-3">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-primary flex items-center justify-center text-white">
+                <ClipboardList size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[15px] font-bold text-text">Oraliq testlar</p>
+                <p className="text-[12px] text-muted truncate">Yo'nalishlarning haftalik testi</p>
+              </div>
+              <ChevronRight size={20} className="text-faint shrink-0" />
+            </div>
+          </TapScale>
+        </div>
+
         {/* Mavsumiy baholash — ruxsati yo'q bo'lsa, ekran ichida server javobi aytadi (Mini App'dagidek). */}
         <div className="px-4 pb-4">
           <TapScale onClick={() => onNavigate?.('seasonalMarks')}>

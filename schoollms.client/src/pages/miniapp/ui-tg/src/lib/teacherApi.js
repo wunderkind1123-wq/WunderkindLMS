@@ -61,6 +61,15 @@ export const teacherApi = {
   /** Faqat o'zgargan qatorlar: `{ ownerId, rows }`. */
   saveBlockExamEntry: (examId, body) => api.post(`${BASE}/block-exams/${examId}/entry`, body),
 
+  /** Oraliq testlar — yo'nalishlarning haftalik testi (2026-11-10). */
+  interimOptions: () => api.get(`${BASE}/interim-tests/options`),
+  interimTests: () => api.get(`${BASE}/interim-tests`),
+  createInterimTest: (body) => api.post(`${BASE}/interim-tests`, body),
+  updateInterimTest: (id, body) => api.put(`${BASE}/interim-tests/${id}`, body),
+  deleteInterimTest: (id) => api.del(`${BASE}/interim-tests/${id}`),
+  interimEntry: (id) => api.get(`${BASE}/interim-tests/${id}/entry`),
+  saveInterimEntry: (id, rows) => api.post(`${BASE}/interim-tests/${id}/entry`, { rows }),
+
   /* ---------- jadval ---------- */
 
   /** Bir haftalik darslar. quarter/week berilmasa — server joriysini oladi. */

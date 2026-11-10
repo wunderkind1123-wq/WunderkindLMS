@@ -17,6 +17,10 @@ export const TITLES: Record<BuiltInAutoMessageKey, { title: string; hint: string
     title: 'Kelmaganlik xabari',
     hint: "Kelmagan o'quvchining ota-onasiga — hamshira belgilagan davomat bo'yicha. Faqat kesish vaqtigacha boshlangan darslar hisoblanadi; davomati to'liq olinmagan sinf o'tkazib yuboriladi. Tugma bilan yuborilganlarga qayta ketmaydi.",
   },
+  weekly_report: {
+    title: 'Haftalik hisobot (PDF)',
+    hint: "Har yakshanba — o'tgan hafta (dushanba–shanba) bo'yicha har bir o'quvchining hisoboti PDF ko'rinishida ota-onasiga: baholar sinf o'rtachasi bilan, davomat, intizom va qisqa xulosa. Matn — PDF ostidagi izoh.",
+  },
   invoice: {
     title: 'Yangi oylik hisob',
     hint: "Oy hisob-fakturasi chiqqach — shu oy summasi va jami to'lanmagan. Hisob hali chiqmagan bo'lsa, keyingi 2 kun ichida qayta urinadi.",

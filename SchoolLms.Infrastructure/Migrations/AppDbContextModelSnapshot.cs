@@ -1251,7 +1251,7 @@ namespace SchoolLms.Infrastructure.Migrations
 
                             t.HasCheckConstraint("ck_auto_message_rules_day", "day_of_month between 1 and 28");
 
-                            t.HasCheckConstraint("ck_auto_message_rules_key", "key in ('absence','invoice','debt','birthday','payment') or key ~ '^c_[0-9a-f]{8}$'");
+                            t.HasCheckConstraint("ck_auto_message_rules_key", "key in ('absence','invoice','debt','birthday','payment','weekly_report') or key ~ '^c_[0-9a-f]{8}$'");
 
                             t.HasCheckConstraint("ck_auto_message_rules_min", "min_amount >= 0");
 
@@ -5969,6 +5969,115 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("question_count");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("subject_id");
+
+                    b.Property<string>("Topic")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id")
+                        .HasName("pk_interim_tests");
+
+                    b.HasIndex("SubjectId")
+                        .HasDatabaseName("ix_interim_tests_subject_id");
+
+                    b.HasIndex("GroupId", "SubjectId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("ux_interim_tests_group_subject_date");
+
+                    b.ToTable("interim_tests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_interim_tests_question_count", "question_count between 1 and 300");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.InterimTestResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Absent")
+                        .HasColumnType("boolean")
+                        .HasColumnName("absent");
+
+                    b.Property<int?>("Correct")
+                        .HasColumnType("integer")
+                        .HasColumnName("correct");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("student_id");
+
+                    b.Property<Guid>("TestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("test_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_interim_test_results");
+
+                    b.HasIndex("StudentId")
+                        .HasDatabaseName("ix_interim_test_results_student_id");
+
+                    b.HasIndex("TestId", "StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_interim_test_results_test_student");
+
+                    b.ToTable("interim_test_results", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_interim_test_results_value", "(absent and correct is null) or (not absent and correct is not null and correct >= 0)");
+                        });
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Lead", b =>
                 {
                     b.Property<string>("Id")
@@ -6201,6 +6310,104 @@ namespace SchoolLms.Infrastructure.Migrations
                             t.HasCheckConstraint("ck_ledger_entries_direction", "direction in ('debit','credit')");
 
                             t.HasCheckConstraint("ck_ledger_entries_reversal_not_self", "reversal_of is null or reversal_of <> id");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.LeaderboardAward", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer")
+                        .HasColumnName("points");
+
+                    b.Property<Guid?>("ReasonId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reason_id");
+
+                    b.Property<string>("ReasonName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("reason_name");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("student_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_leaderboard_awards");
+
+                    b.HasIndex("ReasonId")
+                        .HasDatabaseName("ix_leaderboard_awards_reason_id");
+
+                    b.HasIndex("StudentId", "Date")
+                        .HasDatabaseName("ix_leaderboard_awards_student_date");
+
+                    b.ToTable("leaderboard_awards", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_leaderboard_awards_points", "points between -1000 and 1000 and points <> 0");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.LeaderboardReason", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer")
+                        .HasColumnName("points");
+
+                    b.HasKey("Id")
+                        .HasName("pk_leaderboard_reasons");
+
+                    b.ToTable("leaderboard_reasons", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_leaderboard_reasons_points", "points between -1000 and 1000");
                         });
                 });
 
@@ -12028,6 +12235,56 @@ namespace SchoolLms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_class_homeroom_teachers_teachers_teacher_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.StudyGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_tests_study_groups_group_id");
+
+                    b.HasOne("SchoolLms.Domain.Subject", null)
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_tests_subjects_subject_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.InterimTestResult", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Student", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_test_results_students_student_id");
+
+                    b.HasOne("SchoolLms.Domain.InterimTest", null)
+                        .WithMany()
+                        .HasForeignKey("TestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_test_results_interim_tests_test_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.LeaderboardAward", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.LeaderboardReason", null)
+                        .WithMany()
+                        .HasForeignKey("ReasonId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_leaderboard_awards_leaderboard_reasons_reason_id");
+
+                    b.HasOne("SchoolLms.Domain.Student", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_leaderboard_awards_students_student_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.ClassMembership", b =>

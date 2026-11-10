@@ -42,6 +42,7 @@ import { HolidaysPage } from '@/pages/admin/schedule/HolidaysPage'
 import { ChatbotPage } from '@/pages/admin/chatbot/ChatbotPage'
 import { BallarNazoratiPage } from '@/pages/admin/discipline/BallarNazoratiPage'
 import { BallSabablarPage } from '@/pages/admin/discipline/BallSabablarPage'
+import { LeaderboardPage } from '@/pages/admin/students/LeaderboardPage'
 import { GradesReportPage } from '@/pages/admin/grades-report/GradesReportPage'
 import { TeacherReportsPage } from '@/pages/admin/teacher-reports/TeacherReportsPage'
 import { ContractsPage } from '@/pages/admin/contracts/ContractsPage'
@@ -102,6 +103,7 @@ import { ExamsPage } from '@/pages/admin/exams/ExamsPage'
 import { ExamTypesPage } from '@/pages/admin/exams/ExamTypesPage'
 import { ResultsPage } from '@/pages/admin/exams/ResultsPage'
 import { ResultEntryPage } from '@/pages/admin/exams/ResultEntryPage'
+import { InterimTestsPage } from '@/pages/admin/exams/InterimTestsPage'
 import { AttendanceDisciplineReportPage } from '@/pages/admin/discipline/AttendanceDisciplineReportPage'
 import { CertificatesPage } from '@/pages/admin/certificates/CertificatesPage'
 import { CurriculumPlansPage } from '@/pages/admin/curriculum/CurriculumPlansPage'
@@ -234,6 +236,7 @@ export default function App() {
           <Route path="chatbot/*" element={<RequirePerm perm="chatbot"><ChatbotPage /></RequirePerm>} />
           <Route path="discipline" element={<RequirePerm perm="discipline"><BallarNazoratiPage /></RequirePerm>} />
           <Route path="discipline/reasons" element={<RequirePerm perm="discipline"><BallSabablarPage /></RequirePerm>} />
+          <Route path="leaderboard" element={<RequirePerm perm="students"><LeaderboardPage /></RequirePerm>} />
           <Route path="discipline/incidents" element={<RequirePerm perm="discipline"><HarakatlarPage /></RequirePerm>} />
           <Route path="discipline/attendance-report" element={<RequirePerm perm="discipline"><AttendanceDisciplineReportPage /></RequirePerm>} />
           <Route path="schedule/manage/:id" element={<RequirePerm perm="schedule"><ClassSchedulePage /></RequirePerm>} />
@@ -320,6 +323,7 @@ export default function App() {
           <Route path="exams/list" element={<RequirePerm perm="exams"><ExamsPage /></RequirePerm>} />
           <Route path="exams/types" element={<RequirePerm perm="exams"><ExamTypesPage /></RequirePerm>} />
           <Route path="exams/results" element={<RequirePerm perm="exams"><ResultsPage /></RequirePerm>} />
+          <Route path="exams/interim" element={<RequirePerm perm="exams"><InterimTestsPage /></RequirePerm>} />
           <Route path="exams/results/:examId/entry" element={<RequirePerm perm="exams"><ResultEntryPage /></RequirePerm>} />
           <Route path="finance/bonus" element={<RequirePerm perm="finance"><AdjustmentsPage key="finance-bonus" kind="bonus" /></RequirePerm>} />
           <Route path="finance/penalty" element={<RequirePerm perm="finance"><AdjustmentsPage key="finance-penalty" kind="penalty" /></RequirePerm>} />

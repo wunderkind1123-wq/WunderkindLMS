@@ -199,6 +199,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<AutoMessageRule> AutoMessageRules => Set<AutoMessageRule>();
     public DbSet<AutoMessageLogEntry> AutoMessageLog => Set<AutoMessageLogEntry>();
     public DbSet<AutoMessageRun> AutoMessageRuns => Set<AutoMessageRun>();
+    // O'quvchilar leaderboardi — qo'lda qo'shilgan ballar (2026-11-08). Konfiguratsiya: LeaderboardModel.cs.
+    public DbSet<LeaderboardReason> LeaderboardReasons => Set<LeaderboardReason>();
+    public DbSet<LeaderboardAward> LeaderboardAwards => Set<LeaderboardAward>();
+    // Yo'nalishlarning haftalik oraliq testlari (2026-11-10). Konfiguratsiya: InterimTestModel.cs.
+    public DbSet<InterimTest> InterimTests => Set<InterimTest>();
+    public DbSet<InterimTestResult> InterimTestResults => Set<InterimTestResult>();
     // Teacher certificates and named allowances paid with the salary (teacher-allowances.md, 2026-10-15).
     public DbSet<TeacherAllowance> TeacherAllowances => Set<TeacherAllowance>();
     // Thank-you / warning messages after a test (exam-awards.md, 2026-10-15).
@@ -538,6 +544,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         NotificationStateModel.Apply(b);
         BoardingAttendanceModel.Apply(b);
         AutoMessagesModel.Apply(b);
+        LeaderboardModel.Apply(b);
+        InterimTestModel.Apply(b);
         TeacherAllowancesModel.Apply(b);
         ExamAwardsModel.Apply(b);
         // Ish reja, ichki monitoring, yo'nalish blok fanlari (curriculum-monitoring.md, 2026-11-06).

@@ -279,6 +279,12 @@ public interface IAppDbContext
     /// <summary>Automatic Telegram messages to parents: rules and their log (2026-10-13).</summary>
     DbSet<AutoMessageRule> AutoMessageRules { get; }
     DbSet<AutoMessageLogEntry> AutoMessageLog { get; }
+    /// <summary>Pupils' leaderboard: reasons and points added by hand (2026-11-08).</summary>
+    DbSet<LeaderboardReason> LeaderboardReasons { get; }
+    DbSet<LeaderboardAward> LeaderboardAwards { get; }
+    /// <summary>Track groups' weekly interim tests and their results (2026-11-10).</summary>
+    DbSet<InterimTest> InterimTests { get; }
+    DbSet<InterimTestResult> InterimTestResults { get; }
     /// <summary>One rule's run per period: status, approval, counts (2026-10-15).</summary>
     DbSet<AutoMessageRun> AutoMessageRuns { get; }
     /// <summary>Teacher certificates and named allowances paid with the salary (2026-10-15).</summary>

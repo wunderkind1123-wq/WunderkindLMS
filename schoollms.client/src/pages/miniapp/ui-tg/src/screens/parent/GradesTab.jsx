@@ -18,6 +18,7 @@ import { useAsync } from '../../lib/useAsync'
 import { dayMonth } from '../../lib/format'
 import { getAttendance, getGrades, getMeta, getWeek } from '../../lib/parentApi'
 import { ExamResultsCards } from './ExamResultsCards'
+import { InterimTestsCard } from './InterimTestsCard'
 import { AsyncBlock, gradeTone } from './shared'
 import { parseISO } from './weeks'
 
@@ -44,6 +45,8 @@ export function GradesTab({ child }) {
     <>
     {/* Chorakka bog'liq emas — shuning uchun chorak tanlagichidan yuqorida (2026-11-03). */}
     <ExamResultsCards childId={child.id} />
+    {/* Oraliq testlar (2026-11-10) — faqat yo'nalish o'quvchisida natija bo'lsa chiqadi. */}
+    <InterimTestsCard childId={child.id} />
     <AsyncBlock state={state} loadingLabel="Baholar yuklanmoqda…">
       {({ report, attendance, meta, week }) => {
         const quarters = (meta.quarters ?? []).map((q) => q.quarter).sort((a, b) => a - b)

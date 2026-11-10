@@ -22,6 +22,7 @@ import { ScheduleTab } from './teacher/ScheduleTab'
 import { BoardingScreen } from './teacher/BoardingScreen'
 import { SeasonalScreen } from './teacher/SeasonalScreen'
 import { BlockExamsScreen } from './teacher/BlockExamsScreen'
+import { InterimTestsScreen } from './teacher/InterimTestsScreen'
 import { CurriculumScreen } from './teacher/CurriculumScreen'
 import { AssignmentsTab } from './teacher/AssignmentsTab'
 import { HrTab } from './hr/HrTab'
@@ -74,6 +75,8 @@ export function TeacherPanel() {
   const [seasonal, setSeasonal] = useState(false)
   // Blok test natijalari (2026-11-03): "Bugun" dagi kartadan.
   const [blockExams, setBlockExams] = useState(false)
+  // Oraliq testlar (2026-11-10): "Bugun" dagi kartadan.
+  const [interimTests, setInterimTests] = useState(false)
   const [curriculum, setCurriculum] = useState(false)
 
   if (ctx.loading && ctx.data === null) {
@@ -110,13 +113,14 @@ export function TeacherPanel() {
     setBoarding(null)
     setSeasonal(false)
     setBlockExams(false)
+    setInterimTests(false)
     setCurriculum(false)
     setTab(next)
   }
 
   return (
     <>
-      {active === 'home' && !boarding && !seasonal && !blockExams && !curriculum && (
+      {active === 'home' && !boarding && !seasonal && !blockExams && !interimTests && !curriculum && (
         <TodayTab
           profile={profile}
           meta={meta}
@@ -124,11 +128,13 @@ export function TeacherPanel() {
           onOpenBoarding={setBoarding}
           onOpenSeasonal={() => setSeasonal(true)}
           onOpenBlockExams={() => setBlockExams(true)}
+          onOpenInterimTests={() => setInterimTests(true)}
           onOpenCurriculum={() => setCurriculum(true)}
         />
       )}
       {active === 'home' && seasonal && <SeasonalScreen profile={profile} onBack={() => setSeasonal(false)} />}
       {active === 'home' && blockExams && <BlockExamsScreen onBack={() => setBlockExams(false)} />}
+      {active === 'home' && interimTests && <InterimTestsScreen onBack={() => setInterimTests(false)} />}
       {active === 'home' && curriculum && <CurriculumScreen onBack={() => setCurriculum(false)} />}
       {active === 'home' && boarding && (
         <BoardingScreen

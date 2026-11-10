@@ -11,7 +11,7 @@ namespace SchoolLms.Domain;
 /// <summary>One automatic message rule (<see cref="AutoMessageKind"/>).</summary>
 public class AutoMessageRule
 {
-    /// <summary><see cref="AutoMessageKind"/>: absence | invoice | debt | birthday | payment.</summary>
+    /// <summary><see cref="AutoMessageKind"/>: absence | weekly_report | invoice | debt | birthday | payment.</summary>
     public string Key { get; set; } = string.Empty;
 
     public bool Enabled { get; set; }
@@ -117,9 +117,14 @@ public static class AutoMessageKind
     public const string Birthday = "birthday";
     /// <summary>Payment received: the receipt's caption (event-driven, never scheduled).</summary>
     public const string Payment = "payment";
+    /// <summary>
+    /// The weekly report PDF to every parent (2026-11-08): Sundays only, for the Monday–Saturday just
+    /// ended; the rule's text is the PDF's caption.
+    /// </summary>
+    public const string WeeklyReport = "weekly_report";
 
     /// <summary>The built-in rules, in the screen's order.</summary>
-    public static readonly IReadOnlyList<string> All = [Absence, Invoice, Debt, Birthday, Payment];
+    public static readonly IReadOnlyList<string> All = [Absence, WeeklyReport, Invoice, Debt, Birthday, Payment];
 
     /// <summary>Key prefix of a template staff created (2026-10-26): "c_" and 8 hex digits.</summary>
     public const string CustomPrefix = "c_";
@@ -135,10 +140,12 @@ public static class AutoMessageKind
 
     /// <summary>
     /// A rule that runs by the day (not monthly) goes on <paramref name="day"/>: always for the built-in
-    /// ones and daily templates; a once template on its date; a weekly one on its week days.
+    /// ones and daily templates (the weekly report — Sundays); a once template on its date; a weekly one
+    /// on its week days.
     /// </summary>
     public static bool RunsOn(AutoMessageRule rule, DateOnly day)
     {
+        if (rule.Key == WeeklyReport) return day.DayOfWeek == DayOfWeek.Sunday;
         if (!IsCustom(rule.Key)) return true;
         return rule.Schedule switch
         {

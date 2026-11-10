@@ -21,6 +21,7 @@ namespace SchoolLms.Server.Controllers;
 //                                                       name, schedule and classes (audited)
 //    DELETE /api/admin/auto-messages/{key}            — delete a template (archived; audited)
 //    POST /api/admin/auto-messages/{key}/preview      — who it would reach now, sample text (sends nothing)
+//    GET  /api/admin/auto-messages/weekly-report/sample — one pupil's weekly report PDF (sends nothing)
 //    GET  /api/admin/auto-messages/log                — the delivery log, newest first, ≤ 500 rows
 //    GET  /api/admin/auto-messages/log/paged          — the same, paged, with pupil / run / source filters
 //    GET  /api/admin/auto-messages/log/export         — the same as .xlsx
@@ -56,6 +57,7 @@ public class AutoMessagesController(
         [AutoMessageKind.Debt] = "Qarz eslatmasi",
         [AutoMessageKind.Birthday] = "Tug'ilgan kun tabrigi",
         [AutoMessageKind.Payment] = "To'lov qabul qilindi",
+        [AutoMessageKind.WeeklyReport] = "Haftalik hisobot",
     };
 
     private static readonly IReadOnlyDictionary<string, string> StatusTitles = new Dictionary<string, string>
@@ -248,7 +250,9 @@ public class AutoMessagesController(
         }
 
         // Pictures (2026-10-25), checked as an announcement's are; the payment message is the receipt's caption.
-        var images = req.ImageUrls is null || AutoMessageKind.IsEventDriven(key) ? null : BroadcastImages.Clean(req.ImageUrls);
+        // The weekly report's attachment is its PDF — no pictures either.
+        var images = req.ImageUrls is null || AutoMessageKind.IsEventDriven(key) || key == AutoMessageKind.WeeklyReport
+            ? null : BroadcastImages.Clean(req.ImageUrls);
         if (images is not null && BroadcastImages.Check(env, images) is { } imageError) return (imageError, null);
         return (null, images);
     }
@@ -326,6 +330,36 @@ public class AutoMessagesController(
             return new AutoMessagePreviewDto(key, AppClock.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 0, 0, 0, sample, "namuna");
         }
         return await Service.PreviewAsync(rule, text, AppClock.Now, ct);
+    }
+
+    /// <summary>
+    /// The weekly report PDF of one pupil, to look at before switching the rule on (sends nothing).
+    /// <paramref name="date"/> — any day of the week wanted (a Sunday means the week it closes); none —
+    /// today. <paramref name="studentId"/> none — the first pupil the run would reach.
+    /// </summary>
+    [HttpGet("weekly-report/sample")]
+    public async Task<IActionResult> WeeklyReportSample(
+        [FromQuery] string? studentId, [FromQuery] string? date, CancellationToken ct)
+    {
+        var day = DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? d : AppClock.Today;
+        var (from, to) = WeeklyReport.WeekOf(day);
+        var id = string.IsNullOrWhiteSpace(studentId)
+            ? (await WeeklyReport.PupilsAsync(db, from, to, ct)).FirstOrDefault()
+            : studentId.Trim();
+        // No date asked and nothing this week yet (Monday morning, a holiday): the last week with marks.
+        if (id is null && date is null
+            && await db.JournalEntries.AsNoTracking().Where(e => e.Grade != null)
+                .MaxAsync(e => (string?)e.Date, ct) is { } last
+            && DateOnly.TryParseExact(last, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastDay))
+        {
+            (from, to) = WeeklyReport.WeekOf(lastDay.DayOfWeek == DayOfWeek.Sunday ? lastDay : lastDay.AddDays(7 - (int)lastDay.DayOfWeek));
+            id = (await WeeklyReport.PupilsAsync(db, from, to, ct)).FirstOrDefault();
+        }
+        if (id is null) return NotFound(new { message = "Bu haftada hisobot chiqadigan o'quvchi yo'q" });
+        var model = await WeeklyReport.BuildAsync(db, id, from, to, ct);
+        if (model is null) return NotFound(new { message = "O'quvchi topilmadi" });
+        return File(new WeeklyReportDocument(model).Render(), "application/pdf", WeeklyReportDocument.FileName(model));
     }
 
     // =====================================================================
