@@ -102,7 +102,10 @@ public static class PortalSchedule
         var subjects = await db.Subjects.ToDictionaryAsync(s => s.Id, s => s.Name);
         // Vaqt — darsning EGASI jadvalidan (qo'shimcha qo'ng'iroq jadvallari, 2026-10-11).
         var bells = await BellTimes.LoadAsync(db);
-        var otherIds = subs.SelectMany(s => new[] { s.AbsentTeacherId, s.SubstituteTeacherId }).Distinct().ToList();
+        var otherIds = subs.Select(s => s.AbsentTeacherId).Concat(subs.Select(s => s.SubstituteTeacherId).OfType<string>()).Distinct().ToList();
+        var externalIds = subs.Select(s => s.ExternalSubstituteId).OfType<Guid>().Distinct().ToList();
+        Dictionary<Guid, string> externalNames = externalIds.Count == 0 ? []
+            : await db.ExternalSubstitutes.AsNoTracking().Where(x => externalIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
         var teacherNames = await db.Teachers.AsNoTracking().Where(t => otherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.FullName);
         int DayOf(DateOnly d) => ((int)d.DayOfWeek + 6) % 7;
 
@@ -117,7 +120,9 @@ public static class PortalSchedule
                 l.Owner.Id, l.Owner.Name,
                 l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""), l.SubGroup,
                 l.Owner.Kind,
-                SubstitutedBy: coveredBy is null ? null : teacherNames.GetValueOrDefault(coveredBy.SubstituteTeacherId, "")));
+                SubstitutedBy: coveredBy is null ? null
+                    : coveredBy.ExternalSubstituteId is { } ext ? externalNames.GetValueOrDefault(ext, "")
+                    : teacherNames.GetValueOrDefault(coveredBy.SubstituteTeacherId ?? "", "")));
         }
         if (subs.Any(s => s.SubstituteTeacherId == teacherId))
         {

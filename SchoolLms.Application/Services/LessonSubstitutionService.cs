@@ -21,7 +21,7 @@ namespace SchoolLms.Application.Services;
 public record SubstitutionLessonDto(
     int Period, string? StartTime, string? EndTime, string OwnerKind, string OwnerId, string OwnerName,
     string SubjectId, string SubjectName, int SubGroup,
-    Guid? SubstitutionId, string? SubstituteTeacherId, string? SubstituteTeacherName);
+    Guid? SubstitutionId, string? SubstituteTeacherId, string? SubstituteTeacherName, Guid? ExternalSubstituteId = null);
 
 /// <summary>A teacher the admin can choose; <see cref="BusyPeriods"/> — periods they already teach that day.</summary>
 public record SubstitutionTeacherOptionDto(string Id, string FullName, List<int> BusyPeriods);
@@ -29,14 +29,41 @@ public record SubstitutionTeacherOptionDto(string Id, string FullName, List<int>
 public record SubstitutionDayDto(
     string Date, string TeacherId, string TeacherName, List<SubstitutionLessonDto> Lessons, List<SubstitutionTeacherOptionDto> Teachers);
 
-public record SubstitutionCreateItem(int Period, string OwnerId, string SubjectId, int SubGroup, string SubstituteTeacherId);
+/// <summary>One lesson and who covers it: an internal teacher or a tashqi o'rindosh — exactly one.</summary>
+public record SubstitutionCreateItem(
+    int Period, string OwnerId, string SubjectId, int SubGroup, string? SubstituteTeacherId, Guid? ExternalSubstituteId = null);
 
 public record SubstitutionCreateRequest(string Date, string AbsentTeacherId, List<SubstitutionCreateItem> Items, string? Reason);
 
+/// <summary><see cref="SubstituteTeacherName"/> is the tashqi o'rindosh's name when <see cref="ExternalSubstituteId"/> is set.</summary>
 public record SubstitutionDto(
     Guid Id, string Date, int Period, string OwnerKind, string OwnerId, string OwnerName, string SubjectId, string SubjectName,
-    int SubGroup, string AbsentTeacherId, string AbsentTeacherName, string SubstituteTeacherId, string SubstituteTeacherName,
-    string? Reason, string CreatedByName, DateTimeOffset CreatedAt);
+    int SubGroup, string AbsentTeacherId, string AbsentTeacherName, string? SubstituteTeacherId, string SubstituteTeacherName,
+    string? Reason, string CreatedByName, DateTimeOffset CreatedAt, Guid? ExternalSubstituteId = null);
+
+public record ExternalSubstituteDto(
+    Guid Id, string FullName, string Phone, string? SubjectId, string? SubjectName);
+
+/// <summary>A tashqi o'rindosh is paid in cash only (client, 2026-11-11) — no payment details.</summary>
+public record ExternalSubstituteRequest(string? FullName, string? Phone, string? SubjectId);
+
+/// <summary>Found by phone: <see cref="Existed"/> — the card was already there and nothing was created.</summary>
+public record ExternalSubstituteSaveResult(ExternalSubstituteDto Substitute, bool Existed);
+
+/// <summary>
+/// One person in a month (client, 2026-11-11: o'rindoshlik oylikka bog'liq): <see cref="Covered"/> —
+/// lessons taught in someone's place, <see cref="Missed"/> — own lessons someone else taught.
+/// </summary>
+public record SubstitutionMonthPersonDto(
+    string Kind, string Id, string FullName, int Covered, int Missed, ExternalSubstituteDto? External);
+
+public record SubstitutionMonthDto(string Month, List<SubstitutionMonthPersonDto> People, List<SubstitutionDto> Rows);
+
+public static class SubstitutionPersonKind
+{
+    public const string Teacher = "teacher";
+    public const string External = "external";
+}
 
 public static class LessonSubstitutionService
 {
@@ -84,6 +111,7 @@ public static class LessonSubstitutionService
         var teachers = await db.Teachers.AsNoTracking().Where(t => !t.IsArchived).OrderBy(t => t.FullName)
             .Select(t => new { t.Id, t.FullName }).ToListAsync(ct);
         var names = teachers.ToDictionary(t => t.Id, t => t.FullName);
+        var externals = await ExternalNamesAsync(db, standing, ct);
 
         var lessons = own.Select(l =>
         {
@@ -92,7 +120,8 @@ public static class LessonSubstitutionService
             return new SubstitutionLessonDto(
                 l.Period, lt?.StartTime, lt?.EndTime, l.Owner.Kind, l.Owner.Id, l.Owner.Name,
                 l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""), l.SubGroup,
-                sub?.Id, sub?.SubstituteTeacherId, sub is null ? null : names.GetValueOrDefault(sub.SubstituteTeacherId));
+                sub?.Id, sub?.SubstituteTeacherId, sub is null ? null : SubstituteName(sub, names, externals),
+                sub?.ExternalSubstituteId);
         }).ToList();
 
         var options = teachers.Where(t => t.Id != teacherId).Select(t => new SubstitutionTeacherOptionDto(
@@ -120,9 +149,12 @@ public static class LessonSubstitutionService
 
         var all = await LessonsOnAsync(db, null, date, ct);
         var standing = await db.LessonSubstitutions.Where(s => s.Date == date && s.CancelledAt == null).ToListAsync(ct);
-        var substitutes = req.Items.Select(i => i.SubstituteTeacherId).Distinct().ToList();
+        var substitutes = req.Items.Select(i => i.SubstituteTeacherId).OfType<string>().Distinct().ToList();
         var active = await db.Teachers.AsNoTracking().Where(t => substitutes.Contains(t.Id) && !t.IsArchived)
             .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
+        var externalIds = req.Items.Select(i => i.ExternalSubstituteId).OfType<Guid>().Distinct().ToList();
+        var externals = await db.ExternalSubstitutes.AsNoTracking().Where(x => externalIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
         var now = AppClock.NowInstant;
         var created = new List<LessonSubstitution>();
 
@@ -131,12 +163,28 @@ public static class LessonSubstitutionService
             var lesson = all.FirstOrDefault(l => l.TeacherId == req.AbsentTeacherId && l.Period == item.Period
                 && l.Owner.Id == item.OwnerId && l.SubjectId == item.SubjectId && l.SubGroup == item.SubGroup);
             if (lesson is null) return ($"{item.Period}-dars bu ustozning shu kungi jadvalida yo'q", []);
-            if (item.SubstituteTeacherId == req.AbsentTeacherId) return ("O'rindosh boshqa ustoz bo'lishi kerak", []);
-            if (!active.TryGetValue(item.SubstituteTeacherId, out var subName)) return ("O'rindosh ustoz topilmadi", []);
-            var busy = all.Any(l => l.TeacherId == item.SubstituteTeacherId && l.Period == item.Period)
-                || standing.Any(s => s.SubstituteTeacherId == item.SubstituteTeacherId && s.Period == item.Period
-                                     && !(s.OwnerId == item.OwnerId && s.SubjectId == item.SubjectId && s.SubGroup == item.SubGroup))
-                || created.Any(c => c.SubstituteTeacherId == item.SubstituteTeacherId && c.Period == item.Period);
+            bool SameLesson(LessonSubstitution s) => s.OwnerId == item.OwnerId && s.SubjectId == item.SubjectId && s.SubGroup == item.SubGroup;
+            string subName;
+            bool busy;
+            if (item.ExternalSubstituteId is { } externalId)
+            {
+                // Tashqi o'rindosh: not in the timetable — busy only with another lesson they cover.
+                if (!string.IsNullOrEmpty(item.SubstituteTeacherId)) return ("O'rindosh ichki yoki tashqi ustoz — bittasi tanlanadi", []);
+                if (!externals.TryGetValue(externalId, out var externalName)) return ("Tashqi o'rindosh topilmadi", []);
+                subName = externalName;
+                busy = standing.Any(s => s.ExternalSubstituteId == externalId && s.Period == item.Period && !SameLesson(s))
+                    || created.Any(c => c.ExternalSubstituteId == externalId && c.Period == item.Period);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(item.SubstituteTeacherId)) return ("O'rindosh ustozni tanlang", []);
+                if (item.SubstituteTeacherId == req.AbsentTeacherId) return ("O'rindosh boshqa ustoz bo'lishi kerak", []);
+                if (!active.TryGetValue(item.SubstituteTeacherId, out var teacherName)) return ("O'rindosh ustoz topilmadi", []);
+                subName = teacherName;
+                busy = all.Any(l => l.TeacherId == item.SubstituteTeacherId && l.Period == item.Period)
+                    || standing.Any(s => s.SubstituteTeacherId == item.SubstituteTeacherId && s.Period == item.Period && !SameLesson(s))
+                    || created.Any(c => c.SubstituteTeacherId == item.SubstituteTeacherId && c.Period == item.Period);
+            }
             if (busy) return ($"{subName} {item.Period}-darsda band", []);
 
             foreach (var old in standing.Where(s => s.Period == item.Period && s.OwnerId == item.OwnerId
@@ -149,7 +197,9 @@ public static class LessonSubstitutionService
             {
                 Date = date, Period = item.Period, OwnerKind = lesson.Owner.Kind, OwnerId = lesson.Owner.Id,
                 SubjectId = lesson.SubjectId, SubGroup = lesson.SubGroup,
-                AbsentTeacherId = req.AbsentTeacherId, SubstituteTeacherId = item.SubstituteTeacherId,
+                AbsentTeacherId = req.AbsentTeacherId,
+                SubstituteTeacherId = item.ExternalSubstituteId is null ? item.SubstituteTeacherId : null,
+                ExternalSubstituteId = item.ExternalSubstituteId,
                 Reason = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason.Trim()[..Math.Min(req.Reason.Trim().Length, 300)],
                 CreatedBy = actorId, CreatedAt = now,
             });
@@ -178,11 +228,52 @@ public static class LessonSubstitutionService
         return await ToDtosAsync(db, rows, ct);
     }
 
+    /// <summary>
+    /// A month of substitutions (client, 2026-11-11: o'rindosh almashinuvi oylikka bog'liq — necha marta
+    /// bo'lgani oy kesimida): every standing row of the month and, per person, how many lessons they
+    /// covered and how many of their own lessons somebody else taught.
+    /// </summary>
+    public static async Task<SubstitutionMonthDto> MonthAsync(IAppDbContext db, int year, int month, CancellationToken ct = default)
+    {
+        var from = new DateOnly(year, month, 1);
+        var to = from.AddMonths(1).AddDays(-1);
+        var rows = await db.LessonSubstitutions.AsNoTracking()
+            .Where(s => s.CancelledAt == null && s.Date >= from && s.Date <= to)
+            .OrderByDescending(s => s.Date).ThenBy(s => s.Period).ToListAsync(ct);
+        var dtos = await ToDtosAsync(db, rows, ct);
+
+        var externalIds = rows.Select(r => r.ExternalSubstituteId).OfType<Guid>().Distinct().ToList();
+        var externals = (await ExternalDtosAsync(db, db.ExternalSubstitutes.Where(x => externalIds.Contains(x.Id)), ct))
+            .ToDictionary(x => x.Id);
+        var people = new Dictionary<(string Kind, string Id), (string Name, int Covered, int Missed)>();
+        void Add(string kind, string id, string name, int covered, int missed)
+        {
+            var p = people.GetValueOrDefault((kind, id), (Name: name, Covered: 0, Missed: 0));
+            people[(kind, id)] = (p.Name, p.Covered + covered, p.Missed + missed);
+        }
+        foreach (var d in dtos)
+        {
+            Add(SubstitutionPersonKind.Teacher, d.AbsentTeacherId, d.AbsentTeacherName, 0, 1);
+            if (d.ExternalSubstituteId is { } ext)
+                Add(SubstitutionPersonKind.External, ext.ToString(), d.SubstituteTeacherName, 1, 0);
+            else if (d.SubstituteTeacherId is { } sub)
+                Add(SubstitutionPersonKind.Teacher, sub, d.SubstituteTeacherName, 1, 0);
+        }
+        var list = people
+            .Select(p => new SubstitutionMonthPersonDto(p.Key.Kind, p.Key.Id, p.Value.Name, p.Value.Covered, p.Value.Missed,
+                p.Key.Kind == SubstitutionPersonKind.External ? externals.GetValueOrDefault(Guid.Parse(p.Key.Id)) : null))
+            .OrderByDescending(p => p.Covered).ThenByDescending(p => p.Missed).ThenBy(p => p.FullName, StringComparer.Ordinal)
+            .ToList();
+        return new SubstitutionMonthDto(from.ToString("yyyy-MM", CultureInfo.InvariantCulture), list, dtos);
+    }
+
     public static async Task<List<SubstitutionDto>> ToDtosAsync(IAppDbContext db, List<LessonSubstitution> rows, CancellationToken ct = default)
     {
         if (rows.Count == 0) return [];
-        var teacherIds = rows.SelectMany(r => new[] { r.AbsentTeacherId, r.SubstituteTeacherId }).Distinct().ToList();
+        var teacherIds = rows.Select(r => r.AbsentTeacherId).Concat(rows.Select(r => r.SubstituteTeacherId).OfType<string>())
+            .Distinct().ToList();
         var teachers = await db.Teachers.AsNoTracking().Where(t => teacherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
+        var externals = await ExternalNamesAsync(db, rows, ct);
         var subjects = await db.Subjects.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         var owners = await LessonRoster.AllOwnersAsync(db, ct);
         var userIds = rows.Select(r => r.CreatedBy).Distinct().ToList();
@@ -191,8 +282,91 @@ public static class LessonSubstitutionService
             r.Id, Iso(r.Date), r.Period, r.OwnerKind, r.OwnerId, owners.TryGetValue(r.OwnerId, out var o) ? o.Name : "",
             r.SubjectId, subjects.GetValueOrDefault(r.SubjectId, ""), r.SubGroup,
             r.AbsentTeacherId, teachers.GetValueOrDefault(r.AbsentTeacherId, ""),
-            r.SubstituteTeacherId, teachers.GetValueOrDefault(r.SubstituteTeacherId, ""),
-            r.Reason, users.GetValueOrDefault(r.CreatedBy, ""), r.CreatedAt))];
+            r.SubstituteTeacherId, SubstituteName(r, teachers, externals),
+            r.Reason, users.GetValueOrDefault(r.CreatedBy, ""), r.CreatedAt, r.ExternalSubstituteId))];
+    }
+
+    /// <summary>Who covers the row — the internal teacher's or the tashqi o'rindosh's name.</summary>
+    private static string SubstituteName(
+        LessonSubstitution r, IReadOnlyDictionary<string, string> teachers, IReadOnlyDictionary<Guid, string> externals) =>
+        r.ExternalSubstituteId is { } ext ? externals.GetValueOrDefault(ext, "")
+        : r.SubstituteTeacherId is { } id ? teachers.GetValueOrDefault(id, "")
+        : "";
+
+    private static async Task<Dictionary<Guid, string>> ExternalNamesAsync(
+        IAppDbContext db, IEnumerable<LessonSubstitution> rows, CancellationToken ct)
+    {
+        var ids = rows.Select(r => r.ExternalSubstituteId).OfType<Guid>().Distinct().ToList();
+        if (ids.Count == 0) return [];
+        return await db.ExternalSubstitutes.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
+    }
+
+    // =====================================================================
+    //  Tashqi o'rindosh (client, 2026-11-11) — a card without a login
+    // =====================================================================
+
+    private static async Task<List<ExternalSubstituteDto>> ExternalDtosAsync(
+        IAppDbContext db, IQueryable<ExternalSubstitute> query, CancellationToken ct)
+    {
+        var rows = await query.AsNoTracking().OrderBy(x => x.FullName).ToListAsync(ct);
+        if (rows.Count == 0) return [];
+        var subjects = await db.Subjects.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        return [.. rows.Select(x => new ExternalSubstituteDto(
+            x.Id, x.FullName, x.Phone, x.SubjectId, x.SubjectId is null ? null : subjects.GetValueOrDefault(x.SubjectId)))];
+    }
+
+    /// <summary>The cards whose name or phone digits contain <paramref name="search"/>; all of them when it is empty.</summary>
+    public static async Task<List<ExternalSubstituteDto>> ExternalListAsync(IAppDbContext db, string? search, CancellationToken ct = default)
+    {
+        var q = db.ExternalSubstitutes.AsQueryable();
+        var text = search?.Trim() ?? "";
+        if (text.Length > 0)
+        {
+            var digits = new string(text.Where(char.IsDigit).ToArray());
+            q = digits.Length >= 3
+                ? q.Where(x => x.FullName.ToLower().Contains(text.ToLower()) || x.Phone.Contains(digits))
+                : q.Where(x => x.FullName.ToLower().Contains(text.ToLower()));
+        }
+        return await ExternalDtosAsync(db, q.Take(200), ct);
+    }
+
+    /// <summary>
+    /// Saves a new card — or, when the phone is already someone's card, returns that one untouched
+    /// (the client: "telefon raqam bo'yicha takrorlanish tekshiriladi … qaytadan kiritilmaydi").
+    /// The caller saves.
+    /// </summary>
+    public static async Task<(string? Error, ExternalSubstituteSaveResult? Result)> ExternalCreateAsync(
+        IAppDbContext db, ExternalSubstituteRequest req, string actorId, CancellationToken ct = default)
+    {
+        var phone = HrValues.NormalizePhone(req.Phone);
+        if (phone is null) return ("Telefon raqami noto'g'ri (+998 XX XXX XX XX)", null);
+        var existing = await db.ExternalSubstitutes.AsNoTracking().Where(x => x.Phone == phone).Select(x => x.Id).FirstOrDefaultAsync(ct);
+        if (existing != Guid.Empty)
+            return (null, new ExternalSubstituteSaveResult(
+                (await ExternalDtosAsync(db, db.ExternalSubstitutes.Where(x => x.Id == existing), ct))[0], true));
+
+        var (error, row) = await ValidateExternalAsync(db, req, ct);
+        if (error is not null) return (error, null);
+        row!.Phone = phone;
+        row.CreatedBy = actorId;
+        row.CreatedAt = AppClock.NowInstant;
+        db.ExternalSubstitutes.Add(row);
+        var subject = row.SubjectId is null ? null
+            : await db.Subjects.AsNoTracking().Where(s => s.Id == row.SubjectId).Select(s => s.Name).FirstOrDefaultAsync(ct);
+        return (null, new ExternalSubstituteSaveResult(
+            new ExternalSubstituteDto(row.Id, row.FullName, row.Phone, row.SubjectId, subject), false));
+    }
+
+    /// <summary>Name and subject checked; the phone is the caller's.</summary>
+    private static async Task<(string? Error, ExternalSubstitute? Row)> ValidateExternalAsync(
+        IAppDbContext db, ExternalSubstituteRequest req, CancellationToken ct)
+    {
+        var name = (req.FullName ?? "").Trim();
+        if (name.Length < 3) return ("F.I.Sh. kiriting", null);
+        if (name.Length > 200) return ("F.I.Sh. juda uzun", null);
+        var subjectId = string.IsNullOrWhiteSpace(req.SubjectId) ? null : req.SubjectId.Trim();
+        if (subjectId is not null && !await db.Subjects.AnyAsync(s => s.Id == subjectId, ct)) return ("Fan topilmadi", null);
+        return (null, new ExternalSubstitute { FullName = name, SubjectId = subjectId });
     }
 
     // =====================================================================
@@ -242,7 +416,9 @@ public static class LessonSubstitutionService
         foreach (var r in rows)
         {
             var month = r.Date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-            delta[(r.SubstituteTeacherId, month)] = delta.GetValueOrDefault((r.SubstituteTeacherId, month)) + 1;
+            // A tashqi o'rindosh is not on the payroll — only the absent teacher's side counts here.
+            if (r.SubstituteTeacherId is { } sub)
+                delta[(sub, month)] = delta.GetValueOrDefault((sub, month)) + 1;
             if (!absentDays.Contains((r.AbsentTeacherId, Iso(r.Date))))
                 delta[(r.AbsentTeacherId, month)] = delta.GetValueOrDefault((r.AbsentTeacherId, month)) - 1;
         }
@@ -279,7 +455,8 @@ public sealed class SubstitutionNotifier(IAppDbContext db, TelegramService teleg
         try
         {
             var bells = await BellTimes.LoadAsync(db, ct);
-            foreach (var group in rows.GroupBy(r => r.SubstituteTeacherId))
+            // A tashqi o'rindosh has no bot account — only internal teachers hear about it.
+            foreach (var group in rows.Where(r => r.SubstituteTeacherId is not null).GroupBy(r => r.SubstituteTeacherId!))
             {
                 var lines = new List<string> { title, "" };
                 foreach (var r in group.OrderBy(r => r.Date).ThenBy(r => r.Period))

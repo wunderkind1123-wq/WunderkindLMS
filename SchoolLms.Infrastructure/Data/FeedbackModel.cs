@@ -79,16 +79,32 @@ internal static class LessonSubstitutionModel
             e.Property(x => x.Date).HasColumnType("date");
             e.HasOne<Teacher>().WithMany().HasForeignKey(x => x.AbsentTeacherId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Teacher>().WithMany().HasForeignKey(x => x.SubstituteTeacherId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ExternalSubstitute>().WithMany().HasForeignKey(x => x.ExternalSubstituteId).OnDelete(DeleteBehavior.Restrict);
             // One standing substitution per lesson on a date.
             e.HasIndex(x => new { x.Date, x.Period, x.OwnerId, x.SubjectId, x.SubGroup })
                 .IsUnique().HasFilter("cancelled_at is null");
             e.HasIndex(x => new { x.SubstituteTeacherId, x.Date });
+            e.HasIndex(x => new { x.ExternalSubstituteId, x.Date });
             e.HasIndex(x => new { x.AbsentTeacherId, x.Date });
             e.ToTable(t =>
             {
                 t.HasCheckConstraint("ck_lesson_substitutions_people", "absent_teacher_id <> substitute_teacher_id");
                 t.HasCheckConstraint("ck_lesson_substitutions_cancel", "(cancelled_at is null) = (cancelled_by is null)");
+                // Tashqi o'rindosh (2026-11-11): exactly one of the two covers the lesson.
+                t.HasCheckConstraint("ck_lesson_substitutions_substitute",
+                    "(substitute_teacher_id is null) <> (external_substitute_id is null)");
             });
+        });
+
+        b.Entity<ExternalSubstitute>(e =>
+        {
+            e.ToTable("external_substitutes");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.FullName).HasMaxLength(200);
+            e.Property(x => x.Phone).HasMaxLength(20);
+            e.HasOne<Subject>().WithMany().HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.SetNull);
+            // One card per person — found again by phone, never typed twice.
+            e.HasIndex(x => x.Phone).IsUnique();
         });
     }
 }

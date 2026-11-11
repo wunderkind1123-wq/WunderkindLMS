@@ -15,6 +15,8 @@ export interface SubstitutionLesson {
   substitutionId: string | null
   substituteTeacherId: string | null
   substituteTeacherName: string | null
+  /** Tashqi o'rindosh (2026-11-11) — set instead of substituteTeacherId. */
+  externalSubstituteId: string | null
 }
 
 export interface SubstitutionTeacherOption {
@@ -44,11 +46,13 @@ export interface Substitution {
   subGroup: number
   absentTeacherId: string
   absentTeacherName: string
-  substituteTeacherId: string
+  /** null when a tashqi o'rindosh covers — then substituteTeacherName is their name. */
+  substituteTeacherId: string | null
   substituteTeacherName: string
   reason: string | null
   createdByName: string
   createdAt: string
+  externalSubstituteId: string | null
 }
 
 export interface SubstitutionCreateItem {
@@ -56,7 +60,59 @@ export interface SubstitutionCreateItem {
   ownerId: string
   subjectId: string
   subGroup: number
-  substituteTeacherId: string
+  /** Exactly one of the two: an internal teacher or a tashqi o'rindosh. */
+  substituteTeacherId: string | null
+  externalSubstituteId?: string | null
+}
+
+/** Tashqi o'rindosh (client, 2026-11-11) — a card without a login, found again by name or phone. Paid in cash only. */
+export interface ExternalSubstitute {
+  id: string
+  fullName: string
+  phone: string
+  subjectId: string | null
+  subjectName: string | null
+}
+
+export interface ExternalSubstituteInput {
+  fullName: string
+  phone: string
+  subjectId: string | null
+}
+
+export interface SubstitutionMonthPerson {
+  kind: 'teacher' | 'external'
+  id: string
+  fullName: string
+  /** Lessons taught in someone else's place this month. */
+  covered: number
+  /** Own lessons someone else taught this month. */
+  missed: number
+  external: ExternalSubstitute | null
+}
+
+export interface SubstitutionMonth {
+  month: string
+  people: SubstitutionMonthPerson[]
+  rows: Substitution[]
+}
+
+export async function getSubstitutionMonth(month: string): Promise<SubstitutionMonth> {
+  const { data } = await api.get<SubstitutionMonth>('/admin/substitutions/month', { params: { month } })
+  return data
+}
+
+export async function getExternalSubstitutes(q?: string): Promise<ExternalSubstitute[]> {
+  const { data } = await api.get<ExternalSubstitute[]>('/admin/substitutions/externals', { params: q ? { q } : {} })
+  return data
+}
+
+/** Creates a card — or returns the existing one with that phone (`existed: true`). */
+export async function createExternalSubstitute(
+  payload: ExternalSubstituteInput,
+): Promise<{ substitute: ExternalSubstitute; existed: boolean }> {
+  const { data } = await api.post<{ substitute: ExternalSubstitute; existed: boolean }>('/admin/substitutions/externals', payload)
+  return data
 }
 
 export async function getSubstitutionDay(teacherId: string, date: string): Promise<SubstitutionDay> {

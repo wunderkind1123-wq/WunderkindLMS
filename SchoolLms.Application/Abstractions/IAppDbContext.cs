@@ -353,6 +353,7 @@ public interface IAppDbContext
 
     /// <summary>O'rindosh ustoz: a lesson on a date taught by another teacher.</summary>
     DbSet<LessonSubstitution> LessonSubstitutions { get; }
+    DbSet<ExternalSubstitute> ExternalSubstitutes { get; }
 
     /// <summary>So'rovnomalar va NPS (Polls.cs).</summary>
     DbSet<Poll> Polls { get; }

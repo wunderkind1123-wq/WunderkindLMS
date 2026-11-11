@@ -163,8 +163,9 @@ public static class TeacherActivityReport
         var entries = await entriesQ.ToListAsync();
 
         // O'rindosh ustoz (2026-10-07): a covered lesson — its plan, mark and grades — is the substitute's.
-        var covered = (await db.LessonSubstitutions.AsNoTracking().Where(x => x.CancelledAt == null).ToListAsync())
-            .ToDictionary(x => (x.Date.ToString("yyyy-MM-dd"), x.Period, x.OwnerId, x.SubjectId, x.SubGroup), x => x.SubstituteTeacherId);
+        // A tashqi o'rindosh is nobody here — the lesson stays with the timetable's teacher.
+        var covered = (await db.LessonSubstitutions.AsNoTracking().Where(x => x.CancelledAt == null && x.SubstituteTeacherId != null).ToListAsync())
+            .ToDictionary(x => (x.Date.ToString("yyyy-MM-dd"), x.Period, x.OwnerId, x.SubjectId, x.SubGroup), x => x.SubstituteTeacherId!);
         string? CoveredBy(string date, int period, string classId, string subjectId, int sub) =>
             covered.Count == 0 ? null
             : covered.GetValueOrDefault((date, period, classId, subjectId, sub))

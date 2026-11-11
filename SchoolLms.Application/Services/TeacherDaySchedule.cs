@@ -118,7 +118,7 @@ public sealed class TeacherDaySchedule
             if (!teachingDays.Contains(s.Date)) continue;
             if (!lessons.TryGetValue(s.Date, out var byTeacher))
                 lessons[s.Date] = byTeacher = new Dictionary<string, int>(StringComparer.Ordinal);
-            byTeacher[s.SubstituteTeacherId] = byTeacher.GetValueOrDefault(s.SubstituteTeacherId) + 1;
+            if (s.SubstituteTeacherId is { } sub) byTeacher[sub] = byTeacher.GetValueOrDefault(sub) + 1;
             byTeacher[s.AbsentTeacherId] = Math.Max(0, byTeacher.GetValueOrDefault(s.AbsentTeacherId) - 1);
         }
 

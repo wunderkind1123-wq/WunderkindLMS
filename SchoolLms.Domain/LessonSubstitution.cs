@@ -29,10 +29,34 @@ public class LessonSubstitution
     /// <summary>0 = the whole class, 1/2 = one half (ScheduleLesson.SubGroup).</summary>
     public int SubGroup { get; set; }
     public string AbsentTeacherId { get; set; } = string.Empty;
-    public string SubstituteTeacherId { get; set; } = string.Empty;
+    /// <summary>An internal teacher covers the lesson — or null when <see cref="ExternalSubstituteId"/> does.</summary>
+    public string? SubstituteTeacherId { get; set; }
+    /// <summary>
+    /// Tashqi o'rindosh (client, 2026-11-11): someone from outside the CRM covers the lesson. Exactly
+    /// one of this and <see cref="SubstituteTeacherId"/> is set.
+    /// </summary>
+    public Guid? ExternalSubstituteId { get; set; }
     public string? Reason { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
     public string? CancelledBy { get; set; }
+}
+
+// ===========================================================================
+//  Tashqi o'rindosh (client, 2026-11-11: "Tashqi o'rindosh kartasi (login'siz)"). A person from
+//  outside the CRM who covers a lesson: no login, never in the teachers list or the timetable —
+//  only a card the admin finds again by name or phone (phone is unique). Paid in cash only
+//  (client, 2026-11-11) — no payment details are kept.
+// ===========================================================================
+
+public class ExternalSubstitute
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string FullName { get; set; } = string.Empty;
+    /// <summary>Canonical <c>+998XXXXXXXXX</c> (HrValues.NormalizePhone) — unique.</summary>
+    public string Phone { get; set; } = string.Empty;
+    public string? SubjectId { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
 }

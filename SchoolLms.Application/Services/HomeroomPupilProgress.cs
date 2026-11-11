@@ -113,7 +113,8 @@ public static class HomeroomPupilProgress
         {
             var substitute = substitutes[(e.ClassId, e.Date, e.Period, e.SubjectId)]
                 .FirstOrDefault(s => e.SubGroup == 0 || s.SubGroup == 0 || s.SubGroup == e.SubGroup);
-            if (substitute is not null) return teacherNames.GetValueOrDefault(substitute.SubstituteTeacherId, "");
+            if (substitute is not null)
+                return substitute.SubstituteTeacherId is { } subId ? teacherNames.GetValueOrDefault(subId, "") : "Tashqi o'rindosh";
             var ofSubject = lessons
                 .Where(x => x.OwnerId == e.ClassId && x.Lesson.SubjectId == e.SubjectId
                     && (e.SubGroup == 0 || x.Lesson.SubGroup == 0 || x.Lesson.SubGroup == e.SubGroup))

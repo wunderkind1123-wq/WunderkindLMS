@@ -18,7 +18,7 @@ namespace SchoolLms.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -4274,6 +4274,51 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.ExternalSubstitute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("full_name");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("SubjectId")
+                        .HasColumnType("text")
+                        .HasColumnName("subject_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_substitutes");
+
+                    b.HasIndex("Phone")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_substitutes_phone");
+
+                    b.HasIndex("SubjectId")
+                        .HasDatabaseName("ix_external_substitutes_subject_id");
+
+                    b.ToTable("external_substitutes", (string)null);
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.FeeCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5546,6 +5591,115 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("question_count");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("subject_id");
+
+                    b.Property<string>("Topic")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id")
+                        .HasName("pk_interim_tests");
+
+                    b.HasIndex("SubjectId")
+                        .HasDatabaseName("ix_interim_tests_subject_id");
+
+                    b.HasIndex("GroupId", "SubjectId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("ux_interim_tests_group_subject_date");
+
+                    b.ToTable("interim_tests", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_interim_tests_question_count", "question_count between 1 and 300");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.InterimTestResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Absent")
+                        .HasColumnType("boolean")
+                        .HasColumnName("absent");
+
+                    b.Property<int?>("Correct")
+                        .HasColumnType("integer")
+                        .HasColumnName("correct");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("student_id");
+
+                    b.Property<Guid>("TestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("test_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_interim_test_results");
+
+                    b.HasIndex("StudentId")
+                        .HasDatabaseName("ix_interim_test_results_student_id");
+
+                    b.HasIndex("TestId", "StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_interim_test_results_test_student");
+
+                    b.ToTable("interim_test_results", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_interim_test_results_value", "(absent and correct is null) or (not absent and correct is not null and correct >= 0)");
+                        });
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Invoice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5969,115 +6123,6 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("CreatedByUserId")
-                        .HasColumnType("text")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date")
-                        .HasColumnName("date");
-
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("group_id");
-
-                    b.Property<int>("QuestionCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("question_count");
-
-                    b.Property<string>("SubjectId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("subject_id");
-
-                    b.Property<string>("Topic")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("topic");
-
-                    b.HasKey("Id")
-                        .HasName("pk_interim_tests");
-
-                    b.HasIndex("SubjectId")
-                        .HasDatabaseName("ix_interim_tests_subject_id");
-
-                    b.HasIndex("GroupId", "SubjectId", "Date")
-                        .IsUnique()
-                        .HasDatabaseName("ux_interim_tests_group_subject_date");
-
-                    b.ToTable("interim_tests", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_interim_tests_question_count", "question_count between 1 and 300");
-                        });
-                });
-
-            modelBuilder.Entity("SchoolLms.Domain.InterimTestResult", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<bool>("Absent")
-                        .HasColumnType("boolean")
-                        .HasColumnName("absent");
-
-                    b.Property<int?>("Correct")
-                        .HasColumnType("integer")
-                        .HasColumnName("correct");
-
-                    b.Property<string>("StudentId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("student_id");
-
-                    b.Property<Guid>("TestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("test_id");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("updated_by");
-
-                    b.HasKey("Id")
-                        .HasName("pk_interim_test_results");
-
-                    b.HasIndex("StudentId")
-                        .HasDatabaseName("ix_interim_test_results_student_id");
-
-                    b.HasIndex("TestId", "StudentId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_interim_test_results_test_student");
-
-                    b.ToTable("interim_test_results", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_interim_test_results_value", "(absent and correct is null) or (not absent and correct is not null and correct >= 0)");
-                        });
-                });
-
             modelBuilder.Entity("SchoolLms.Domain.Lead", b =>
                 {
                     b.Property<string>("Id")
@@ -6234,85 +6279,6 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.ToTable("lead_stages", (string)null);
                 });
 
-            modelBuilder.Entity("SchoolLms.Domain.LedgerEntry", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Account")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("account");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(14, 2)
-                        .HasColumnType("numeric(14,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("Direction")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("direction");
-
-                    b.Property<DateOnly>("EntryDate")
-                        .HasColumnType("date")
-                        .HasColumnName("entry_date");
-
-                    b.Property<string>("Memo")
-                        .HasColumnType("text")
-                        .HasColumnName("memo");
-
-                    b.Property<Guid?>("RefId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("ref_id");
-
-                    b.Property<string>("RefType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("ref_type");
-
-                    b.Property<long?>("ReversalOf")
-                        .HasColumnType("bigint")
-                        .HasColumnName("reversal_of");
-
-                    b.HasKey("Id")
-                        .HasName("pk_ledger_entries");
-
-                    b.HasIndex("CreatedBy")
-                        .HasDatabaseName("ix_ledger_entries_created_by");
-
-                    b.HasIndex("ReversalOf")
-                        .HasDatabaseName("ix_ledger_entries_reversal_of");
-
-                    b.HasIndex("EntryDate", "Account")
-                        .HasDatabaseName("ledger_entries_date_account");
-
-                    b.HasIndex("RefType", "RefId")
-                        .HasDatabaseName("ix_ledger_entries_ref_type_ref_id");
-
-                    b.ToTable("ledger_entries", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_ledger_entries_amount", "amount > 0");
-
-                            t.HasCheckConstraint("ck_ledger_entries_direction", "direction in ('debit','credit')");
-
-                            t.HasCheckConstraint("ck_ledger_entries_reversal_not_self", "reversal_of is null or reversal_of <> id");
-                        });
-                });
-
             modelBuilder.Entity("SchoolLms.Domain.LeaderboardAward", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6408,6 +6374,85 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.ToTable("leaderboard_reasons", null, t =>
                         {
                             t.HasCheckConstraint("ck_leaderboard_reasons_points", "points between -1000 and 1000");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.LedgerEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Account")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("account");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("direction");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("entry_date");
+
+                    b.Property<string>("Memo")
+                        .HasColumnType("text")
+                        .HasColumnName("memo");
+
+                    b.Property<Guid?>("RefId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ref_id");
+
+                    b.Property<string>("RefType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ref_type");
+
+                    b.Property<long?>("ReversalOf")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reversal_of");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ledger_entries");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_ledger_entries_created_by");
+
+                    b.HasIndex("ReversalOf")
+                        .HasDatabaseName("ix_ledger_entries_reversal_of");
+
+                    b.HasIndex("EntryDate", "Account")
+                        .HasDatabaseName("ledger_entries_date_account");
+
+                    b.HasIndex("RefType", "RefId")
+                        .HasDatabaseName("ix_ledger_entries_ref_type_ref_id");
+
+                    b.ToTable("ledger_entries", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ledger_entries_amount", "amount > 0");
+
+                            t.HasCheckConstraint("ck_ledger_entries_direction", "direction in ('debit','credit')");
+
+                            t.HasCheckConstraint("ck_ledger_entries_reversal_not_self", "reversal_of is null or reversal_of <> id");
                         });
                 });
 
@@ -6824,6 +6869,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("date")
                         .HasColumnName("date");
 
+                    b.Property<Guid?>("ExternalSubstituteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("external_substitute_id");
+
                     b.Property<string>("OwnerId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -6854,7 +6903,6 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnName("subject_id");
 
                     b.Property<string>("SubstituteTeacherId")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("substitute_teacher_id");
 
@@ -6863,6 +6911,9 @@ namespace SchoolLms.Infrastructure.Migrations
 
                     b.HasIndex("AbsentTeacherId", "Date")
                         .HasDatabaseName("ix_lesson_substitutions_absent_teacher_id_date");
+
+                    b.HasIndex("ExternalSubstituteId", "Date")
+                        .HasDatabaseName("ix_lesson_substitutions_external_substitute_id_date");
 
                     b.HasIndex("SubstituteTeacherId", "Date")
                         .HasDatabaseName("ix_lesson_substitutions_substitute_teacher_id_date");
@@ -6877,6 +6928,8 @@ namespace SchoolLms.Infrastructure.Migrations
                             t.HasCheckConstraint("ck_lesson_substitutions_cancel", "(cancelled_at is null) = (cancelled_by is null)");
 
                             t.HasCheckConstraint("ck_lesson_substitutions_people", "absent_teacher_id <> substitute_teacher_id");
+
+                            t.HasCheckConstraint("ck_lesson_substitutions_substitute", "(substitute_teacher_id is null) <> (external_substitute_id is null)");
                         });
                 });
 
@@ -12237,56 +12290,6 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasConstraintName("fk_class_homeroom_teachers_teachers_teacher_id");
                 });
 
-            modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
-                {
-                    b.HasOne("SchoolLms.Domain.StudyGroup", null)
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_interim_tests_study_groups_group_id");
-
-                    b.HasOne("SchoolLms.Domain.Subject", null)
-                        .WithMany()
-                        .HasForeignKey("SubjectId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_interim_tests_subjects_subject_id");
-                });
-
-            modelBuilder.Entity("SchoolLms.Domain.InterimTestResult", b =>
-                {
-                    b.HasOne("SchoolLms.Domain.Student", null)
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_interim_test_results_students_student_id");
-
-                    b.HasOne("SchoolLms.Domain.InterimTest", null)
-                        .WithMany()
-                        .HasForeignKey("TestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_interim_test_results_interim_tests_test_id");
-                });
-
-            modelBuilder.Entity("SchoolLms.Domain.LeaderboardAward", b =>
-                {
-                    b.HasOne("SchoolLms.Domain.LeaderboardReason", null)
-                        .WithMany()
-                        .HasForeignKey("ReasonId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_leaderboard_awards_leaderboard_reasons_reason_id");
-
-                    b.HasOne("SchoolLms.Domain.Student", null)
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_leaderboard_awards_students_student_id");
-                });
-
             modelBuilder.Entity("SchoolLms.Domain.ClassMembership", b =>
                 {
                     b.HasOne("SchoolLms.Domain.SchoolClass", null)
@@ -12651,6 +12654,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasConstraintName("fk_expense_attachments_users_uploaded_by");
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.ExternalSubstitute", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Subject", null)
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_external_substitutes_subjects_subject_id");
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Feedback", b =>
                 {
                     b.HasOne("SchoolLms.Domain.FeedbackDepartment", null)
@@ -12818,6 +12830,40 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasConstraintName("fk_hr_task_templates_hr_positions_target_position_id");
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.StudyGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_tests_study_groups_group_id");
+
+                    b.HasOne("SchoolLms.Domain.Subject", null)
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_tests_subjects_subject_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.InterimTestResult", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Student", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_test_results_students_student_id");
+
+                    b.HasOne("SchoolLms.Domain.InterimTest", null)
+                        .WithMany()
+                        .HasForeignKey("TestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interim_test_results_interim_tests_test_id");
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Invoice", b =>
                 {
                     b.HasOne("SchoolLms.Domain.FeeCategory", null)
@@ -12889,6 +12935,22 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasForeignKey("SurveyId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_lead_conversions_surveys_survey_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.LeaderboardAward", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.LeaderboardReason", null)
+                        .WithMany()
+                        .HasForeignKey("ReasonId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_leaderboard_awards_leaderboard_reasons_reason_id");
+
+                    b.HasOne("SchoolLms.Domain.Student", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_leaderboard_awards_students_student_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.LedgerEntry", b =>
@@ -12978,11 +13040,16 @@ namespace SchoolLms.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_lesson_substitutions_teachers_absent_teacher_id");
 
+                    b.HasOne("SchoolLms.Domain.ExternalSubstitute", null)
+                        .WithMany()
+                        .HasForeignKey("ExternalSubstituteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_lesson_substitutions_external_substitutes_external_substitu");
+
                     b.HasOne("SchoolLms.Domain.Teacher", null)
                         .WithMany()
                         .HasForeignKey("SubstituteTeacherId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_lesson_substitutions_teachers_substitute_teacher_id");
                 });
 

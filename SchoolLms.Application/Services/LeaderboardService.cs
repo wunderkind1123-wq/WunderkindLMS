@@ -18,7 +18,7 @@ namespace SchoolLms.Application.Services;
 //                        figure uses; a late reason is not an absence)
 //    Oylik test     25%  monthly marks of Mavsumiy baholash (0–100) and the block tests of Imtihonlar (the
 //                        track groups' monthly test, percent), average
-//    Gamifikatsiya  15%  the behaviour score (DisciplineIncidents: 100 + rewards − penalties), 150 = full
+//    Gamifikatsiya  15%  the behaviour score (DisciplineIncidents: 100 + rewards − penalties), 300 = full (client, 2026-11-11: was 150)
 //  A part a pupil has no data for (no monthly test above grade 8, no lesson held yet) is left out and
 //  the others share its weight — nobody loses points for what the school never measured.
 //  + Qo'shimcha ballar: LeaderboardAward rows of the year, added as they are.
@@ -60,7 +60,7 @@ public static class LeaderboardService
     public const double GradesWeight = 40, AttendanceWeight = 20, MonthlyWeight = 25, BehaviourWeight = 15;
 
     /// <summary>The behaviour score that counts as full marks (100 is where every pupil starts).</summary>
-    public const int BehaviourFull = 150;
+    public const int BehaviourFull = 300;
 
     /// <summary>The academic year around <paramref name="today"/>: first quarter's start → today (≤ last quarter's end).</summary>
     public static async Task<(DateOnly From, DateOnly To)> YearAsync(IAppDbContext db, DateOnly today, CancellationToken ct = default)

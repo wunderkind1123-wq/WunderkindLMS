@@ -73,7 +73,7 @@ export interface LeaderboardAward {
 const EMPTY: LeaderboardData = {
   from: '',
   to: '',
-  weights: { grades: 40, attendance: 20, monthly: 25, behaviour: 15, behaviourFull: 150 },
+  weights: { grades: 40, attendance: 20, monthly: 25, behaviour: 15, behaviourFull: 300 },
   classes: [],
   tracks: [],
   rows: [],

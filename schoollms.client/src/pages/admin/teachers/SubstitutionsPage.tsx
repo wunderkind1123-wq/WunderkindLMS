@@ -5,12 +5,16 @@ import { getTeachers } from '@/api/services/teachers'
 import {
   cancelSubstitution,
   createSubstitutions,
+  getExternalSubstitutes,
   getSubstitutionDay,
-  getSubstitutions,
-  type Substitution,
+  getSubstitutionMonth,
+  type ExternalSubstitute,
   type SubstitutionDay,
+  type SubstitutionLesson,
+  type SubstitutionMonth,
 } from '@/api/services/substitutions'
 import { hrErrorMessage } from '@/api/services/hrTasks'
+import { formatPhone } from '@/lib/phone'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -18,37 +22,58 @@ import { Loader } from '@/components/ui/Loader'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { Toast } from '@/components/ui/Toast'
 import { fmtDate, todayIso } from '@/components/lesson-analysis/format'
+import { ExternalSubstituteModal } from './ExternalSubstituteModal'
+
+/** A pick is an internal teacher's id, or `ext:<id>` for a tashqi o'rindosh. */
+const EXT = 'ext:'
+const NEW_EXTERNAL = '__new__'
+
+const currentOf = (l: SubstitutionLesson) =>
+  l.externalSubstituteId ? EXT + l.externalSubstituteId : (l.substituteTeacherId ?? '')
 
 /**
  * O'rindosh ustoz (client, 2026-10-07): a teacher does not teach on a date — the admin names who
  * covers each of their lessons. The substitute sees the lesson in the Mini App, may fill that
  * journal on that day, is paid for it at their own rate, and the absent teacher is not.
+ *
+ * 2026-11-11: the cover can be a tashqi o'rindosh (a card without a login), and the history is read
+ * by month — every swap moves pay, so the month's counts per person are what payroll needs.
  */
 export function SubstitutionsPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [externals, setExternals] = useState<ExternalSubstitute[]>([])
   const [date, setDate] = useState(todayIso())
   const [teacherId, setTeacherId] = useState('')
   const [reason, setReason] = useState('')
   const [day, setDay] = useState<SubstitutionDay | null>(null)
   const [dayLoading, setDayLoading] = useState(false)
   const [picks, setPicks] = useState<Record<string, string>>({})
+  const [modes, setModes] = useState<Record<string, 'internal' | 'external'>>({})
+  const [newFor, setNewFor] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState<string | null>(null)
-  const [recent, setRecent] = useState<Substitution[] | null>(null)
+  const [month, setMonth] = useState(todayIso().slice(0, 7))
+  const [monthData, setMonthData] = useState<SubstitutionMonth | null>(null)
 
   useEffect(() => {
     getTeachers()
       .then((rows) => setTeachers(rows.filter((t) => !t.isArchived).sort((a, b) => a.fullName.localeCompare(b.fullName))))
       .catch(() => setTeachers([]))
+    getExternalSubstitutes()
+      .then(setExternals)
+      .catch(() => setExternals([]))
   }, [])
 
-  const loadRecent = useCallback(() => {
-    getSubstitutions({})
-      .then(setRecent)
-      .catch(() => setRecent([]))
-  }, [])
-  useEffect(loadRecent, [loadRecent])
+  const loadMonth = useCallback(() => {
+    if (!month) return
+    setMonthData(null)
+    getSubstitutionMonth(month)
+      .then(setMonthData)
+      .catch(() => setMonthData({ month, people: [], rows: [] }))
+  }, [month])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- oy o'zgarganda qayta yuklanadi (maqsadli)
+  useEffect(loadMonth, [loadMonth])
 
   const loadDay = useCallback(() => {
     if (!teacherId || !date) {
@@ -61,6 +86,7 @@ export function SubstitutionsPage() {
       .then((d) => {
         setDay(d)
         setPicks({})
+        setModes({})
       })
       .catch((e) => {
         setDay(null)
@@ -74,8 +100,10 @@ export function SubstitutionsPage() {
   const keyOf = (l: { period: number; ownerId: string; subjectId: string; subGroup: number }) =>
     `${l.period}|${l.ownerId}|${l.subjectId}|${l.subGroup}`
 
+  const modeOf = (l: SubstitutionLesson) => modes[keyOf(l)] ?? (l.externalSubstituteId ? 'external' : 'internal')
+
   const chosen = useMemo(
-    () => (day?.lessons ?? []).filter((l) => picks[keyOf(l)] && picks[keyOf(l)] !== l.substituteTeacherId),
+    () => (day?.lessons ?? []).filter((l) => picks[keyOf(l)] && picks[keyOf(l)] !== currentOf(l)),
     [day, picks],
   )
 
@@ -88,17 +116,27 @@ export function SubstitutionsPage() {
         date: day.date,
         absentTeacherId: day.teacherId,
         reason: reason.trim() || null,
-        items: chosen.map((l) => ({
-          period: l.period,
-          ownerId: l.ownerId,
-          subjectId: l.subjectId,
-          subGroup: l.subGroup,
-          substituteTeacherId: picks[keyOf(l)],
-        })),
+        items: chosen.map((l) => {
+          const pick = picks[keyOf(l)]
+          const external = pick.startsWith(EXT)
+          return {
+            period: l.period,
+            ownerId: l.ownerId,
+            subjectId: l.subjectId,
+            subGroup: l.subGroup,
+            substituteTeacherId: external ? null : pick,
+            externalSubstituteId: external ? pick.slice(EXT.length) : null,
+          }
+        }),
       })
-      setToast(`${chosen.length} ta darsga o'rindosh tayinlandi — ustozlarga botdan xabar ketdi`)
+      const internal = chosen.filter((l) => !picks[keyOf(l)].startsWith(EXT)).length
+      setToast(
+        internal > 0
+          ? `${chosen.length} ta darsga o'rindosh tayinlandi — ichki ustozlarga botdan xabar ketdi`
+          : `${chosen.length} ta darsga o'rindosh tayinlandi`,
+      )
       loadDay()
-      loadRecent()
+      loadMonth()
     } catch (e) {
       setError(hrErrorMessage(e, "Saqlab bo'lmadi"))
     } finally {
@@ -111,11 +149,28 @@ export function SubstitutionsPage() {
       await cancelSubstitution(id)
       setToast("O'rindosh bekor qilindi")
       loadDay()
-      loadRecent()
+      loadMonth()
     } catch (e) {
       setError(hrErrorMessage(e, "Bekor qilib bo'lmadi"))
     }
   }
+
+  const onExternalSaved = (s: ExternalSubstitute, existed: boolean) => {
+    setExternals((list) =>
+      list.some((x) => x.id === s.id) ? list : [...list, s].sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    )
+    if (newFor) setPicks((p) => ({ ...p, [newFor]: EXT + s.id }))
+    setNewFor(null)
+    setToast(existed ? `${s.fullName} tanlandi (oldin kiritilgan)` : `${s.fullName} qo'shildi`)
+  }
+
+  const selectCls =
+    'w-full min-w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400'
+
+  const totals = useMemo(() => {
+    const rows = monthData?.rows ?? []
+    return { all: rows.length, external: rows.filter((r) => r.externalSubstituteId).length }
+  }, [monthData])
 
   return (
     <div className="space-y-6">
@@ -173,6 +228,8 @@ export function SubstitutionsPage() {
               <tbody>
                 {day.lessons.map((l) => {
                   const k = keyOf(l)
+                  const mode = modeOf(l)
+                  const value = picks[k] ?? currentOf(l)
                   return (
                     <tr key={k} className="border-b border-slate-50 last:border-0">
                       <td className="py-2.5 pr-3 align-middle">
@@ -188,22 +245,64 @@ export function SubstitutionsPage() {
                         {l.subGroup > 0 && <span className="ml-1 text-xs text-slate-400">({l.subGroup}-guruh)</span>}
                       </td>
                       <td className="py-2.5 pr-3 align-middle">
-                        <select
-                          value={picks[k] ?? l.substituteTeacherId ?? ''}
-                          onChange={(e) => setPicks((p) => ({ ...p, [k]: e.target.value }))}
-                          className="w-full min-w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
-                        >
-                          <option value="">— tayinlanmagan —</option>
-                          {day.teachers.map((t) => {
-                            const busy = t.busyPeriods.includes(l.period) && t.id !== l.substituteTeacherId
-                            return (
-                              <option key={t.id} value={t.id} disabled={busy}>
-                                {t.fullName}
-                                {busy ? ' (band)' : ''}
-                              </option>
-                            )
-                          })}
-                        </select>
+                        <div className="flex items-center gap-2">
+                          <div className="inline-flex shrink-0 rounded-lg bg-slate-100 p-0.5 text-xs">
+                            {(['internal', 'external'] as const).map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => {
+                                  setModes((p) => ({ ...p, [k]: m }))
+                                  // Rejim almashsa avvalgi tanlov tushib qoladi.
+                                  setPicks((p) => ({ ...p, [k]: '' }))
+                                }}
+                                className={
+                                  mode === m
+                                    ? 'rounded-md bg-white px-2.5 py-1 font-medium text-slate-800 shadow-sm'
+                                    : 'px-2.5 py-1 text-slate-500 hover:text-slate-700'
+                                }
+                              >
+                                {m === 'internal' ? 'Ichki' : 'Tashqi'}
+                              </button>
+                            ))}
+                          </div>
+                          {mode === 'internal' ? (
+                            <select
+                              value={value.startsWith(EXT) ? '' : value}
+                              onChange={(e) => setPicks((p) => ({ ...p, [k]: e.target.value }))}
+                              className={selectCls}
+                            >
+                              <option value="">— tayinlanmagan —</option>
+                              {day.teachers.map((t) => {
+                                const busy = t.busyPeriods.includes(l.period) && t.id !== l.substituteTeacherId
+                                return (
+                                  <option key={t.id} value={t.id} disabled={busy}>
+                                    {t.fullName}
+                                    {busy ? ' (band)' : ''}
+                                  </option>
+                                )
+                              })}
+                            </select>
+                          ) : (
+                            <select
+                              value={value.startsWith(EXT) ? value : ''}
+                              onChange={(e) => {
+                                if (e.target.value === NEW_EXTERNAL) setNewFor(k)
+                                else setPicks((p) => ({ ...p, [k]: e.target.value }))
+                              }}
+                              className={selectCls}
+                            >
+                              <option value="">— tashqi ustozni tanlang —</option>
+                              {externals.map((x) => (
+                                <option key={x.id} value={EXT + x.id}>
+                                  {x.fullName} · {formatPhone(x.phone)}
+                                  {x.subjectName ? ` · ${x.subjectName}` : ''}
+                                </option>
+                              ))}
+                              <option value={NEW_EXTERNAL}>＋ Yangi tashqi ustoz…</option>
+                            </select>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 text-right align-middle">
                         {l.substitutionId && (
@@ -231,44 +330,96 @@ export function SubstitutionsPage() {
         ) : null}
       </Card>
 
-      <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">So'nggi o'rindoshlar (±30 kun)</h2>
-        {recent === null ? (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Oy kesimida</h2>
+            {monthData && (
+              <p className="text-sm text-slate-500">
+                Jami {totals.all} ta almashinuv
+                {totals.external > 0 && <> · shundan tashqi ustozlar: {totals.external}</>}
+              </p>
+            )}
+          </div>
+          <Input label="Oy" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-44" />
+        </div>
+
+        {monthData === null ? (
           <Loader label="Yuklanmoqda..." />
-        ) : recent.length === 0 ? (
+        ) : monthData.rows.length === 0 ? (
           <Card>
-            <p className="py-8 text-center text-sm text-slate-400">Hali o'rindosh tayinlanmagan</p>
+            <p className="py-8 text-center text-sm text-slate-400">Bu oyda o'rindosh tayinlanmagan</p>
           </Card>
         ) : (
-          <Card className="divide-y divide-slate-50 p-0">
-            {recent.map((s) => (
-              <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
-                <div className="w-28 shrink-0">
-                  <div className="font-medium text-slate-800">{fmtDate(s.date)}</div>
-                  <div className="text-xs text-slate-400">{s.period}-dars</div>
+          <>
+            <Card className="overflow-x-auto p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                    <th className="px-4 py-2">Ustoz</th>
+                    <th className="px-4 py-2 text-right">O'rniga o'tgan</th>
+                    <th className="px-4 py-2 text-right">Darsga kirmagan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthData.people.map((p) => (
+                    <tr key={`${p.kind}:${p.id}`} className="border-b border-slate-50 last:border-0">
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-slate-800">{p.fullName}</div>
+                        {p.kind === 'external' && (
+                          <div className="text-xs text-slate-400">
+                            Tashqi
+                            {p.external && <> · {formatPhone(p.external.phone)}</>}
+                            {p.external?.subjectName && <> · {p.external.subjectName}</>}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        {p.covered > 0 ? <span className="font-medium text-emerald-600">+{p.covered}</span> : <span className="text-slate-300">0</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        {p.missed > 0 ? <span className="font-medium text-red-500">−{p.missed}</span> : <span className="text-slate-300">0</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+
+            <Card className="divide-y divide-slate-50 p-0">
+              {monthData.rows.map((s) => (
+                <div key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
+                  <div className="w-28 shrink-0">
+                    <div className="font-medium text-slate-800">{fmtDate(s.date)}</div>
+                    <div className="text-xs text-slate-400">{s.period}-dars</div>
+                  </div>
+                  <div className="min-w-40 flex-1 text-slate-700">
+                    {s.ownerName} · {s.subjectName}
+                    {s.reason && <div className="text-xs text-slate-400">{s.reason}</div>}
+                  </div>
+                  <div className="flex min-w-64 flex-1 items-center gap-2 text-slate-600">
+                    <span>{s.absentTeacherName}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" />
+                    <span className="font-medium text-slate-800">{s.substituteTeacherName}</span>
+                    {s.externalSubstituteId && (
+                      <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">tashqi</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => cancel(s.id)}
+                    className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                  >
+                    Bekor qilish
+                  </button>
                 </div>
-                <div className="min-w-40 flex-1 text-slate-700">
-                  {s.ownerName} · {s.subjectName}
-                  {s.reason && <div className="text-xs text-slate-400">{s.reason}</div>}
-                </div>
-                <div className="flex min-w-64 flex-1 items-center gap-2 text-slate-600">
-                  <span>{s.absentTeacherName}</span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" />
-                  <span className="font-medium text-slate-800">{s.substituteTeacherName}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => cancel(s.id)}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                >
-                  Bekor qilish
-                </button>
-              </div>
-            ))}
-          </Card>
+              ))}
+            </Card>
+          </>
         )}
       </div>
 
+      {newFor !== null && <ExternalSubstituteModal open onClose={() => setNewFor(null)} onSaved={onExternalSaved} />}
       <Toast message={toast} onClose={() => setToast(null)} />
     </div>
   )

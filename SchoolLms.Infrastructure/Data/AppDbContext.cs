@@ -273,6 +273,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     // O'rindosh ustoz (LessonSubstitution.cs). Configuration: FeedbackModel.cs → LessonSubstitutionModel.
     public DbSet<LessonSubstitution> LessonSubstitutions => Set<LessonSubstitution>();
+    public DbSet<ExternalSubstitute> ExternalSubstitutes => Set<ExternalSubstitute>();
 
     // So'rovnomalar va NPS, KPI (Polls.cs). Configuration: PollModel.cs.
     public DbSet<Poll> Polls => Set<Poll>();

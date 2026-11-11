@@ -44,6 +44,40 @@ public sealed class SubstitutionsController(
         return await LessonSubstitutionService.ListAsync(db, start, end, teacherId, ct);
     }
 
+    /// <summary>A month of substitutions and per-person counts (o'rindoshlik oylikka bog'liq, 2026-11-11).</summary>
+    [HttpGet("month")]
+    public async Task<ActionResult<SubstitutionMonthDto>> Month([FromQuery] string? month, CancellationToken ct)
+    {
+        var m = AppClock.Today;
+        if (!string.IsNullOrWhiteSpace(month))
+        {
+            if (!DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                return BadRequest(new { message = "Oy noto'g'ri (yyyy-MM)" });
+            m = parsed;
+        }
+        return await LessonSubstitutionService.MonthAsync(db, m.Year, m.Month, ct);
+    }
+
+    /// <summary>Tashqi o'rindosh cards — searched by name or phone.</summary>
+    [HttpGet("externals")]
+    public async Task<ActionResult<IEnumerable<ExternalSubstituteDto>>> Externals([FromQuery] string? q, CancellationToken ct) =>
+        await LessonSubstitutionService.ExternalListAsync(db, q, ct);
+
+    /// <summary>A new tashqi o'rindosh card — or the existing one with that phone (Existed = true).</summary>
+    [HttpPost("externals")]
+    public async Task<ActionResult<ExternalSubstituteSaveResult>> CreateExternal(ExternalSubstituteRequest req, CancellationToken ct)
+    {
+        var (error, result) = await LessonSubstitutionService.ExternalCreateAsync(db, req, ActorId, ct);
+        if (error is not null) return BadRequest(new { message = error });
+        if (!result!.Existed)
+        {
+            audit.Record(AuditService.EntitySubstitution, result.Substitute.Id.ToString(), "create",
+                $"Tashqi o'rindosh qo'shildi: {result.Substitute.FullName} ({result.Substitute.Phone})");
+            await db.SaveChangesAsync(ct);
+        }
+        return result;
+    }
+
     /// <summary>Names substitutes; each one hears from the bot.</summary>
     [HttpPost]
     public async Task<ActionResult<IEnumerable<SubstitutionDto>>> Create(SubstitutionCreateRequest req, CancellationToken ct)

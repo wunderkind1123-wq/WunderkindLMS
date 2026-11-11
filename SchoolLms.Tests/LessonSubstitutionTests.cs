@@ -166,6 +166,67 @@ public class LessonSubstitutionTests(ApiFixture fixture)
         });
     }
 
+    /// <summary>
+    /// Tashqi o'rindosh (client, 2026-11-11): a card without a login, found again by phone; it covers a
+    /// lesson, the absent teacher still loses it, and the month view counts it on both sides.
+    /// </summary>
+    [Fact]
+    public async Task Tashqi_orindosh_telefon_boyicha_takrorlanmaydi_va_oy_kesimida_sanaladi()
+    {
+        await WithQuarterAsync(async date =>
+        {
+            var w = await SeedAsync(date);
+            var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+            var local = Random.Shared.Next(10_000_000, 99_999_999);
+            var phone = $"+998 9{local / 10_000_000} {local / 10_000 % 1000:000} {local / 100 % 100:00} {local % 100:00}";
+
+            Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync($"{Api}/externals",
+                new { fullName = "Tashqi Ustoz", phone = "123" })).StatusCode);
+            var created = await (await admin.PostAsJsonAsync($"{Api}/externals",
+                new { fullName = "Tashqi Ustoz", phone, subjectId = w.SubjectId }))
+                .Content.ReadFromJsonAsync<ExternalSubstituteSaveResult>();
+            Assert.False(created!.Existed);
+            // The same phone typed differently: the card is found, not created twice.
+            var again = await (await admin.PostAsJsonAsync($"{Api}/externals",
+                new { fullName = "Boshqa ism", phone = phone.Replace(" ", "").Replace("+998", "") }))
+                .Content.ReadFromJsonAsync<ExternalSubstituteSaveResult>();
+            Assert.True(again!.Existed);
+            Assert.Equal(created.Substitute.Id, again.Substitute.Id);
+            var found = await admin.GetFromJsonAsync<List<ExternalSubstituteDto>>($"{Api}/externals?q={local}");
+            Assert.Contains(found!, x => x.Id == created.Substitute.Id);
+
+            // Not a teacher: never offered among the teachers, no login.
+            var day = await admin.GetFromJsonAsync<SubstitutionDayDto>($"{Api}/day?teacherId={w.AbsentId}&date={Iso(date)}");
+            Assert.DoesNotContain(day!.Teachers, t => t.FullName == "Tashqi Ustoz");
+
+            var assigned = await admin.PostAsJsonAsync(Api, new
+            {
+                date = Iso(date), absentTeacherId = w.AbsentId, reason = "Kasal",
+                items = new[] { new { period = Period, ownerId = w.ClassId, subjectId = w.SubjectId, subGroup = 0,
+                    substituteTeacherId = (string?)null, externalSubstituteId = (Guid?)created.Substitute.Id } },
+            });
+            Assert.Equal(HttpStatusCode.OK, assigned.StatusCode);
+
+            var month = await admin.GetFromJsonAsync<SubstitutionMonthDto>($"{Api}/month?month={date:yyyy-MM}");
+            var row = Assert.Single(month!.Rows, r => r.AbsentTeacherId == w.AbsentId);
+            Assert.Equal(created.Substitute.Id, row.ExternalSubstituteId);
+            Assert.Null(row.SubstituteTeacherId);
+            Assert.Equal("Tashqi Ustoz", row.SubstituteTeacherName);
+            var ext = Assert.Single(month.People, p => p.Kind == SubstitutionPersonKind.External && p.Id == created.Substitute.Id.ToString());
+            Assert.Equal(1, ext.Covered);
+            Assert.Equal(w.SubjectId, ext.External!.SubjectId);
+            Assert.Equal(1, Assert.Single(month.People, p => p.Id == w.AbsentId).Missed);
+
+            // Pay: the absent teacher loses the lesson; the absent teacher's week shows who covered it.
+            var rates = await RatesAsync(admin, date.ToString("yyyy-MM"));
+            Assert.Equal(-1, rates[w.AbsentId].SubstitutionLessons);
+            var place = await PlaceAsync(date);
+            using var absent = fixture.Api.ClientWithToken(fixture.Api.TokenFor(Roles.Teacher, w.AbsentUserId, w.AbsentName, w.AbsentEmail));
+            var theirs = await absent.GetFromJsonAsync<List<TeacherLessonDto>>($"/api/teacher/schedule?quarter={place.Quarter}&week={place.Week}");
+            Assert.Equal("Tashqi Ustoz", Assert.Single(theirs!).SubstitutedBy);
+        });
+    }
+
     /// <summary>The delta is paid at the teacher's own rate (with bonus) and never drives pay below 0.</summary>
     [Fact]
     public void Orindosh_darsi_ustozning_oz_narxida_hisoblanadi()
