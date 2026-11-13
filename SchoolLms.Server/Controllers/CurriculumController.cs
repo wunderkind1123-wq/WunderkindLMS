@@ -63,9 +63,9 @@ public class CurriculumController(AppDbContext db, AuditService audit) : Control
         [FromForm] string? title, [FromForm] string? originalUrl, [FromForm] string? originalName,
         [FromQuery] bool dryRun = false, CancellationToken ct = default)
     {
-        if (file is null || file.Length == 0) return BadRequest(new { message = "Excel fayl kerak" });
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Ish reja .xlsx (Excel) formatida bo'lsin. Namunani yuklab oling." });
+        if (file is null || file.Length == 0) return BadRequest(new { message = "Excel yoki Word fayl kerak" });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Ish reja .xlsx (Excel) yoki .docx (Word) formatida bo'lsin. Namunani yuklab oling." });
         var subject = string.IsNullOrWhiteSpace(subjectId) ? null : await db.Subjects.AsNoTracking().FirstOrDefaultAsync(s => s.Id == subjectId, ct);
         if (subject is null) return BadRequest(new { message = "Fanni tanlang" });
         if ((grade is null) == (groupId is null)) return BadRequest(new { message = "Sinf darajasini yoki yo'nalishni tanlang" });
@@ -80,12 +80,15 @@ public class CurriculumController(AppDbContext db, AuditService audit) : Control
             return BadRequest(new { message = "Asl hujjat manzili noto'g'ri" });
 
         await using var stream = file.OpenReadStream();
-        var (topics, errors) = CurriculumService.Parse(stream);
-        var preview = topics.Select(t => new CurriculumPreviewTopicDto(t.Order, t.Quarter, t.Week, t.Section, t.Title, t.Hours)).ToList();
+        var (parsed, errors) = CurriculumService.Parse(stream, file.FileName);
+        var (topics, dateErrors, warnings) = await CurriculumService.ResolveDatesAsync(db, parsed, ct);
+        errors.AddRange(dateErrors);
+        var preview = topics.Select(t => new CurriculumPreviewTopicDto(
+            t.Order, t.Quarter, t.Week, t.Section, t.Title, t.Hours, t.PlannedOn?.ToString("yyyy-MM-dd"))).ToList();
         if (errors.Count > 0)
-            return BadRequest(new CurriculumImportResultDto(null, topics.Count, topics.Sum(t => t.Hours), errors, preview));
+            return BadRequest(new CurriculumImportResultDto(null, topics.Count, topics.Sum(t => t.Hours), errors, preview, warnings));
         if (dryRun)
-            return new CurriculumImportResultDto(null, topics.Count, topics.Sum(t => t.Hours), [], preview);
+            return new CurriculumImportResultDto(null, topics.Count, topics.Sum(t => t.Hours), [], preview, warnings);
 
         var plan = await db.CurriculumPlans.FirstOrDefaultAsync(p => p.SubjectId == subject.Id
             && (grade != null ? p.Grade == grade : p.GroupId == groupId), ct);
@@ -109,7 +112,21 @@ public class CurriculumController(AppDbContext db, AuditService audit) : Control
         audit.Record("curriculum_plan", plan.Id.ToString(), isNew ? "create" : "update",
             $"Ish reja {(isNew ? "yuklandi" : "qayta yuklandi")}: {plan.Title} ({topics.Count} mavzu)");
         await db.SaveChangesAsync(ct);
-        return new CurriculumImportResultDto(plan.Id, topics.Count, topics.Sum(t => t.Hours), [], preview);
+        return new CurriculumImportResultDto(plan.Id, topics.Count, topics.Sum(t => t.Hours), [], preview, warnings);
+    }
+
+    /// <summary>Bitta mavzuning aniq reja sanasini qo'lda o'zgartirish (null — tozalash).</summary>
+    [HttpPut("topics/{id:guid}/planned-on")]
+    public async Task<IActionResult> SetTopicDate(Guid id, CurriculumTopicDateRequest req, CancellationToken ct = default)
+    {
+        var topic = await db.CurriculumTopics.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (topic is null) return NotFound();
+        if (await CurriculumService.SetTopicDateAsync(db, id, req.PlannedOn, ct) is { } error)
+            return BadRequest(new { message = error });
+        audit.Record("curriculum_plan", topic.PlanId.ToString(), "update",
+            $"Ish reja: {topic.Order}-mavzu sanasi {(string.IsNullOrWhiteSpace(req.PlannedOn) ? "tozalandi" : $"→ {req.PlannedOn}")}");
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     [HttpDelete("plans/{id:guid}")]

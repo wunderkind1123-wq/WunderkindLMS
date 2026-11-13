@@ -14,10 +14,15 @@ public record CurriculumOwnerDto(string Kind, string Id, string Name);
 
 public record CurriculumMarkDto(string OwnerKind, string OwnerId, string PassedOn);
 
-/// <param name="PlannedOn">When the plan expects it (from quarter/week); null when quarters are not set.</param>
+/// <param name="PlannedOn">When the plan expects it: the exact date from the file (or set by hand), else
+/// estimated from quarter/week; null when neither is available.</param>
+/// <param name="PlannedExact">PlannedOn is an exact lesson date, not an estimate.</param>
 public record CurriculumTopicDto(
     Guid Id, int Order, int? Quarter, int? Week, string? Section, string Title, int Hours, string? Goal, string? Homework,
-    string? PlannedOn, List<CurriculumMarkDto> Marks);
+    string? PlannedOn, bool PlannedExact, List<CurriculumMarkDto> Marks);
+
+/// <summary>One topic's exact date, set by hand; null clears it (back to the quarter/week estimate).</summary>
+public record CurriculumTopicDateRequest(string? PlannedOn);
 
 public record CurriculumPlanDetailDto(
     Guid Id, string Title, string SubjectId, string SubjectName, int? Grade, Guid? GroupId,
@@ -26,10 +31,14 @@ public record CurriculumPlanDetailDto(
 
 public record CurriculumMarkRequest(Guid TopicId, string OwnerKind, string OwnerId, bool Passed, string? PassedOn = null);
 
-/// <summary>Import result: the parsed topics (dry run) or the saved plan id; row errors block saving.</summary>
-public record CurriculumImportResultDto(Guid? PlanId, int TopicCount, int TotalHours, List<string> Errors, List<CurriculumPreviewTopicDto> Preview);
+/// <summary>
+/// Import result: the parsed topics (dry run) or the saved plan id; row errors block saving,
+/// warnings (a lesson on a holiday or a Sunday) do not.
+/// </summary>
+public record CurriculumImportResultDto(
+    Guid? PlanId, int TopicCount, int TotalHours, List<string> Errors, List<CurriculumPreviewTopicDto> Preview, List<string> Warnings);
 
-public record CurriculumPreviewTopicDto(int Order, int? Quarter, int? Week, string? Section, string Title, int Hours);
+public record CurriculumPreviewTopicDto(int Order, int? Quarter, int? Week, string? Section, string Title, int Hours, string? PlannedOn);
 
 public record TeacherCurriculumDto(
     Guid PlanId, string Title, string SubjectName, string OwnerKind, string OwnerId, string OwnerName,

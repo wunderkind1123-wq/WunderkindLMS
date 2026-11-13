@@ -82,9 +82,9 @@ export function CurriculumPlansPage() {
       <Card className="p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-700">Ish reja qanday tuziladi</p>
         <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-          <li>«Namuna (Excel)» ni yuklab oling. Ustunlar: № · Chorak · Hafta · Bo'lim · <b>Mavzu</b> · Soat · Maqsad · Uy vazifasi.</li>
-          <li>Har mavzu alohida qatorda, butun o'quv yili uchun, o'qituvchi darsda ishlatadigan to'liq nomi bilan.</li>
-          <li>«Ish reja yuklash» — fan va sinf darajasini (yoki yo'nalishni) tanlang, Excel faylni va xohlasangiz asl hujjatni (Word/PDF) biriktiring.</li>
+          <li>«Namuna (Excel)» ni yuklab oling. Ustunlar: № · Chorak · Hafta · Sana · Bo'lim · <b>Mavzu</b> · Soat · Maqsad · Uy vazifasi.</li>
+          <li>Har mavzu alohida qatorda, butun o'quv yili uchun, o'qituvchi darsda ishlatadigan to'liq nomi bilan. «Sana» — darsning aniq kuni (10.11 yoki 10.11.2026); yozilsa, reja shu sanaga qarab kuzatiladi.</li>
+          <li>«Ish reja yuklash» — fan va sinf darajasini (yoki yo'nalishni) tanlang, Excel faylni (yoki «Mavzu» ustunli jadvali bor Word .docx ish rejani) va xohlasangiz asl hujjatni (Word/PDF) biriktiring.</li>
           <li>O'qituvchilar o'z sinflarida mavzuga «o'tildi» belgisini qo'yadi; hisobotda kim rejadan orqada ekanligi ko'rinadi.</li>
         </ol>
       </Card>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Paperclip } from 'lucide-react'
+import { ArrowLeft, Check, Paperclip, Pencil, X } from 'lucide-react'
 import {
   curriculumError,
   getCurriculumPlan,
   markCurriculumTopic,
+  setCurriculumTopicDate,
   type CurriculumPlanDetail,
   type CurriculumTopic,
 } from '@/api/services/curriculum'
@@ -99,7 +100,9 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
           </div>
           <p className="text-xs text-slate-400">
             Katakni bosing — mavzu bugungi sana bilan «o'tildi» deb belgilanadi; qayta bosish belgini olib tashlaydi.
-            «Reja» — chorak va haftaga ko'ra kutilgan sana; o'tib ketgan, lekin belgilanmagan mavzu qizil.
+            «Reja» — ish rejadagi aniq dars sanasi; sana yozilmagan mavzuda chorak va haftadan taxmin («~» bilan).
+            Reja sanasi o'tib ketgan, lekin belgilanmagan mavzu qizil.
+            {!teacher && ' Sanani o‘zgartirish uchun uni bosing.'}
           </p>
           <Card className="p-0">
             <div className="overflow-x-auto">
@@ -132,7 +135,9 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
                             {t.week ? ` ${t.week}-h.` : ''}
                           </td>
                           <td className="px-3 py-2 text-right tabular-nums">{t.hours}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-slate-500">{t.plannedOn ? formatDate(t.plannedOn) : '—'}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-slate-500">
+                            <PlannedCell topic={t} editable={!teacher} onSaved={load} />
+                          </td>
                           {plan.owners.map((o) => {
                             const mark = t.marks.find((m) => m.ownerId === o.id)
                             const overdue = !mark && t.plannedOn != null && t.plannedOn < today
@@ -174,6 +179,85 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
           </Card>
         </>
       )}
+    </div>
+  )
+}
+
+/** «Reja» katagi: aniq sana yoki taxmin (~). Admin bosib sanani o'zgartiradi yoki tozalaydi. */
+function PlannedCell({ topic, editable, onSaved }: { topic: CurriculumTopic; editable: boolean; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(topic.plannedOn ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const text = topic.plannedOn ? `${topic.plannedExact ? '' : '~'}${formatDate(topic.plannedOn)}` : '—'
+  const hint = topic.plannedExact ? 'Ish rejadagi aniq sana' : 'Chorak va haftadan taxmin — aniq sana kiritilmagan'
+
+  async function save(next: string | null): Promise<void> {
+    setBusy(true)
+    setError(null)
+    try {
+      await setCurriculumTopicDate(topic.id, next)
+      setEditing(false)
+      onSaved()
+    } catch (e) {
+      setError(curriculumError(e, "Sanani saqlab bo'lmadi"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!editable) return <span title={hint} className={cn(!topic.plannedExact && 'text-slate-400')}>{text}</span>
+
+  if (!editing)
+    return (
+      <button
+        type="button"
+        title={`${hint} — o'zgartirish uchun bosing`}
+        onClick={() => {
+          setValue(topic.plannedOn ?? '')
+          setError(null)
+          setEditing(true)
+        }}
+        className={cn(
+          'group inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-slate-100 hover:text-slate-700',
+          !topic.plannedExact && 'text-slate-400',
+        )}
+      >
+        {text}
+        <Pencil className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-60" />
+      </button>
+    )
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1">
+        <input
+          type="date"
+          autoFocus
+          value={value}
+          disabled={busy}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && value) void save(value)
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          className="rounded-md border border-slate-200 px-1.5 py-0.5 text-xs text-slate-700 outline-none focus:border-brand-400"
+          aria-label="Reja sanasi"
+        />
+        <button type="button" disabled={busy || !value} onClick={() => void save(value)} className="rounded-md p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-40" aria-label="Saqlash" title="Saqlash">
+          <Check className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" disabled={busy} onClick={() => setEditing(false)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Bekor qilish" title="Bekor qilish">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {topic.plannedExact && (
+        <button type="button" disabled={busy} onClick={() => void save(null)} className="text-xs text-slate-400 hover:text-red-500">
+          Aniq sanani olib tashlash
+        </button>
+      )}
+      {error && <p className="max-w-[16rem] whitespace-normal text-xs text-red-600">{error}</p>}
     </div>
   )
 }

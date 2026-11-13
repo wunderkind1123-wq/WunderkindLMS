@@ -44,7 +44,10 @@ export interface CurriculumTopic {
   hours: number
   goal: string | null
   homework: string | null
+  /** Aniq dars sanasi (fayldagi «Sana» yoki qo'lda) yoki chorak/haftadan taxmin. */
   plannedOn: string | null
+  /** `plannedOn` — aniq sana, taxmin emas. */
+  plannedExact: boolean
   marks: CurriculumMark[]
 }
 
@@ -69,6 +72,7 @@ export interface CurriculumPreviewTopic {
   section: string | null
   title: string
   hours: number
+  plannedOn: string | null
 }
 
 export interface CurriculumImportResult {
@@ -77,6 +81,8 @@ export interface CurriculumImportResult {
   totalHours: number
   errors: string[]
   preview: CurriculumPreviewTopic[]
+  /** Bayram yoki yakshanbaga tushgan darslar — saqlashga to'sqinlik qilmaydi. */
+  warnings: string[]
 }
 
 export interface CurriculumQuarter {
@@ -200,6 +206,11 @@ export async function uploadOriginal(file: File): Promise<{ url: string; fileNam
 
 export async function markCurriculumTopic(req: CurriculumMarkRequest, teacher = false): Promise<void> {
   await api.put(teacher ? '/teacher/curriculum/progress' : '/admin/curriculum/progress', req)
+}
+
+/** Admin: bitta mavzuning aniq reja sanasi ("yyyy-MM-dd"); null — tozalash (chorak/haftadan hisoblanadi). */
+export async function setCurriculumTopicDate(topicId: string, plannedOn: string | null): Promise<void> {
+  await api.put(`/admin/curriculum/topics/${topicId}/planned-on`, { plannedOn })
 }
 
 export async function getCurriculumReport(): Promise<CurriculumReport> {

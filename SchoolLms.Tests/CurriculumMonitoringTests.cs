@@ -78,8 +78,36 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
         return form;
     }
 
+    /// <summary>An old-format file (no "Sana" column) — must keep working.</summary>
     private static byte[] Xlsx(params string[][] rows) =>
+        ExcelExport.Build("Ish reja", CurriculumService.LegacyColumns, rows.Select(r => (IReadOnlyList<string>)r));
+
+    /// <summary>The current template, with the "Sana" column.</summary>
+    private static byte[] XlsxWithDates(params string[][] rows) =>
         ExcelExport.Build("Ish reja", CurriculumService.Columns, rows.Select(r => (IReadOnlyList<string>)r));
+
+    /// <summary>Runs <paramref name="body"/> with the school's quarters replaced, then puts the old ones back.</summary>
+    private async Task WithQuartersAsync(Func<Task> body, params (int Quarter, string Start, string End)[] quarters)
+    {
+        List<QuarterPeriod> saved = [];
+        await fixture.Api.WithDbAsync(async db =>
+        {
+            saved = await db.Quarters.AsNoTracking().ToListAsync();
+            await db.Quarters.ExecuteDeleteAsync();
+            db.Quarters.AddRange(quarters.Select(q => new QuarterPeriod { Quarter = q.Quarter, StartDate = q.Start, EndDate = q.End }));
+            await db.SaveChangesAsync();
+        });
+        try { await body(); }
+        finally
+        {
+            await fixture.Api.WithDbAsync(async db =>
+            {
+                await db.Quarters.ExecuteDeleteAsync();
+                db.Quarters.AddRange(saved);
+                await db.SaveChangesAsync();
+            });
+        }
+    }
 
     // ------------------------------------------------------------------ §1
 
@@ -152,6 +180,69 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
         // without the plan the pair shows up as missing
         var after = (await admin.GetFromJsonAsync<CurriculumReportDto>("/api/admin/curriculum/report", Json))!;
         Assert.Contains(after.Missing, m => m.SubjectId == w.Subject.Id && m.Grade == w.Grade);
+    }
+
+    [Fact]
+    public async Task Sana_ustuni_aniq_reja_sanasi_chorakdan_tashqarisi_xato_qolda_tahrir()
+    {
+        var w = await SeedAsync();
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Staff, "curriculum");
+        await WithQuartersAsync(async () =>
+        {
+            // 29.12 is past the end of quarter 2 → the whole file is rejected, with the row number
+            var late = await admin.PostAsync("/api/admin/curriculum/plans/import?dryRun=true", PlanForm(XlsxWithDates(
+                ["1", "2", "1", "10.11", "", "Ot", "1", "", ""],
+                ["2", "2", "8", "29.12", "", "Bayram oldi", "1", "", ""]), w.Subject.Id, w.Grade));
+            Assert.Equal(HttpStatusCode.BadRequest, late.StatusCode);
+            Assert.Equal("3-qator: 29.12 sanasi 2-chorakdan (09.11–26.12) tashqarida",
+                Assert.Single((await late.Content.ReadFromJsonAsync<CurriculumImportResultDto>(Json))!.Errors));
+
+            var file = XlsxWithDates(
+                ["1", "2", "1", "10.11", "", "Ot", "1", "", ""],
+                ["2", "2", "1", "14.11", "", "Sifat", "1", "", ""],
+                ["3", "2", "2", "", "", "Son", "1", "", ""],
+                ["4", "2", "", "15.11", "", "Yakshanba darsi", "1", "", ""]);
+            var dry = (await (await admin.PostAsync("/api/admin/curriculum/plans/import?dryRun=true", PlanForm(file, w.Subject.Id, w.Grade)))
+                .Content.ReadFromJsonAsync<CurriculumImportResultDto>(Json))!;
+            Assert.Empty(dry.Errors);
+            Assert.Equal(["2026-11-10", "2026-11-14", null, "2026-11-15"], dry.Preview.Select(p => p.PlannedOn));
+            Assert.Contains(dry.Warnings, x => x.Contains("yakshanba"));
+
+            var planId = (await (await admin.PostAsync("/api/admin/curriculum/plans/import", PlanForm(file, w.Subject.Id, w.Grade)))
+                .Content.ReadFromJsonAsync<CurriculumImportResultDto>(Json))!.PlanId!.Value;
+            try
+            {
+                var plan = (await admin.GetFromJsonAsync<CurriculumPlanDetailDto>($"/api/admin/curriculum/plans/{planId}", Json))!;
+                Assert.Equal(["2026-11-10", "2026-11-14", "2026-11-16", "2026-11-15"], plan.Topics.Select(t => t.PlannedOn));
+                Assert.Equal([true, true, false, true], plan.Topics.Select(t => t.PlannedExact));
+
+                // admin moves topic 3 to an exact day; the week follows the date
+                var topic3 = plan.Topics.Single(t => t.Order == 3).Id;
+                Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync($"/api/admin/curriculum/topics/{topic3}/planned-on",
+                    new CurriculumTopicDateRequest("2026-12-03"))).StatusCode);
+                var outside = await admin.PutAsJsonAsync($"/api/admin/curriculum/topics/{topic3}/planned-on", new CurriculumTopicDateRequest("2026-12-29"));
+                Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
+                plan = (await admin.GetFromJsonAsync<CurriculumPlanDetailDto>($"/api/admin/curriculum/plans/{planId}", Json))!;
+                var t3 = plan.Topics.Single(t => t.Order == 3);
+                Assert.Equal(("2026-12-03", true, 4), (t3.PlannedOn, t3.PlannedExact, t3.Week!.Value));
+
+                // clearing returns it to the quarter/week estimate
+                Assert.Equal(HttpStatusCode.NoContent, (await admin.PutAsJsonAsync($"/api/admin/curriculum/topics/{topic3}/planned-on",
+                    new CurriculumTopicDateRequest(null))).StatusCode);
+                plan = (await admin.GetFromJsonAsync<CurriculumPlanDetailDto>($"/api/admin/curriculum/plans/{planId}", Json))!;
+                t3 = plan.Topics.Single(t => t.Order == 3);
+                Assert.Equal(("2026-11-30", false), (t3.PlannedOn, t3.PlannedExact));
+
+                // a teacher cannot edit plan dates
+                using var teacher = fixture.Api.ClientWithToken(fixture.Api.TokenFor(Roles.Teacher, w.TeacherAUser.Id, w.TeacherAUser.FullName, w.TeacherAUser.Email));
+                Assert.Equal(HttpStatusCode.Forbidden, (await teacher.PutAsJsonAsync($"/api/admin/curriculum/topics/{topic3}/planned-on",
+                    new CurriculumTopicDateRequest("2026-12-01"))).StatusCode);
+            }
+            finally
+            {
+                await admin.DeleteAsync($"/api/admin/curriculum/plans/{planId}");
+            }
+        }, (1, "2026-09-02", "2026-10-31"), (2, "2026-11-09", "2026-12-26"));
     }
 
     [Fact]

@@ -2830,6 +2830,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("plan_id");
 
+                    b.Property<DateOnly?>("PlannedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("planned_on");
+
                     b.Property<int?>("Quarter")
                         .HasColumnType("integer")
                         .HasColumnName("quarter");

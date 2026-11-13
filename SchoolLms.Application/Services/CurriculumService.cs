@@ -18,64 +18,356 @@ namespace SchoolLms.Application.Services;
 /// </summary>
 public static class CurriculumService
 {
-    /// <summary>Excel ustunlari — namuna fayl va import bir xil tartibda.</summary>
+    /// <summary>Namuna Excel ustunlari. Import ustunlarni SARLAVHA nomi bo'yicha topadi.</summary>
     public static readonly string[] Columns =
+        ["№", "Chorak", "Hafta", "Sana", "Bo'lim (modul)", "Mavzu", "Soat", "Maqsad / kutilgan natija", "Uy vazifasi"];
+
+    /// <summary>"Sana" ustuni qo'shilishidan oldingi tartib — sarlavhasiz eski fayllar shu tartibda o'qiladi.</summary>
+    public static readonly string[] LegacyColumns =
         ["№", "Chorak", "Hafta", "Bo'lim (modul)", "Mavzu", "Soat", "Maqsad / kutilgan natija", "Uy vazifasi"];
 
-    // ------------------------------------------------------------------ Excel
+    // ------------------------------------------------------------------ import
 
-    public sealed record ParsedTopic(int Order, int? Quarter, int? Week, string? Section, string Title, int Hours, string? Goal, string? Homework);
+    /// <summary>Fayldagi sana: yil yozilmagan bo'lishi mumkin (10.11) — u chorak sanalaridan topiladi.</summary>
+    /// <param name="SoftYear">Yil Excel'ning sana katagidan keldi — Excel uni yozilgan paytdagi yil bilan
+    /// to'ldirgan bo'lishi mumkin, shuning uchun o'quv yiliga tushmasa, yil yozilmagandek qaraladi.</param>
+    public sealed record PlanDate(int Day, int Month, int? Year, bool SoftYear = false);
 
-    /// <summary>
-    /// Excel qatorlari → mavzular. Sarlavha qatori (Mavzu ustunida "Mavzu") va bo'sh qatorlar
-    /// o'tkazib yuboriladi. Xatolar Excel qator raqami bilan qaytadi; bitta xato bo'lsa ham hech
-    /// narsa saqlanmaydi.
-    /// </summary>
-    public static (List<ParsedTopic> Topics, List<string> Errors) Parse(Stream stream)
+    /// <param name="Line">Fayldagi qator raqami (xabarlar uchun).</param>
+    /// <param name="Date">Fayldagi "Sana" (xom); <see cref="ResolveDates"/> uni <paramref name="PlannedOn"/> ga aylantiradi.</param>
+    public sealed record ParsedTopic(
+        int Order, int? Quarter, int? Week, string? Section, string Title, int Hours, string? Goal, string? Homework,
+        int Line = 0, PlanDate? Date = null, DateOnly? PlannedOn = null);
+
+    private enum Col { Order, Quarter, Week, Date, Section, Title, Hours, Goal, Homework }
+
+    /// <summary>Fayl turi bo'yicha o'qiydi: .xlsx (Excel) yoki .docx (Word jadvali).</summary>
+    public static (List<ParsedTopic> Topics, List<string> Errors) Parse(Stream stream, string fileName)
     {
         List<string[]> rows;
-        try { rows = ExcelImport.ReadRows(stream, Columns.Length); }
-        catch (Exception) { return ([], ["Fayl o'qilmadi — .xlsx (Excel) formatida yuklang."]); }
+        var word = fileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase);
+        try { rows = word ? WordTableImport.ReadRows(stream) : ExcelImport.ReadRows(stream, 30); }
+        catch (Exception)
+        {
+            return ([], [word ? "Word fayl o'qilmadi — .docx formatida saqlab qayta yuklang." : "Fayl o'qilmadi — .xlsx (Excel) formatida yuklang."]);
+        }
+        // Word'da ustunlar tartibi har xil — sarlavhasiz jadvalni o'qib bo'lmaydi
+        if (word && FindHeader(rows) < 0) return ([], ["Word faylda «Mavzu» ustunli jadval topilmadi"]);
+        return ParseRows(rows);
+    }
 
+    /// <summary>Eski kirish nuqtasi — faqat .xlsx.</summary>
+    public static (List<ParsedTopic> Topics, List<string> Errors) Parse(Stream stream) => Parse(stream, "reja.xlsx");
+
+    /// <summary>
+    /// Jadval qatorlari → mavzular. Ustunlar sarlavha qatoridan (unda "Mavzu" bor) nomi bo'yicha
+    /// topiladi; sarlavhagacha bo'lgan qatorlar (hujjat nomi va h.k.) o'tkazib yuboriladi. Sarlavha
+    /// yo'q bo'lsa — eski tartib (<see cref="LegacyColumns"/>). "II chorak" kabi ajratuvchi qator
+    /// keyingi mavzularning chorağini belgilaydi. Xatolar qator raqami bilan qaytadi; bitta xato
+    /// bo'lsa ham hech narsa saqlanmaydi.
+    /// </summary>
+    public static (List<ParsedTopic> Topics, List<string> Errors) ParseRows(IReadOnlyList<string[]> rows)
+    {
         var topics = new List<ParsedTopic>();
         var errors = new List<string>();
         var seen = new HashSet<int>();
         var next = 1;
-        for (var i = 0; i < rows.Count; i++)
+        var headerAt = FindHeader(rows);
+        var map = headerAt >= 0 ? HeaderMap(rows[headerAt])! : LegacyMap();
+        int? sectionQuarter = null;
+        for (var i = Math.Max(headerAt, 0); i < rows.Count; i++)
         {
             var r = rows[i].Select(c => (c ?? "").Trim()).ToArray();
             var line = i + 1;
             if (r.All(string.IsNullOrEmpty)) continue;
-            if (string.Equals(r[4], "Mavzu", StringComparison.OrdinalIgnoreCase) || r[0] == "№") continue;
-            if (r[4].Length == 0) { errors.Add($"{line}-qator: «Mavzu» bo'sh"); continue; }
-            if (r[4].Length > 500) { errors.Add($"{line}-qator: mavzu 500 belgidan uzun"); continue; }
+            if (HeaderMap(r) is { } m) { map = m; continue; }
+            var filled = r.Where(c => c.Length > 0).Distinct().ToList();
+            if (filled.Count == 1 && QuarterHeading(filled[0], requireWord: true) is { } qh) { sectionQuarter = qh; continue; }
+            // "Jami: 34 soat" yakuniy qatori ("Jamiyat" mavzusi emas)
+            if (r.Any(c => System.Text.RegularExpressions.Regex.IsMatch(Norm(c), @"^jami\b"))) continue;
+
+            string Get(Col c) => map.TryGetValue(c, out var idx) && idx < r.Length ? r[idx] : "";
+            var title = Get(Col.Title);
+            var orderText = Get(Col.Order).TrimEnd('.', ')');
+            if (title.Length == 0)
+            {
+                // Word jadvalidagi bo'sh/oraliq qator — raqami ham yo'q bo'lsa, mavzu emas
+                if (orderText.Length == 0) continue;
+                errors.Add($"{line}-qator: «Mavzu» bo'sh"); continue;
+            }
+            if (title.Length > 500) { errors.Add($"{line}-qator: mavzu 500 belgidan uzun"); continue; }
 
             int order;
-            if (r[0].Length == 0) order = next;
-            else if (!TryInt(r[0], out order) || order < 1) { errors.Add($"{line}-qator: «№» butun son bo'lsin"); continue; }
+            if (orderText.Length == 0) order = next;
+            else if (!TryInt(orderText, out order) || order < 1) { errors.Add($"{line}-qator: «№» butun son bo'lsin"); continue; }
             if (!seen.Add(order)) { errors.Add($"{line}-qator: {order}-raqam takrorlangan"); continue; }
             next = Math.Max(next, order + 1);
 
-            int? quarter = null;
-            if (r[1].Length > 0)
+            int? quarter = sectionQuarter;
+            var qText = Get(Col.Quarter);
+            if (qText.Length > 0)
             {
-                if (!TryInt(r[1], out var q) || q is < 1 or > 4) { errors.Add($"{line}-qator: «Chorak» 1–4 bo'lsin"); continue; }
-                quarter = q;
+                var qv = QuarterHeading(qText, requireWord: false) ?? (TryInt(qText, out var qi) ? qi : null);
+                if (qv is not (>= 1 and <= 4)) { errors.Add($"{line}-qator: «Chorak» 1–4 bo'lsin"); continue; }
+                quarter = qv;
             }
             int? week = null;
-            if (r[2].Length > 0)
+            var wText = Get(Col.Week);
+            if (wText.Length > 0)
             {
-                if (!TryInt(r[2], out var w) || w is < 1 or > 20) { errors.Add($"{line}-qator: «Hafta» 1–20 bo'lsin (chorak ichidagi hafta)"); continue; }
+                if (!TryInt(LeadingNumber(wText), out var w) || w is < 1 or > 20) { errors.Add($"{line}-qator: «Hafta» 1–20 bo'lsin (chorak ichidagi hafta)"); continue; }
                 week = w;
             }
             var hours = 1;
-            if (r[5].Length > 0 && (!TryInt(r[5], out hours) || hours is < 1 or > 50))
+            var hText = Get(Col.Hours);
+            if (hText.Length > 0 && (!TryInt(LeadingNumber(hText), out hours) || hours is < 1 or > 50))
             { errors.Add($"{line}-qator: «Soat» 1–50 bo'lsin"); continue; }
+            PlanDate? date = null;
+            var dText = Get(Col.Date);
+            if (dText.Length > 0 && (date = ParseDate(dText)) is null)
+            { errors.Add($"{line}-qator: «Sana» noto'g'ri — {dText} (masalan: 10.11 yoki 10.11.2026)"); continue; }
 
-            topics.Add(new ParsedTopic(order, quarter, week, Cut(r[3], 300), r[4], hours, Cut(r[6], 1000), Cut(r[7], 500)));
+            topics.Add(new ParsedTopic(order, quarter, week, Cut(Get(Col.Section), 300), title, hours,
+                Cut(Get(Col.Goal), 1000), Cut(Get(Col.Homework), 500), line, date));
         }
         if (topics.Count == 0 && errors.Count == 0) errors.Add("Faylda birorta ham mavzu topilmadi");
         return ([.. topics.OrderBy(t => t.Order)], errors);
+    }
+
+    private static Dictionary<Col, int> LegacyMap() => new()
+    {
+        [Col.Order] = 0, [Col.Quarter] = 1, [Col.Week] = 2, [Col.Section] = 3, [Col.Title] = 4,
+        [Col.Hours] = 5, [Col.Goal] = 6, [Col.Homework] = 7,
+    };
+
+    private static int FindHeader(IReadOnlyList<string[]> rows)
+    {
+        for (var i = 0; i < rows.Count; i++)
+            if (HeaderMap(rows[i]) is not null) return i;
+        return -1;
+    }
+
+    /// <summary>
+    /// Sarlavha qatori bo'lsa — ustun → indeks; aks holda null. "Mavzu" va yana kamida bitta
+    /// tanish ustun shart, sof raqamli katak bo'lmasin (ma'lumot qatorida № / soat raqami bor).
+    /// </summary>
+    private static Dictionary<Col, int>? HeaderMap(string[] row)
+    {
+        var map = new Dictionary<Col, int>();
+        for (var i = 0; i < row.Length; i++)
+        {
+            var n = Norm(row[i] ?? "");
+            if (System.Text.RegularExpressions.Regex.IsMatch(n, @"^\d+([.,]\d+)?$")) return null;
+            if (n.Length == 0 || n.Length > 40) continue;
+            Col? c =
+                n is "№" or "no" or "n" or "#" or "t/r" or "t.r" or "tr" or "r/t" || n.StartsWith('№') ? Col.Order
+                : n.Contains("chorak") ? Col.Quarter
+                : n.Contains("hafta") ? Col.Week
+                : n.Contains("sana") ? (n.Contains("o'tilgan") || n.Contains("otilgan") || n.Contains("haqiqiy") || n.Contains("amalda") ? null : Col.Date)
+                : n.Contains("bo'lim") || n.Contains("bolim") || n.Contains("modul") || n == "bob" ? Col.Section
+                : n.Contains("maqsad") || n.Contains("natija") ? Col.Goal
+                : n.Contains("vazifa") ? Col.Homework
+                : n.Contains("soat") ? Col.Hours
+                : n.Contains("mavzu") ? Col.Title
+                : null;
+            if (c is { } col) map.TryAdd(col, i);
+        }
+        return map.ContainsKey(Col.Title) && map.Count >= 2 ? map : null;
+    }
+
+    private static string Norm(string s) =>
+        string.Join(' ', s.ToLowerInvariant().Replace('‘', '\'').Replace('’', '\'').Replace('ʻ', '\'').Replace('ʼ', '\'').Replace('`', '\'')
+            .Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>
+    /// "II chorak", "2-chorak" → 2. <paramref name="requireWord"/> = false (Chorak ustuni) — "2" va
+    /// "II" ham bo'ladi; ajratuvchi qatorda esa "chorak" so'zi shart.
+    /// </summary>
+    private static int? QuarterHeading(string s, bool requireWord)
+    {
+        var n = Norm(s);
+        var m = System.Text.RegularExpressions.Regex.Match(n, @"^(?:([1-4])|(iv|i{1,3}))\b\s*[-–.]?\s*(chorak)?");
+        if (!m.Success) return null;
+        if (!m.Groups[3].Success && (requireWord || n.Length > 3)) return null;
+        return m.Groups[1].Success ? m.Groups[1].Value[0] - '0' : m.Groups[2].Value switch { "i" => 1, "ii" => 2, "iii" => 3, _ => 4 };
+    }
+
+    private static string LeadingNumber(string s)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(s, @"^\s*(\d+(?:[.,]\d+)?)");
+        return m.Success ? m.Groups[1].Value.Replace(',', '.') : s;
+    }
+
+    /// <summary>
+    /// "10.11", "1.09", "10.11.2026", "10/11/26", "2026-11-10" yoki Excel sana katagi (seriya raqami).
+    /// Katakda bir nechta sana bo'lsa — birinchisi.
+    /// </summary>
+    public static PlanDate? ParseDate(string s)
+    {
+        s = s.Trim();
+        if (System.Text.RegularExpressions.Regex.IsMatch(s, @"^\d{5}(\.\d+)?$")
+            && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var serial) && serial is > 20000 and < 80000)
+        {
+            var d = DateOnly.FromDateTime(DateTime.FromOADate(serial));
+            return new PlanDate(d.Day, d.Month, d.Year, SoftYear: true);
+        }
+        var iso = System.Text.RegularExpressions.Regex.Match(s, @"^(\d{4})-(\d{1,2})-(\d{1,2})");
+        if (iso.Success) return Valid(int.Parse(iso.Groups[3].Value), int.Parse(iso.Groups[2].Value), int.Parse(iso.Groups[1].Value));
+        var m = System.Text.RegularExpressions.Regex.Match(s, @"(?<!\d)(\d{1,2})[./-](\d{1,2})(?:[./-](\d{4}|\d{2}))?(?!\d)");
+        if (!m.Success) return null;
+        int? year = m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : null;
+        if (year < 100) year += 2000;
+        return Valid(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), year);
+
+        static PlanDate? Valid(int day, int month, int? year) =>
+            day is < 1 or > 31 || month is < 1 or > 12 || year is < 2000 or > 2100 ? null : new PlanDate(day, month, year);
+    }
+
+    private static string Short(DateOnly d) => d.ToString("dd.MM", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Fayldagi sanalarni aniq sanaga aylantiradi va tekshiradi. Sana bor mavzu: yil yozilmagan
+    /// bo'lsa — choraklardan topiladi; chorak ko'rsatilgan bo'lsa sana shu chorak ichida bo'lishi
+    /// SHART (aks holda xato), ko'rsatilmagan bo'lsa — sana tushgan chorak olinadi; hafta sanadan
+    /// hisoblanadi. Bayram yoki yakshanbaga tushgan dars — ogohlantirish (saqlashga to'sqinlik
+    /// qilmaydi). Sanasiz mavzu o'zgarmaydi (chorak + hafta bo'yicha hisoblanadi).
+    /// </summary>
+    public static (List<ParsedTopic> Topics, List<string> Errors, List<string> Warnings) ResolveDates(
+        IReadOnlyList<ParsedTopic> topics,
+        IReadOnlyList<(int Quarter, DateOnly Start, DateOnly End)> quarters,
+        IReadOnlyDictionary<DateOnly, string> holidays)
+    {
+        var errors = new List<string>();
+        var warnings = new List<string>();
+        var result = new List<ParsedTopic>();
+        var yStart = quarters.Count == 0 ? (DateOnly?)null : quarters.Min(q => q.Start);
+        var yEnd = quarters.Count == 0 ? (DateOnly?)null : quarters.Max(q => q.End);
+
+        foreach (var t in topics.OrderBy(t => t.Line).ThenBy(t => t.Order))
+        {
+            var given = t.Quarter is { } gq ? quarters.FirstOrDefault(x => x.Quarter == gq) : default;
+            if (t.Date is not { } pd)
+            {
+                if (given != default && t.Week is { } wk)
+                {
+                    var count = ScheduleMath.GetQuarterWeeks(Iso(given.Start), Iso(given.End)).Count;
+                    if (wk > count)
+                        warnings.Add($"{t.Line}-qator: {given.Quarter}-chorakda {count} hafta bor — {wk}-hafta chorak oxiriga suriladi. Aniq «Sana» yozing.");
+                }
+                result.Add(t);
+                continue;
+            }
+
+            DateOnly date;
+            if (yStart is null || yEnd is null)
+            {
+                if (pd.Year is null || !TryDate(pd.Year.Value, pd, out date))
+                {
+                    errors.Add(pd.Year is null
+                        ? $"{t.Line}-qator: sanada yil yo'q, chorak sanalari esa kiritilmagan — to'liq yozing (10.11.2026)"
+                        : $"{t.Line}-qator: «Sana» noto'g'ri — bunday kun yo'q ({pd.Day:00}.{pd.Month:00}.{pd.Year})");
+                    continue;
+                }
+            }
+            else
+            {
+                var ys = yStart.Value;
+                var ye = yEnd.Value;
+                // academic-year guess for a missing year: Sep–Dec → the start year, Jan–Aug → the end year
+                var guessYear = pd.Year ?? (pd.Month >= ys.Month ? ys.Year : ye.Year);
+                var years = pd.Year is not null && !pd.SoftYear
+                    ? new[] { pd.Year.Value }
+                    : new[] { guessYear, ys.Year, ye.Year }.Distinct().ToArray();
+                var candidates = new List<DateOnly>();
+                foreach (var yr in years)
+                    if (TryDate(yr, pd, out var cand)) candidates.Add(cand);
+                if (candidates.Count == 0)
+                {
+                    errors.Add($"{t.Line}-qator: «Sana» noto'g'ri — bunday kun yo'q ({pd.Day:00}.{pd.Month:00})");
+                    continue;
+                }
+                var target = given;
+                date = candidates.Where(d => target != default && d >= target.Start && d <= target.End)
+                    .Concat(candidates.Where(d => quarters.Any(q => d >= q.Start && d <= q.End)))
+                    .Concat(candidates.Where(d => d >= ys && d <= ye))
+                    .Append(candidates[0])
+                    .First();
+            }
+
+            var quarter = t.Quarter;
+            var week = t.Week;
+            if (quarters.Count > 0)
+            {
+                if (given != default)
+                {
+                    if (date < given.Start || date > given.End)
+                    {
+                        errors.Add($"{t.Line}-qator: {Short(date)} sanasi {given.Quarter}-chorakdan ({Short(given.Start)}–{Short(given.End)}) tashqarida");
+                        continue;
+                    }
+                }
+                else
+                {
+                    var inQ = quarters.FirstOrDefault(q => date >= q.Start && date <= q.End);
+                    if (inQ == default)
+                    {
+                        errors.Add($"{t.Line}-qator: {Short(date)} sanasi hech bir chorakka tushmaydi ("
+                            + string.Join(", ", quarters.OrderBy(q => q.Quarter).Select(q => $"{q.Quarter}-chorak {Short(q.Start)}–{Short(q.End)}")) + ")");
+                        continue;
+                    }
+                    given = inQ;
+                }
+                if (given != default)
+                {
+                    quarter = given.Quarter;
+                    week = WeekOf(given.Start, given.End, date);
+                }
+            }
+
+            if (holidays.TryGetValue(date, out var holiday))
+                warnings.Add($"{t.Line}-qator: {Short(date)} — dam olish kuni{(string.IsNullOrWhiteSpace(holiday) ? "" : $" ({holiday})")}");
+            else if (date.DayOfWeek == DayOfWeek.Sunday)
+                warnings.Add($"{t.Line}-qator: {Short(date)} — yakshanba");
+
+            result.Add(t with { Quarter = quarter, Week = week, PlannedOn = date });
+        }
+        return ([.. result.OrderBy(t => t.Order)], errors, warnings);
+
+        static bool TryDate(int year, PlanDate p, out DateOnly d)
+        {
+            d = default;
+            if (p.Day > DateTime.DaysInMonth(year, p.Month)) return false;
+            d = new DateOnly(year, p.Month, p.Day);
+            return true;
+        }
+    }
+
+    /// <summary><see cref="ResolveDates"/> — maktabning choraklari va bayram kunlari bilan.</summary>
+    public static async Task<(List<ParsedTopic> Topics, List<string> Errors, List<string> Warnings)> ResolveDatesAsync(
+        IAppDbContext db, IReadOnlyList<ParsedTopic> topics, CancellationToken ct)
+    {
+        var cal = await CalendarAsync(db, ct);
+        var holidays = await HolidaysAsync(db, ct);
+        return ResolveDates(topics, cal.Quarters, holidays);
+    }
+
+    private static async Task<Dictionary<DateOnly, string>> HolidaysAsync(IAppDbContext db, CancellationToken ct)
+    {
+        var result = new Dictionary<DateOnly, string>();
+        foreach (var h in await db.Holidays.AsNoTracking().Select(h => new { h.Date, h.Name }).ToListAsync(ct))
+            if (DateOnly.TryParseExact(h.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                result.TryAdd(d, h.Name);
+        return result;
+    }
+
+    private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>Sana chorakning nechanchi haftasiga tushadi (<see cref="ScheduleMath.GetQuarterWeeks"/> raqamlashi bilan).</summary>
+    private static int WeekOf(DateOnly start, DateOnly end, DateOnly date)
+    {
+        var iso = Iso(date);
+        return ScheduleMath.GetQuarterWeeks(Iso(start), Iso(end))
+            .LastOrDefault(w => string.CompareOrdinal(w.StartISO, iso) <= 0)?.Week ?? 1;
     }
 
     private static string? Cut(string s, int max) => s.Length == 0 ? null : s.Length > max ? s[..max] : s;
@@ -94,23 +386,25 @@ public static class CurriculumService
     {
         var sample = new List<IReadOnlyList<string>>
         {
-            new[] { "1", "1", "1", "Natural sonlar", "Natural sonlar va ularni yozish", "1", "O'quvchi ko'p xonali sonni o'qiy va yoza oladi", "§1, 3-5-misollar" },
-            new[] { "2", "1", "1", "Natural sonlar", "Natural sonlarni taqqoslash", "1", "Sonlarni <, >, = belgilari bilan taqqoslaydi", "§2, 7-misol" },
-            new[] { "3", "1", "2", "Natural sonlar", "Qo'shish va uning xossalari", "2", "Qo'shishning o'rin almashtirish va guruhlash xossalarini qo'llaydi", "§3, 12-15-misollar" },
-            new[] { "4", "1", "2", "Natural sonlar", "Nazorat ishi №1", "1", "Bo'lim bo'yicha bilimni tekshirish", "" },
+            new[] { "1", "1", "1", "02.09", "Natural sonlar", "Natural sonlar va ularni yozish", "1", "O'quvchi ko'p xonali sonni o'qiy va yoza oladi", "§1, 3-5-misollar" },
+            new[] { "2", "1", "1", "04.09", "Natural sonlar", "Natural sonlarni taqqoslash", "1", "Sonlarni <, >, = belgilari bilan taqqoslaydi", "§2, 7-misol" },
+            new[] { "3", "1", "2", "09.09", "Natural sonlar", "Qo'shish va uning xossalari", "2", "Qo'shishning o'rin almashtirish va guruhlash xossalarini qo'llaydi", "§3, 12-15-misollar" },
+            new[] { "4", "1", "2", "", "Natural sonlar", "Nazorat ishi №1", "1", "Bo'lim bo'yicha bilimni tekshirish", "" },
         };
         var guide = new List<IReadOnlyList<string>>
         {
             new[] { "№", "Mavzuning tartib raqami (1, 2, 3 …). Qayta yuklaganda shu raqam bo'yicha «o'tildi» belgilari saqlanadi." },
-            new[] { "Chorak", "1–4. Hisobotdagi «chorak bo'yicha reja» va «rejadan orqada/oldinda» shundan hisoblanadi." },
-            new[] { "Hafta", "Chorak ichidagi hafta raqami (1 dan). Bo'sh qolsa — mavzu chorak bo'ylab teng taqsimlanadi." },
+            new[] { "Chorak", "1–4. Hisobotdagi «chorak bo'yicha reja» va «rejadan orqada/oldinda» shundan hisoblanadi. Sana yozilsa, bo'sh qoldirsa ham bo'ladi — sanadan topiladi." },
+            new[] { "Hafta", "Chorak ichidagi hafta raqami (1 dan). Sana yozilsa — sanadan avtomatik hisoblanadi. Ikkalasi ham bo'sh qolsa — mavzu chorak bo'ylab teng taqsimlanadi." },
+            new[] { "Sana", "Ixtiyoriy. Darsning aniq sanasi: 10.11, 1.09 yoki 10.11.2026 (yil yozilmasa — chorak sanalaridan aniqlanadi). Sana chorakdan tashqarida bo'lsa fayl qabul qilinmaydi; bayram kuni yoki yakshanba bo'lsa — ogohlantirish chiqadi. Excel sanani o'zgartirib yubormasligi uchun ustunni «Matn» (Text) formatida qoldiring." },
             new[] { "Bo'lim (modul)", "Ixtiyoriy. Bir nechta mavzuni birlashtiruvchi bo'lim nomi." },
             new[] { "Mavzu", "MAJBURIY. Darsda o'tiladigan mavzu — o'qituvchi darsda ishlatadigan to'liq nomi bilan." },
             new[] { "Soat", "Shu mavzuga ajratilgan dars soni (sukut — 1). Tugash muddati prognozi soat bo'yicha hisoblanadi." },
             new[] { "Maqsad / kutilgan natija", "Mavzu oxirida o'quvchi nimani bila olishi kerak. Monitoring testi savollari shu mavzuga bog'lanadi." },
             new[] { "Uy vazifasi", "Ixtiyoriy." },
             new[] { "", "" },
-            new[] { "Qoidalar", "Birinchi qator — sarlavha. Har mavzu alohida qatorda. Bitta fan va bitta sinf darajasi (yoki yo'nalish) uchun bitta fayl." },
+            new[] { "Qoidalar", "Birinchi qator — sarlavha (ustunlar nomi bo'yicha topiladi, tartibi muhim emas). Har mavzu alohida qatorda. Bitta fan va bitta sinf darajasi (yoki yo'nalish) uchun bitta fayl." },
+            new[] { "", "Word (.docx) ish rejani ham yuklash mumkin: jadvalda «Mavzu» ustuni bo'lsin; «№», «Soat», «Sana», «Chorak» ustunlari bo'lsa ular ham olinadi." },
             new[] { "", "Reja butun o'quv yili uchun to'liq bo'lsin: tizim o'tilgan va qolgan mavzularni, tugash sanasini shundan hisoblaydi." },
         };
         return ExcelExport.Build(
@@ -142,8 +436,41 @@ public static class CurriculumService
             t.Hours = p.Hours;
             t.Goal = p.Goal;
             t.Homework = p.Homework;
+            t.PlannedOn = p.PlannedOn;
         }
         foreach (var gone in byOrder.Values) db.CurriculumTopics.Remove(gone);
+    }
+
+    /// <summary>
+    /// Bitta mavzuning aniq sanasini qo'lda o'rnatish (null — tozalash, reja sanasi yana
+    /// chorak/haftadan hisoblanadi). Choraklar kiritilgan bo'lsa sana birortasiga tushishi shart;
+    /// chorak va hafta sanadan yangilanadi. Xato matni yoki null qaytaradi.
+    /// </summary>
+    public static async Task<string?> SetTopicDateAsync(IAppDbContext db, Guid topicId, string? value, CancellationToken ct)
+    {
+        var topic = await db.CurriculumTopics.FirstOrDefaultAsync(t => t.Id == topicId, ct);
+        if (topic is null) return "Mavzu topilmadi";
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            topic.PlannedOn = null;
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+        if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return "Sana noto'g'ri";
+        var cal = await CalendarAsync(db, ct);
+        if (cal.Quarters.Count > 0)
+        {
+            var q = cal.Quarters.FirstOrDefault(x => date >= x.Start && date <= x.End);
+            if (q == default)
+                return $"{Short(date)} hech bir chorakka tushmaydi ("
+                    + string.Join(", ", cal.Quarters.Select(x => $"{x.Quarter}-chorak {Short(x.Start)}–{Short(x.End)}")) + ")";
+            topic.Quarter = q.Quarter;
+            topic.Week = WeekOf(q.Start, q.End, date);
+        }
+        topic.PlannedOn = date;
+        await db.SaveChangesAsync(ct);
+        return null;
     }
 
     // ------------------------------------------------------------------ owners
@@ -234,13 +561,17 @@ public static class CurriculumService
     }
 
     /// <summary>
-    /// Mavzu rejaga ko'ra qachon o'tilishi kerak: chorak + hafta berilsa — o'sha haftaning boshi;
-    /// faqat chorak — mavzular chorak bo'ylab teng taqsimlanadi; hech biri — butun yil bo'ylab.
-    /// Choraklar kiritilmagan bo'lsa — null (rejadan orqada/oldinda hisoblanmaydi).
+    /// Mavzu rejaga ko'ra qachon o'tilishi kerak: aniq sana (<see cref="CurriculumTopic.PlannedOn"/>)
+    /// bo'lsa — o'sha; aks holda chorak + hafta berilsa — o'sha haftaning boshi; faqat chorak —
+    /// mavzular chorak bo'ylab teng taqsimlanadi; hech biri — butun yil bo'ylab. Aniq sanasiz mavzu
+    /// uchun choraklar kiritilmagan bo'lsa — sana yo'q.
     /// </summary>
     private static Dictionary<Guid, DateOnly> PlannedDates(IReadOnlyList<CurriculumTopic> topics, Calendar cal)
     {
         var result = new Dictionary<Guid, DateOnly>();
+        foreach (var t in topics)
+            if (t.PlannedOn is { } exact) result[t.Id] = exact;
+        topics = [.. topics.Where(t => t.PlannedOn is null)];
         if (cal.YearStart is not { } yStart || cal.YearEnd is not { } yEnd) return result;
 
         static DateOnly Spread(DateOnly start, DateOnly end, int index, int count) =>
@@ -315,7 +646,7 @@ public static class CurriculumService
             [.. owners.Select(o => new CurriculumOwnerDto(o.Kind, o.Id, o.Name))],
             [.. topics.Select(t => new CurriculumTopicDto(
                 t.Id, t.Order, t.Quarter, t.Week, t.Section, t.Title, t.Hours, t.Goal, t.Homework,
-                planned.TryGetValue(t.Id, out var d) ? d.ToString("yyyy-MM-dd") : null,
+                planned.TryGetValue(t.Id, out var d) ? d.ToString("yyyy-MM-dd") : null, t.PlannedOn is not null,
                 [.. marks.Where(m => m.TopicId == t.Id && owners.Any(o => o.Kind == m.OwnerKind && o.Id == m.OwnerId))
                     .Select(m => new CurriculumMarkDto(m.OwnerKind, m.OwnerId, m.PassedOn.ToString("yyyy-MM-dd")))]))]);
     }

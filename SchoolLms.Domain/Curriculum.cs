@@ -72,6 +72,12 @@ public class CurriculumTopic
     /// <summary>Chorak ichidagi hafta (1 dan). null = ko'rsatilmagan.</summary>
     public int? Week { get; set; }
 
+    /// <summary>
+    /// Ish rejadagi ANIQ dars sanasi ("Sana" ustuni yoki qo'lda tahrir). Berilsa — reja sanasi
+    /// shu; chorak va hafta undan hisoblanadi. null — reja sanasi chorak/haftadan taxmin qilinadi.
+    /// </summary>
+    public DateOnly? PlannedOn { get; set; }
+
     /// <summary>Bo'lim / modul nomi.</summary>
     public string? Section { get; set; }
 
