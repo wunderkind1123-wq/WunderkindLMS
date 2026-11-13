@@ -138,6 +138,14 @@ export interface TeacherCurriculumItem {
   passedCount: number
   nextTopicId: string | null
   nextTopicTitle: string | null
+  /** Bugungacha o'tilishi kerak bo'lgan mavzular; null — reja sanalari yo'q. */
+  expected: number | null
+  /** O'tilgan − kutilgan: musbat — oldinda, manfiy — orqada. */
+  delta: number | null
+  /** Hozirgi tezlikda tugash sanasi. */
+  forecastFinish: string | null
+  /** Prognoz o'quv yili oxiridan keyin. */
+  lateWarning: boolean
 }
 
 export interface CurriculumMarkRequest {

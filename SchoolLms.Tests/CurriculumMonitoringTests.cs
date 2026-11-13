@@ -233,8 +233,20 @@ public class CurriculumMonitoringTests(ApiFixture fixture)
                 t3 = plan.Topics.Single(t => t.Order == 3);
                 Assert.Equal(("2026-11-30", false), (t3.PlannedOn, t3.PlannedExact));
 
-                // a teacher cannot edit plan dates
+                // the teacher sees the same ahead/behind as the report
                 using var teacher = fixture.Api.ClientWithToken(fixture.Api.TokenFor(Roles.Teacher, w.TeacherAUser.Id, w.TeacherAUser.FullName, w.TeacherAUser.Email));
+                Assert.Equal(HttpStatusCode.NoContent, (await teacher.PutAsJsonAsync("/api/teacher/curriculum/progress",
+                    new CurriculumMarkRequest(plan.Topics.Single(t => t.Order == 1).Id, LessonOwnerKind.Class, w.ClassA.Id, true))).StatusCode);
+                var mineRow = Assert.Single((await teacher.GetFromJsonAsync<List<TeacherCurriculumDto>>("/api/teacher/curriculum", Json))!,
+                    m => m.PlanId == planId);
+                var reportRow = (await admin.GetFromJsonAsync<CurriculumReportDto>("/api/admin/curriculum/report", Json))!
+                    .Rows.Single(r => r.PlanId == planId && r.OwnerId == w.ClassA.Id);
+                Assert.NotNull(mineRow.Expected);
+                Assert.Equal((reportRow.Expected, reportRow.Delta, reportRow.ForecastFinish, reportRow.LateWarning),
+                    (mineRow.Expected, mineRow.Delta, mineRow.ForecastFinish, mineRow.LateWarning));
+                Assert.Equal(1 - mineRow.Expected, mineRow.Delta);
+
+                // a teacher cannot edit plan dates
                 Assert.Equal(HttpStatusCode.Forbidden, (await teacher.PutAsJsonAsync($"/api/admin/curriculum/topics/{topic3}/planned-on",
                     new CurriculumTopicDateRequest("2026-12-01"))).StatusCode);
             }

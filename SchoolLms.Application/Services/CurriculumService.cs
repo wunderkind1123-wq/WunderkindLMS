@@ -696,22 +696,60 @@ public static class CurriculumService
         var w = await WorldAsync(db, ct);
         var plans = await db.CurriculumPlans.AsNoTracking().Include(p => p.Topics).ToListAsync(ct);
         var subjects = await db.Subjects.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name, ct);
+        var cal = await CalendarAsync(db, ct);
+        var today = AppClock.Today;
         var result = new List<TeacherCurriculumDto>();
         foreach (var plan in plans)
         {
             var mine = OwnersOf(plan, w).Where(o => pairs.Contains((o.Id, o.Kind, plan.SubjectId))).ToList();
             if (mine.Count == 0) continue;
-            var ids = plan.Topics.Select(t => t.Id).ToList();
+            var topics = plan.Topics.OrderBy(t => t.Order).ToList();
+            var planned = PlannedDates(topics, cal);
+            var ids = topics.Select(t => t.Id).ToList();
             var marks = await db.CurriculumProgress.AsNoTracking().Where(p => ids.Contains(p.TopicId)).ToListAsync(ct);
             foreach (var o in mine)
             {
-                var passed = marks.Where(m => m.OwnerKind == o.Kind && m.OwnerId == o.Id).Select(m => m.TopicId).ToHashSet();
-                var next = plan.Topics.OrderBy(t => t.Order).FirstOrDefault(t => !passed.Contains(t.Id));
+                var own = marks.Where(m => m.OwnerKind == o.Kind && m.OwnerId == o.Id).ToList();
+                var passed = own.Select(m => m.TopicId).ToHashSet();
+                var next = topics.FirstOrDefault(t => !passed.Contains(t.Id));
+                var p = ProgressOf(topics, planned, own, cal, today);
                 result.Add(new TeacherCurriculumDto(plan.Id, plan.Title, subjects.GetValueOrDefault(plan.SubjectId) ?? "—",
-                    o.Kind, o.Id, o.Name, plan.Topics.Count, passed.Count, next?.Id, next?.Title));
+                    o.Kind, o.Id, o.Name, topics.Count, passed.Count, next?.Id, next?.Title,
+                    p.Expected, p.Delta, p.Finish?.ToString("yyyy-MM-dd"), p.LateWarning));
             }
         }
         return [.. result.OrderBy(r => r.OwnerName).ThenBy(r => r.SubjectName)];
+    }
+
+    private sealed record OwnerProgress(int PassedHours, int? Expected, int? Delta, DateOnly? Finish, bool LateWarning);
+
+    /// <summary>
+    /// Bitta ega (sinf/guruh) bo'yicha rejadan holati — hisobot ham, o'qituvchi ro'yxati ham shu bilan
+    /// hisoblaydi. Kutilgan = reja sanasi bugungacha bo'lgan mavzular; prognoz — yil (yoki birinchi
+    /// belgi) boshidan beri haftasiga o'tilgan soat tezligida.
+    /// </summary>
+    private static OwnerProgress ProgressOf(
+        IReadOnlyList<CurriculumTopic> topics, IReadOnlyDictionary<Guid, DateOnly> planned,
+        IReadOnlyList<CurriculumProgress> mine, Calendar cal, DateOnly today)
+    {
+        var passedIds = mine.Select(m => m.TopicId).ToHashSet();
+        var totalHours = topics.Sum(t => t.Hours);
+        var passedHours = topics.Where(t => passedIds.Contains(t.Id)).Sum(t => t.Hours);
+        int? expected = planned.Count == 0 ? null : topics.Count(t => planned.TryGetValue(t.Id, out var d) && d <= today);
+
+        // pace: hours per week since the year (or the first mark) began
+        DateOnly? finish = null;
+        var since = cal.YearStart is { } ys && ys <= today ? ys : mine.Count > 0 ? mine.Min(m => m.PassedOn) : (DateOnly?)null;
+        if (since is { } s && passedHours > 0)
+        {
+            var weeks = Math.Max(1m, (today.DayNumber - s.DayNumber) / 7m);
+            var pace = passedHours / weeks;
+            var left = totalHours - passedHours;
+            finish = left <= 0 ? mine.Max(m => m.PassedOn) : today.AddDays((int)Math.Ceiling(left / pace * 7m));
+        }
+        var passedCount = topics.Count(t => passedIds.Contains(t.Id));
+        return new OwnerProgress(passedHours, expected, expected is { } e ? passedCount - e : null,
+            finish, finish is { } f && cal.YearEnd is { } end && f > end);
     }
 
     /// <summary>
@@ -740,19 +778,7 @@ public static class CurriculumService
             {
                 var mine = marksByOwner[(o.Kind, o.Id)].Where(m => topicSet.ContainsKey(m.TopicId)).ToList();
                 var passedIds = mine.Select(m => m.TopicId).ToHashSet();
-                var passedHours = topics.Where(t => passedIds.Contains(t.Id)).Sum(t => t.Hours);
-                int? expected = planned.Count == 0 ? null : topics.Count(t => planned.TryGetValue(t.Id, out var d) && d <= today);
-
-                // pace: hours per week since the year (or the first mark) began
-                DateOnly? finish = null;
-                var since = cal.YearStart is { } ys && ys <= today ? ys : mine.Count > 0 ? mine.Min(m => m.PassedOn) : (DateOnly?)null;
-                if (since is { } s && passedHours > 0)
-                {
-                    var weeks = Math.Max(1m, (today.DayNumber - s.DayNumber) / 7m);
-                    var pace = passedHours / weeks;
-                    var left = totalHours - passedHours;
-                    finish = left <= 0 ? mine.Max(m => m.PassedOn) : today.AddDays((int)Math.Ceiling(left / pace * 7m));
-                }
+                var progress = ProgressOf(topics, planned, mine, cal, today);
 
                 var quarters = cal.Quarters.Select(q => new CurriculumQuarterDto(
                     q.Quarter,
@@ -761,11 +787,9 @@ public static class CurriculumService
 
                 rows.Add(new CurriculumReportRowDto(
                     plan.Id, plan.Title, subjects.GetValueOrDefault(plan.SubjectId) ?? "—", o.Kind, o.Id, o.Name,
-                    topics.Count, passedIds.Count, totalHours, passedHours,
+                    topics.Count, passedIds.Count, totalHours, progress.PassedHours,
                     topics.Count == 0 ? 0 : Math.Round(passedIds.Count * 100m / topics.Count, 1),
-                    expected, expected is { } e ? passedIds.Count - e : null,
-                    finish?.ToString("yyyy-MM-dd"),
-                    finish is { } f && cal.YearEnd is { } end && f > end,
+                    progress.Expected, progress.Delta, progress.Finish?.ToString("yyyy-MM-dd"), progress.LateWarning,
                     quarters));
             }
         }

@@ -38,6 +38,21 @@ export function CurriculumCard({ onOpen }) {
   )
 }
 
+const ddmm = (iso) => iso.split('-').reverse().join('.')
+
+/** Rejadan orqada/oldinda — o'quv bo'limi hisobotidagi bilan bir xil hisob (server beradi). */
+function paceText(item) {
+  if (item.delta == null) return null
+  if (item.delta < 0) return `${-item.delta} mavzu orqada`
+  if (item.delta > 0) return `${item.delta} mavzu oldinda`
+  return "Reja bo'yicha"
+}
+
+function forecastText(item) {
+  if (!item.forecastFinish) return null
+  return `Tugash: ${ddmm(item.forecastFinish)}${item.lateWarning ? ' — yil oxiriga ulgurmaydi' : ''}`
+}
+
 function BackPill({ label, onClick }) {
   return (
     <button type="button" onClick={onClick} aria-label="Orqaga"
@@ -85,10 +100,20 @@ export function CurriculumScreen({ onBack }) {
                     setOpen(item)
                   }}
                   title={`${item.ownerName} · ${item.subjectName}`}
-                  subtitle={item.nextTopicTitle ? `Keyingi: ${item.nextTopicTitle}` : 'Hamma mavzu o‘tilgan'}
+                  subtitle={
+                    <>
+                      {paceText(item) && (
+                        <span className={'block font-medium ' + (item.delta < 0 ? 'text-red-600' : item.delta > 0 ? 'text-emerald-600' : 'text-slate-500')}>
+                          {paceText(item)}
+                          {item.lateWarning && <span className="font-normal"> · {forecastText(item)}</span>}
+                        </span>
+                      )}
+                      {item.nextTopicTitle ? `Keyingi: ${item.nextTopicTitle}` : 'Hamma mavzu o‘tilgan'}
+                    </>
+                  }
                   right={
                     <span className="flex items-center gap-1.5">
-                      <Badge tone={item.passedCount >= item.topicCount ? 'success' : 'neutral'}>
+                      <Badge tone={item.passedCount >= item.topicCount ? 'success' : item.delta < 0 ? 'danger' : 'neutral'}>
                         {item.passedCount}/{item.topicCount}
                       </Badge>
                       <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
@@ -108,6 +133,7 @@ function PlanScreen({ item, onBack }) {
   const q = useAsync(() => request(teacherApi.curriculumPlan(item.planId)), [])
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tashkent' })
 
   const toggle = async (topic, passed) => {
     setBusy(topic.id)
@@ -133,12 +159,14 @@ function PlanScreen({ item, onBack }) {
           return (
             <>
               <Hero title={`${item.ownerName} · ${item.subjectName}`} subtitle={plan.title} right={<BackPill label="Orqaga" onClick={onBack} />}>
-                <HeroProgress value={passed} max={Math.max(topics.length, 1)} lead={`${passed}/${topics.length}`} note="mavzu o'tildi" />
+                <HeroProgress value={passed} max={Math.max(topics.length, 1)} lead={`${passed}/${topics.length}`}
+                  note={['mavzu o\'tildi', paceText(item), forecastText(item)].filter(Boolean).join(' · ')} />
               </Hero>
               {error && <p className="mx-4 mt-3 rounded-xl bg-red-50 px-3 py-2 text-[13px] text-red-600">{error}</p>}
               <Card title="Mavzular">
                 {topics.map((t) => {
                   const mark = t.marks.find((m) => m.ownerId === item.ownerId)
+                  const overdue = !mark && t.plannedOn != null && t.plannedOn < today
                   return (
                     <button
                       key={t.id}
@@ -156,8 +184,11 @@ function PlanScreen({ item, onBack }) {
                           {t.order}. {t.title}
                         </span>
                         <span className="text-[12px] text-slate-400">
-                          {t.quarter ? `${t.quarter}-chorak` : ''}{t.week ? `, ${t.week}-hafta` : ''}{t.hours > 1 ? ` · ${t.hours} soat` : ''}
-                          {mark ? ` · o'tildi ${mark.passedOn.split('-').reverse().join('.')}` : ''}
+                          {t.plannedOn
+                            ? <span className={overdue ? 'font-medium text-red-600' : ''}>reja {t.plannedExact ? '' : '~'}{ddmm(t.plannedOn)}</span>
+                            : <>{t.quarter ? `${t.quarter}-chorak` : ''}{t.week ? `, ${t.week}-hafta` : ''}</>}
+                          {t.hours > 1 ? ` · ${t.hours} soat` : ''}
+                          {mark ? ` · o'tildi ${ddmm(mark.passedOn)}` : ''}
                         </span>
                       </span>
                     </button>

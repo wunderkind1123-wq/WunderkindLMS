@@ -40,9 +40,14 @@ public record CurriculumImportResultDto(
 
 public record CurriculumPreviewTopicDto(int Order, int? Quarter, int? Week, string? Section, string Title, int Hours, string? PlannedOn);
 
+/// <param name="Expected">Topics the plan expects passed by today; null without plan dates.</param>
+/// <param name="Delta">Passed − expected: positive = ahead, negative = behind (same as the report).</param>
+/// <param name="ForecastFinish">Finish date at the current pace; null — nothing passed yet.</param>
+/// <param name="LateWarning">The forecast is past the last quarter's end.</param>
 public record TeacherCurriculumDto(
     Guid PlanId, string Title, string SubjectName, string OwnerKind, string OwnerId, string OwnerName,
-    int TopicCount, int PassedCount, Guid? NextTopicId, string? NextTopicTitle);
+    int TopicCount, int PassedCount, Guid? NextTopicId, string? NextTopicTitle,
+    int? Expected, int? Delta, string? ForecastFinish, bool LateWarning);
 
 public record CurriculumQuarterDto(int Quarter, int Planned, int Passed);
 
