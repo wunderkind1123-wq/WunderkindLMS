@@ -3066,6 +3066,11 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("reason_name");
 
+                    b.Property<string>("SourceKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source_key");
+
                     b.Property<string>("StudentId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -3082,6 +3087,11 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_discipline_points");
 
+                    b.HasIndex("SourceKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_discipline_points_source_key")
+                        .HasFilter("source_key is not null");
+
                     b.ToTable("discipline_points", (string)null);
                 });
 
@@ -3094,6 +3104,10 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
+
+                    b.Property<int?>("HomeworkMark")
+                        .HasColumnType("integer")
+                        .HasColumnName("homework_mark");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -3132,6 +3146,11 @@ namespace SchoolLms.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_discipline_reasons");
+
+                    b.HasIndex("HomeworkMark")
+                        .IsUnique()
+                        .HasDatabaseName("ux_discipline_reasons_homework_mark")
+                        .HasFilter("homework_mark is not null");
 
                     b.ToTable("discipline_reasons", null, t =>
                         {

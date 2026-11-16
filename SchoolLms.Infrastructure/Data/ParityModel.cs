@@ -240,6 +240,18 @@ internal static class ParityModel
             // Mavjud sabablar muddatsiz qoladi — xatti-harakat o'zgarmaydi.
             e.Property(x => x.Period).HasDefaultValue(DisciplinePeriod.None);
             e.ToTable(t => t.HasCheckConstraint("ck_discipline_reasons_period", "period in ('none','week','month')"));
+
+            // Uy vazifasi belgisi bilan avtomatik ball (2026-11-16): bitta belgiga bitta sabab.
+            e.HasIndex(x => x.HomeworkMark).IsUnique().HasFilter("homework_mark is not null")
+                .HasDatabaseName("ux_discipline_reasons_homework_mark");
+        });
+
+        // Avtomatik yozuv bitta jurnal katagiga bitta — belgi qayta saqlansa ikkinchisi tushmaydi.
+        b.Entity<DisciplinePoint>(e =>
+        {
+            e.Property(x => x.SourceKey).HasMaxLength(200);
+            e.HasIndex(x => x.SourceKey).IsUnique().HasFilter("source_key is not null")
+                .HasDatabaseName("ux_discipline_points_source_key");
         });
     }
 

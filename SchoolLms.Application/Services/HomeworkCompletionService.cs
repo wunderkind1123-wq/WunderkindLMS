@@ -397,6 +397,10 @@ public static class HomeworkCompletionService
         }
         await db.SaveChangesAsync(ct);
 
+        // Uy vazifasi belgisi → avtomatik ball (2026-11-16), cleared marks included.
+        await HomeworkDisciplinePoints.SyncAsync(db, owner.Id, subjectId,
+            [.. latest.Select(m => (m.StudentId, m.Date, m.Period))], ct);
+
         // A filled cell marks its lesson "o'tildi" — exactly as a cell saved in the journal does.
         var flags = await JournalSettingsGuard.FlagsAsync(db, ct);
         foreach (var slot in touched.OrderBy(t => t.Date, StringComparer.Ordinal).ThenBy(t => t.Period))

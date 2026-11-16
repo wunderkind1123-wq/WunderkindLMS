@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Archive } from 'lucide-react'
+import { Archive, FileDown } from 'lucide-react'
 import type { TeacherReportRow, TeacherReportDetail } from '@/types'
-import { getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
+import { downloadDailyReport, getTeacherReport, getTeacherReportDetail } from '@/api/services/teacherReports'
+import { useAuth } from '@/context/auth-context'
+import { hasSection } from '@/lib/access'
 import { quarters } from '@/config/constants'
 import { formatDate, cn } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
@@ -22,6 +24,24 @@ export function TeacherReportsPage() {
   const [detail, setDetail] = useState<TeacherReportDetail | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  // Kunlik hisobot PDF'i (2026-11-16): `dailyReport` kaliti borlarga — Telegram'dagi 17:00 hujjatining o'zi.
+  const { user } = useAuth()
+  const canDaily = hasSection(user, 'dailyReport')
+  const [today] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
+  const [dailyDate, setDailyDate] = useState(today)
+  const [dailyBusy, setDailyBusy] = useState(false)
+  const [dailyError, setDailyError] = useState<string | null>(null)
+  const downloadDaily = () => {
+    setDailyBusy(true)
+    setDailyError(null)
+    downloadDailyReport(dailyDate)
+      .catch(() => setDailyError("Hisobotni yuklab bo'lmadi"))
+      .finally(() => setDailyBusy(false))
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- chorak o'zgarganda hisobotni qayta yuklash (maqsadli)
@@ -56,6 +76,29 @@ export function TeacherReportsPage() {
             Dars o'tilishi (jadvalga nisbatan), baho, mavzu va uy vazifa faolligi
           </p>
         </div>
+        {canDaily && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={dailyDate}
+              max={today}
+              onChange={(e) => e.target.value && setDailyDate(e.target.value)}
+              aria-label="Hisobot kuni"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-brand-400"
+            />
+            <button
+              type="button"
+              onClick={downloadDaily}
+              disabled={dailyBusy}
+              title="Baholar, gamifikatsiya ballari va o'tilmagan darslar — har kuni 17:00 da Telegram'ga ham keladi"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+            >
+              <FileDown className="h-4 w-4" />
+              {dailyBusy ? 'Tayyorlanmoqda…' : 'Kunlik hisobot (PDF)'}
+            </button>
+            {dailyError && <span className="text-xs text-red-600">{dailyError}</span>}
+          </div>
+        )}
         <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1">
           <QuarterBtn active={quarter === 0} onClick={() => setQuarter(0)}>
             Barcha

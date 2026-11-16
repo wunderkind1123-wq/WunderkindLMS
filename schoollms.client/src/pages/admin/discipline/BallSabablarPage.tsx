@@ -10,6 +10,7 @@ import {
   disciplineTypeLabel,
   disciplineTypeOf,
   disciplinePeriodLabel,
+  homeworkMarkOptions,
   getDisciplineOwnerCandidates,
   type DisciplineOwnerCandidate,
 } from '@/api/services/discipline'
@@ -40,6 +41,8 @@ export function BallSabablarPage() {
   const [ownerIds, setOwnerIds] = useState<string[]>([])
   const [ownerSearch, setOwnerSearch] = useState('')
   const [period, setPeriod] = useState<DisciplinePeriod>('none')
+  // Uy vazifasi belgisi bilan avtomatik ball (2026-11-16); 0 — bog'lanmagan.
+  const [homeworkMark, setHomeworkMark] = useState(0)
 
   useEffect(() => {
     getDisciplineReasons()
@@ -83,6 +86,7 @@ export function BallSabablarPage() {
     setOwnerIds([])
     setOwnerSearch('')
     setPeriod('none')
+    setHomeworkMark(0)
     setOpen(true)
   }
   const openEdit = (r: DisciplineReason) => {
@@ -96,6 +100,7 @@ export function BallSabablarPage() {
     setOwnerIds(r.ownerUserIds ?? [])
     setOwnerSearch('')
     setPeriod(r.period ?? 'none')
+    setHomeworkMark(r.homeworkMark ?? 0)
     setOpen(true)
   }
 
@@ -112,6 +117,7 @@ export function BallSabablarPage() {
       isActive,
       ownerUserIds: ownerIds,
       period,
+      homeworkMark,
     }
     let saved: DisciplineReason
     if (editing) {
@@ -314,6 +320,14 @@ export function BallSabablarPage() {
                               <Repeat className="h-3 w-3" /> {disciplinePeriodLabel[r.period]}
                             </span>
                           )}
+                          {r.homeworkMark != null && (
+                            <span
+                              title="Ustoz jurnalda shu vazifa belgisini qo'yganda ball avtomatik yoziladi"
+                              className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700"
+                            >
+                              Vazifa «{homeworkMarkOptions.find((o) => o.value === r.homeworkMark)?.symbol}» — avtomatik
+                            </span>
+                          )}
                           {!r.isActive && (
                             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">
                               Faol emas
@@ -478,6 +492,38 @@ export function BallSabablarPage() {
                     : period === 'week'
                       ? "Bitta o'quvchiga shu hafta (dushanba–yakshanba) ichida faqat bir marta qo'yiladi."
                       : "Bitta o'quvchiga shu oy ichida faqat bir marta qo'yiladi (masalan, sentabr uchun qo'yilsa — sentabr tugaguncha qayta qo'yilmaydi)."}
+                </p>
+              </div>
+              <div>
+                <span className="mb-1 block text-sm font-medium text-slate-700">Uy vazifasi belgisi bilan avtomatik</span>
+                <div className="grid grid-cols-4 gap-2">
+                  {[{ value: 0, symbol: '', label: "Yo'q" }, ...homeworkMarkOptions].map((o) => {
+                    // Bitta belgiga bitta sabab: boshqa sababga bog'langan belgi tanlanmaydi.
+                    const takenBy = o.value === 0 ? undefined
+                      : reasons.find((x) => x.homeworkMark === o.value && x.id !== editing?.id)
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        disabled={!!takenBy}
+                        title={takenBy ? `«${takenBy.name}» sababiga bog'langan` : undefined}
+                        onClick={() => setHomeworkMark(o.value)}
+                        className={cn(
+                          'rounded-lg border px-2 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                          homeworkMark === o.value
+                            ? 'border-brand-300 bg-brand-50 text-brand-700'
+                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
+                        )}
+                      >
+                        {o.symbol ? `«${o.symbol}» ${o.label}` : o.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  {homeworkMark === 0
+                    ? "Ball faqat qo'lda qo'yiladi."
+                    : "Ustoz jurnalning «Vazifa» ustunida shu belgini qo'yganda o'quvchiga shu sabab bilan ball avtomatik yoziladi; belgi o'zgarsa yoki o'chirilsa — ball ham tuzatiladi."}
                 </p>
               </div>
               <div>

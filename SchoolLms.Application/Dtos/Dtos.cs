@@ -602,7 +602,7 @@ public record DisciplineReasonDto(
     string Id, string Name, int Points, string Kind,
     bool NotifyParent = false, string? Description = null, bool IsActive = true,
     IReadOnlyList<string>? OwnerUserIds = null, string Period = SchoolLms.Domain.DisciplinePeriod.None,
-    bool CanUse = true);
+    bool CanUse = true, int? HomeworkMark = null);
 
 /// <summary>
 /// A person who can be made an owner of a behaviour reason: <c>Kind</c> = teacher | staff, <c>Label</c> —
@@ -622,10 +622,14 @@ public record DisciplineOwnerCandidateDto(string UserId, string FullName, string
 /// <param name="OwnerUserIds">
 /// Mas'ullar (<c>users.id</c>). <c>null</c> = o'zgarmaydi (eski mijoz); <c>[]</c> = faqat admin qo'yadi.
 /// </param>
+/// <param name="HomeworkMark">
+/// Uy vazifasi belgisi bilan avtomatik ball (2026-11-16): 3 «−» chala, 2 «*» umuman yo'q, 4 «K» darsga
+/// kechikdi. <c>null</c> = o'zgarmaydi; <c>0</c> = bog'lanishni olib tashlash.
+/// </param>
 public record SaveDisciplineReasonRequest(
     string Name, int Points,
     bool? NotifyParent = null, string? Description = null, bool? IsActive = null, string? Type = null,
-    List<string>? OwnerUserIds = null, string? Period = null);
+    List<string>? OwnerUserIds = null, string? Period = null, int? HomeworkMark = null);
 /// <summary>Davomat sababiga ball belgilash so'rovi.</summary>
 public record SetReasonPointsRequest(int Points);
 

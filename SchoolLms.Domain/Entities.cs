@@ -674,6 +674,14 @@ public class DisciplineReason
     /// faqat BIR marta ball qo'yiladi. Masalan "Kitob o'qib topshirdi" — oyiga bir marta.
     /// </summary>
     public string Period { get; set; } = DisciplinePeriod.None;
+
+    /// <summary>
+    /// Uy vazifasi belgisi bilan avtomatik ball (mijoz, 2026-11-16): ustoz jurnalda shu belgini
+    /// (<see cref="SchoolLms.Domain.HomeworkStatus.Partial"/> «−», <see cref="SchoolLms.Domain.HomeworkStatus.NotDone"/> «*»,
+    /// <see cref="SchoolLms.Domain.HomeworkStatus.Late"/> «K» darsga kechikdi) qo'yganda o'quvchiga shu sabab bilan ball yoziladi
+    /// (<c>HomeworkDisciplinePoints</c>). null — bog'lanmagan. Bitta belgiga bitta sabab.
+    /// </summary>
+    public int? HomeworkMark { get; set; }
 }
 
 /// <summary>Who may give a behaviour reason (<see cref="DisciplineReason.OwnerUserIds"/>).</summary>
@@ -771,6 +779,13 @@ public class DisciplinePoint
 
     /// <summary>Who edited last (full name) — null when never edited.</summary>
     public string? UpdatedBy { get; set; }
+
+    /// <summary>
+    /// Avtomatik yozuvning manbasi — uy vazifasi belgisi qo'yilgan jurnal katagi
+    /// (<c>"hw:ega:fan:sana:soat:o'quvchi"</c>, <c>HomeworkDisciplinePoints</c>). Belgi o'zgarsa yoki o'chsa
+    /// yozuv shu kalit bo'yicha tuzatiladi. null — qo'lda qo'yilgan ball.
+    /// </summary>
+    public string? SourceKey { get; set; }
 }
 
 /// <summary>

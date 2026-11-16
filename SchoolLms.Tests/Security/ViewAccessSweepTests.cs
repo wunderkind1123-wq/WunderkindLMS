@@ -29,7 +29,7 @@ public class ViewAccessSweepTests(ApiFixture fixture)
     [
         "dashboard", "leads", "marketing", "admission", "exams", "seasonalMarks", "students",
         "teachers", "attendance", "attendanceEvening", "attendanceDorm", "schedule", "classes",
-        "journal", "messages", "app", "gradesReport", "teacherReports", "contracts", "finance",
+        "journal", "messages", "app", "gradesReport", "teacherReports", "dailyReport", "contracts", "finance",
         "academicYear", "settings", "staff", "feedback", "gps", "cameras", "discipline",
         "lessonAnalysis", "hrTasks", "polls", "kpi", "recruitment", "audit", "chatbot", "curriculum", "monitoring",
     ];

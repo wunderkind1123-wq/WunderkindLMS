@@ -34,7 +34,17 @@ export interface SaveDisciplineReasonInput {
   /** Mas'ullar (user id). `[]` = faqat admin qo'yadi; berilmasa — o'zgarmaydi. */
   ownerUserIds?: string[]
   period?: DisciplinePeriod
+  /** Uy vazifasi belgisi (3 «−», 2 «*», 4 «K»); 0 — bog'lanishni olib tashlash; berilmasa — o'zgarmaydi. */
+  homeworkMark?: number
 }
+
+/** Vazifa belgilari, ball sababiga bog'lash mumkin bo'lganlari (HomeworkDisciplinePoints, server). */
+export const homeworkMarkOptions: { value: number; symbol: string; label: string }[] = [
+  { value: 3, symbol: '−', label: 'Chala' },
+  { value: 2, symbol: '*', label: "Umuman yo'q" },
+  // «K» — darsga kechikish (mijoz, 2026-11-16: "K faqat darsga kechikish uchun").
+  { value: 4, symbol: 'K', label: 'Darsga kechikdi' },
+]
 
 /** Ball sababining mas'uli bo'la oladigan odam: o'qituvchi (sinf rahbari ham) yoki xodim. */
 export interface DisciplineOwnerCandidate {

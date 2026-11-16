@@ -436,6 +436,10 @@ public sealed class DailyAttendanceService(IAppDbContext db)
         mark.LateCount = late;
 
         await db.SaveChangesAsync(ct);
+
+        // A late reason with points takes over from the «K» mark's automatic entry (HomeworkDisciplinePoints).
+        await HomeworkDisciplinePoints.SyncAsync(db, req.ClassId, req.SubjectId,
+            [.. students.Select(s => (s.Id, req.Date, req.Period))], ct);
         return null;
     }
 

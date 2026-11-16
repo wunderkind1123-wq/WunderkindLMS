@@ -90,6 +90,7 @@ public class DisciplineController(
             OwnerUserIds = owners,
             Period = req.Period ?? DisciplinePeriod.None,
         };
+        if (await HomeworkMarkErrorAsync(r, req.HomeworkMark) is { } markError) return BadRequest(new { message = markError });
         db.DisciplineReasons.Add(r);
         await db.SaveChangesAsync();
         return Dto(r);
@@ -120,8 +121,27 @@ public class DisciplineController(
         if (req.NotifyParent is { } notify) r.NotifyParent = notify;
         if (req.Description is not null) r.Description = Trimmed(req.Description);
         if (req.IsActive is { } active) r.IsActive = active;
+        if (await HomeworkMarkErrorAsync(r, req.HomeworkMark) is { } markError) return BadRequest(new { message = markError });
         await db.SaveChangesAsync();
         return Dto(r);
+    }
+
+    /// <summary>
+    /// Links (or with 0 unlinks) the reason to a homework mark (HomeworkDisciplinePoints): only «−», «*»
+    /// and «K», and one reason per mark. null — unchanged. Returns the refusal, or null when applied.
+    /// </summary>
+    private async Task<string?> HomeworkMarkErrorAsync(DisciplineReason r, int? mark)
+    {
+        if (mark is null) return null;
+        if (mark == 0) { r.HomeworkMark = null; return null; }
+        if (!HomeworkDisciplinePoints.IsLinkable(mark))
+            return "Faqat «−» chala, «*» umuman yo'q yoki «K» darsga kechikdi belgisiga bog'lash mumkin";
+        var taken = await db.DisciplineReasons.AsNoTracking()
+            .Where(x => x.HomeworkMark == mark && x.Id != r.Id).Select(x => x.Name).FirstOrDefaultAsync();
+        if (taken is not null)
+            return $"«{HomeworkStatus.Symbol(mark.Value)}» belgisi «{taken}» sababiga bog'langan — avval undan olib tashlang";
+        r.HomeworkMark = mark;
+        return null;
     }
 
     private static string? Trimmed(string? value) =>
@@ -190,7 +210,7 @@ public class DisciplineController(
 
     private DisciplineReasonDto Dto(DisciplineReason r) =>
         new(r.Id, r.Name, r.Points, "other", r.NotifyParent, r.Description, r.IsActive, r.OwnerUserIds, r.Period,
-            MayUse(r));
+            MayUse(r), r.HomeworkMark);
 
     [HttpDelete("reasons/{id}")]
     public async Task<IActionResult> DeleteReason(string id)

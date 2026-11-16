@@ -388,6 +388,9 @@ builder.Services.AddHostedService<SchoolLms.Application.Billing.BillingAccrualSe
 builder.Services.AddHostedService<SchoolLms.Application.Services.AutoMessageScheduler>();
 // Attendance red list: scans at 13:00 and 18:00 on school days, notices to teachers (attendance-red-list.md).
 builder.Services.AddHostedService<SchoolLms.Application.Services.AttendanceRedListScheduler>();
+// Kunlik hisobot: 17:00 da `dailyReport` kaliti bor hisoblarga Telegram'da PDF (2026-11-16).
+builder.Services.AddScoped<SchoolLms.Application.Services.DailyDirectorReportService>();
+builder.Services.AddHostedService<SchoolLms.Application.Services.DailyDirectorReportScheduler>();
 
 // Kamera (videokuzatuv) media-shlyuzi (MediaMTX) bilan ishlash
 builder.Services.AddHttpClient<SchoolLms.Application.Services.CameraGateway>();

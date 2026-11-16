@@ -10,6 +10,22 @@ export async function getTeacherReport(quarter = 0): Promise<TeacherReportRow[]>
   return data
 }
 
+/**
+ * Kunlik o'quv hisoboti PDF'i (2026-11-16) — har kuni 17:00 da Telegram'ga ketadigan hujjatning o'zi.
+ * `date` — "yyyy-MM-dd". Server `dailyReport` kalitini talab qiladi.
+ */
+export async function downloadDailyReport(date: string): Promise<void> {
+  const res = await api.get('/admin/daily-report/pdf', { params: { date }, responseType: 'blob' })
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `Kunlik_hisobot_${date.split('-').reverse().join('.')}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 /** Bitta o'qituvchining batafsil hisoboti (sinf/fan yoyilmasi). */
 export async function getTeacherReportDetail(
   id: string,

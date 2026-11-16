@@ -113,6 +113,8 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'app', label: 'Ilova' },
   { key: 'gradesReport', label: 'Baholar hisoboti' },
   { key: 'teacherReports', label: "O'qituvchilar hisoboti" },
+  // Kunlik hisobot (2026-11-16): har kuni 17:00 da Telegram'ga PDF — baholar, gamifikatsiya, o'tilmagan darslar.
+  { key: 'dailyReport', label: 'Kunlik hisobot (Telegram, 17:00)' },
   { key: 'contracts', label: 'Shartnomalar' },
   { key: 'finance', label: 'Moliya' },
   { key: 'academicYear', label: "Yangi o'quv yili" },
@@ -142,7 +144,7 @@ export const adminPermissionGroups: { label: string; keys: string[] }[] = [
   { label: 'Moliya', keys: ['finance', 'contracts'] },
   { label: "O'quv bo'limi", keys: ['students', 'classes', 'teachers', 'journal', 'schedule', 'curriculum', 'monitoring'] },
   { label: 'Davomat', keys: ['attendance', 'attendanceMark', 'attendanceCases', 'attendanceEvening', 'attendanceDorm'] },
-  { label: 'Baholash', keys: ['exams', 'seasonalMarks', 'gradesReport', 'teacherReports', 'discipline'] },
+  { label: 'Baholash', keys: ['exams', 'seasonalMarks', 'gradesReport', 'teacherReports', 'dailyReport', 'discipline'] },
   { label: 'Aloqa va ilova', keys: ['messages', 'app', 'feedback', 'polls'] },
   { label: 'Boshqaruv', keys: ['staff', 'gps', 'cameras', 'lessonAnalysis', 'kpi', 'audit'] },
   { label: 'HR', keys: ['hrTasks', 'recruitment'] },

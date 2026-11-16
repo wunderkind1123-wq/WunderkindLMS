@@ -164,6 +164,7 @@ public static class JournalService
             {
                 db.JournalEntries.Remove(entry);
                 await db.SaveChangesAsync();
+                await HomeworkDisciplinePoints.SyncAsync(db, req.ClassId, req.SubjectId, [(req.StudentId, req.Date, req.Period)]);
             }
             return null;
         }
@@ -193,6 +194,9 @@ public static class JournalService
         // Katakning O'ZI avval yoziladi — quyidagi "baholar to'liqmi" tekshiruvi ayni shu
         // bahoni ham hisobga olishi kerak, EF so'rovi esa saqlanmagan o'zgarishni ko'rmaydi.
         await db.SaveChangesAsync();
+
+        // Uy vazifasi belgisi → avtomatik ball (2026-11-16): belgi o'zgarsa ball ham ergashadi.
+        await HomeworkDisciplinePoints.SyncAsync(db, req.ClassId, req.SubjectId, [(req.StudentId, req.Date, req.Period)]);
 
         // Baho/davomat/uyga vazifa/xulq/o'zlashtirish kiritilsa — shu darsni "o'tildi" deb
         // avtomatik belgilaymiz. §5.5 `is_student_grade_required` yoqiq bo'lsa, bu AVTOMATIK
@@ -276,6 +280,8 @@ public static class JournalService
             }
         }
         await db.SaveChangesAsync();
+        // Belgi o'chdi — uning avtomatik bali ham (HomeworkDisciplinePoints).
+        await HomeworkDisciplinePoints.SyncAsync(db, classId, subjectId, [(studentId, date, period)]);
     }
 
     /* ---------- Chorak (yakuniy) bahosi ---------- */

@@ -358,6 +358,40 @@ public class TeacherDisciplineTests(ApiFixture fixture)
     }
 
     // =====================================================================
+    //  Track groups (client, 2026-11-16: "yo'nalish ustozlari uchun gamifikatsiya ko'rinadimi")
+    // =====================================================================
+
+    [Fact]
+    public async Task Track_group_teacher_sees_scores_and_gives_points_to_the_group()
+    {
+        var w = await SeedAsync();
+        var (gUser, g) = await TeacherAsync(w, TeacherPermissions.Journal);
+        var track = new StudyGroup { Name = $"Ijtimoiy {Guid.NewGuid():N}"[..20], IsTrack = true, CreatedBy = gUser.Id, CreatedAt = DateTimeOffset.UtcNow };
+        await fixture.Api.WithDbAsync(async db =>
+        {
+            var teacher = await db.Teachers.SingleAsync(x => x.UserId == gUser.Id);
+            db.StudyGroups.Add(track);
+            db.StudyGroupTeachers.Add(new StudyGroupTeacher { GroupId = track.Id, TeacherId = teacher.Id });
+            db.StudyGroupMembers.Add(new StudyGroupMember
+            {
+                GroupId = track.Id, StudentId = w.D1, JoinedOn = AppClock.Today.AddDays(-30), CreatedBy = gUser.Id, CreatedAt = DateTimeOffset.UtcNow,
+            });
+            foreach (var r in await db.DisciplineReasons.Where(r => r.Id == w.PositiveId).ToListAsync())
+                r.OwnerUserIds = [.. r.OwnerUserIds, gUser.Id];
+            await db.SaveChangesAsync();
+        });
+
+        // The lesson screen's badges for the track group, and the reasons the teacher owns.
+        var rows = await ArrayAsync(g, $"{Base}/scores?ownerId={track.Id}");
+        Assert.Contains(rows, r => Str(r, "studentId") == w.D1);
+        Assert.Contains(await ArrayAsync(g, $"{Base}/reasons"), r => Str(r, "id") == w.PositiveId);
+
+        // A point for a member of the group; a pupil outside it stays out of reach.
+        Assert.Equal(HttpStatusCode.OK, (await Add(g, w.D1, w.PositiveId)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Add(g, w.B1, w.PositiveId)).StatusCode);
+    }
+
+    // =====================================================================
     //  Helpers
     // =====================================================================
 

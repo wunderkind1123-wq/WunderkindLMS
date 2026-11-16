@@ -34,6 +34,7 @@ import {
 import { billingErrorMessage } from '@/api/services/billingError'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { MonthPicker } from '@/components/ui/DatePicker'
 import { AsyncBlock, Notice, StatusPill } from '../billing/BillingUi'
 import { ReasonModal } from '../billing/ReasonModal'
 import { AdjustmentFormModal } from './AdjustmentFormModal'
@@ -47,9 +48,17 @@ interface Props {
   kind: AdjustmentKind
 }
 
+/** "2026-11" — the current month, the page's default (client, 2026-11-16: months must not mix). */
+function currentMonth(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export function AdjustmentsPage({ kind }: Props) {
   const label = adjustmentKindLabels[kind]
 
+  // Oy filtri (mijoz, 2026-11-16): har oyning yozuvlari alohida ko'rinadi; bo'sh — barcha oylar.
+  const [month, setMonth] = useState<string>(currentMonth)
   const [rows, setRows] = useState<PayrollAdjustment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,11 +77,12 @@ export function AdjustmentsPage({ kind }: Props) {
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    getPayrollAdjustments({ kind })
+    const [periodYear, periodMonth] = month ? month.split('-').map(Number) : [undefined, undefined]
+    getPayrollAdjustments({ kind, periodYear, periodMonth })
       .then(setRows)
       .catch((e: unknown) => setError(billingErrorMessage(e, `${label} ro'yxatini yuklab bo'lmadi`)))
       .finally(() => setLoading(false))
-  }, [kind, label])
+  }, [kind, label, month])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- sahifa/kind almashganda birinchi yuklash
   useEffect(() => load(), [load])
@@ -87,7 +97,9 @@ export function AdjustmentsPage({ kind }: Props) {
     setFormError(null)
     try {
       const created = await createPayrollAdjustment(values)
-      setRows((prev) => [created, ...prev])
+      // Boshqa oyga yozilgan yozuv tanlangan oy ro'yxatiga qo'shilmaydi.
+      if (!month || month === `${created.periodYear}-${String(created.periodMonth).padStart(2, '0')}`)
+        setRows((prev) => [created, ...prev])
       setPageNotice(`${label} yozildi: ${created.employeeName} — ${formatMoney(created.amount)} so'm.`)
       setFormOpen(false)
     } catch (e: unknown) {
@@ -121,9 +133,20 @@ export function AdjustmentsPage({ kind }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">{label}</h1>
-          <p className="text-sm text-slate-400">Jami {rows.length} ta yozuv</p>
+          <p className="text-sm text-slate-400">
+            {month ? `${MONTH_NAMES[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}` : 'Barcha oylar'}
+            {' · '}{rows.length} ta yozuv · faol jami {formatMoney(activeTotal(rows))} so'm
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <MonthPicker
+            value={month}
+            onChange={(value: string) => setMonth(value)}
+            clearable
+            placeholder="Barcha oylar"
+            ariaLabel="Oy"
+            className="w-44"
+          />
           <Button variant="secondary" onClick={() => setReasonsOpen(true)}>
             <Settings2 className="h-4 w-4" /> Sabablarni boshqarish
           </Button>
@@ -253,6 +276,11 @@ export function AdjustmentsPage({ kind }: Props) {
       />
     </div>
   )
+}
+
+/** Faol yozuvlar summasi: bekor qilinganlar va storno qatorlari kirmaydi. */
+function activeTotal(rows: PayrollAdjustment[]): number {
+  return rows.filter((r) => !r.reversalOf && !r.reversed).reduce((sum, r) => sum + r.amount, 0)
 }
 
 function formatMoney(value: number): string {

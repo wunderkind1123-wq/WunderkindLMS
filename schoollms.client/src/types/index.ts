@@ -1194,6 +1194,11 @@ export interface DisciplineReason {
   period?: DisciplinePeriod
   /** Joriy foydalanuvchi shu sabab bilan ball qo'ya oladimi (admin — har doim). */
   canUse?: boolean
+  /**
+   * Uy vazifasi belgisi bilan avtomatik ball (2026-11-16): 3 «−» chala, 2 «*» umuman yo'q, 4 «K» darsga
+   * kechikdi. Ustoz jurnalda shu belgini qo'yganda o'quvchiga shu sabab bilan ball yoziladi. null — yo'q.
+   */
+  homeworkMark?: number | null
 }
 
 /** none — cheklovsiz; week — haftasiga bir marta (du–ya); month — oyiga bir marta. */
