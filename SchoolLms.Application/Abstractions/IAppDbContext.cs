@@ -384,6 +384,19 @@ public interface IAppDbContext
     DbSet<MonitoringItem> MonitoringItems { get; }
     DbSet<MonitoringParticipant> MonitoringParticipants { get; }
 
+    /// <summary>Olimpiada (Olympiad.cs, docs/modules/olympiad.md).</summary>
+    DbSet<OlympiadSettings> OlympiadSettings { get; }
+    DbSet<OlympiadChannel> OlympiadChannels { get; }
+    DbSet<OlympiadBotUser> OlympiadBotUsers { get; }
+    DbSet<OlympiadParticipant> OlympiadParticipants { get; }
+    DbSet<OlympiadEvent> OlympiadEvents { get; }
+    DbSet<OlympiadRegistration> OlympiadRegistrations { get; }
+    DbSet<OlympiadReminder> OlympiadReminders { get; }
+    DbSet<OlympiadBroadcast> OlympiadBroadcasts { get; }
+    DbSet<OlympiadDelivery> OlympiadDeliveries { get; }
+    DbSet<OlympiadTemplate> OlympiadTemplates { get; }
+    DbSet<OlympiadMediaCache> OlympiadMediaCache { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 

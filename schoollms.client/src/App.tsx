@@ -164,6 +164,13 @@ const SubscriptionClassPage = lazy(() => import('@/pages/admin/finance/subscript
 const NotesPage = lazy(() => import('@/pages/admin/wiki/NotesPage').then((m) => ({ default: m.NotesPage })))
 const WikiEntry = lazy(() => import('@/pages/admin/wiki/WikiEntry').then((m) => ({ default: m.WikiEntry })))
 const lazyPage = (node: ReactNode) => <Suspense fallback={<Loader label="Yuklanmoqda…" />}>{node}</Suspense>
+// Olimpiada (docs/modules/olympiad.md) — LAZY: QR skaner va diagrammalar asosiy bundle'ga tushmasin.
+const OlympiadEventsPage = lazy(() => import('@/pages/admin/olympiad/EventsPage'))
+const OlympiadEventPage = lazy(() => import('@/pages/admin/olympiad/EventPage'))
+const OlympiadCheckinPage = lazy(() => import('@/pages/admin/olympiad/CheckinPage'))
+const OlympiadParticipantsPage = lazy(() => import('@/pages/admin/olympiad/ParticipantsPage'))
+const OlympiadBroadcastsPage = lazy(() => import('@/pages/admin/olympiad/BroadcastsPage'))
+const OlympiadSettingsPage = lazy(() => import('@/pages/admin/olympiad/SettingsPage'))
 
 export default function App() {
   return (
@@ -191,6 +198,14 @@ export default function App() {
           <Route index element={<AdminHome />} />
           <Route path="leads" element={<RequirePerm perm="leads"><LeadsPage /></RequirePerm>} />
           <Route path="leads/funnel" element={<RequirePerm perm="leads"><LeadFunnelPage /></RequirePerm>} />
+          {/* Olimpiada (docs/modules/olympiad.md). Statik yo'llar `:id` dan ustun (React Router reytingi).
+              «Kirish» — `olympiadCheckin` YOKI to'liq `olympiad`. */}
+          <Route path="olimpiada" element={lazyPage(<RequirePerm perm="olympiad"><OlympiadEventsPage /></RequirePerm>)} />
+          <Route path="olimpiada/kirish" element={lazyPage(<RequirePerm perm={['olympiadCheckin', 'olympiad']}><OlympiadCheckinPage /></RequirePerm>)} />
+          <Route path="olimpiada/ishtirokchilar" element={lazyPage(<RequirePerm perm="olympiad"><OlympiadParticipantsPage /></RequirePerm>)} />
+          <Route path="olimpiada/rassilka" element={lazyPage(<RequirePerm perm="olympiad"><OlympiadBroadcastsPage /></RequirePerm>)} />
+          <Route path="olimpiada/sozlamalar" element={lazyPage(<RequirePerm perm="olympiad"><OlympiadSettingsPage /></RequirePerm>)} />
+          <Route path="olimpiada/:id" element={lazyPage(<RequirePerm perm="olympiad"><OlympiadEventPage /></RequirePerm>)} />
           {/* `key` — ikki yo'l bitta komponent: menyudan o'tilganda sahifa qayta yaratilsin,
               aks holda ichki "Faol/Arxiv" holati eski qolib, ro'yxat almashmasdi. */}
           <Route path="students" element={<RequirePerm perm="students"><StudentsPage key="active" /></RequirePerm>} />

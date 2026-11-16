@@ -6230,7 +6230,7 @@ namespace SchoolLms.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("ck_leads_admission_status", "admission_status in ('none','invited','testing','tested','accepted','rejected')");
 
-                            t.HasCheckConstraint("ck_leads_source", "source in ('manual','survey')");
+                            t.HasCheckConstraint("ck_leads_source", "source in ('manual','survey','olympiad')");
 
                             t.HasCheckConstraint("ck_leads_source_survey", "(source = 'survey') = (survey_id is not null)");
                         });
@@ -8042,6 +8042,888 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasName("pk_notification_states");
 
                     b.ToTable("notification_states", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadBotUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("first_name");
+
+                    b.Property<bool>("IsBlocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_blocked");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("last_name");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<DateTime?>("SubscribedUntil")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("subscribed_until");
+
+                    b.Property<long>("TelegramUserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("telegram_user_id");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_bot_users");
+
+                    b.HasIndex("TelegramUserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_olympiad_bot_users_telegram_user_id");
+
+                    b.ToTable("olympiad_bot_users", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadBroadcast", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AttachmentsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("attachments_json");
+
+                    b.Property<string>("AudienceJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("audience_json");
+
+                    b.Property<int>("Blocked")
+                        .HasColumnType("integer")
+                        .HasColumnName("blocked");
+
+                    b.Property<string>("ButtonsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("buttons_json");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("Failed")
+                        .HasColumnType("integer")
+                        .HasColumnName("failed");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("scheduled_at");
+
+                    b.Property<int>("Sent")
+                        .HasColumnType("integer")
+                        .HasColumnName("sent");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer")
+                        .HasColumnName("total");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_broadcasts");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_olympiad_broadcasts_status");
+
+                    b.ToTable("olympiad_broadcasts", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadChannel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ChatRef")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("chat_ref");
+
+                    b.Property<string>("InviteLink")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("invite_link");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("LastError")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("last_error");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_channels");
+
+                    b.ToTable("olympiad_channels", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadDelivery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Guid>("BotUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bot_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("RefId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ref_id");
+
+                    b.Property<Guid>("RegistrationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("registration_id");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Tag")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("tag");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_deliveries");
+
+                    b.HasIndex("Status", "Id")
+                        .HasDatabaseName("ix_olympiad_deliveries_status_id");
+
+                    b.HasIndex("Kind", "RefId", "BotUserId", "RegistrationId", "Tag")
+                        .IsUnique()
+                        .HasDatabaseName("ix_olympiad_deliveries_kind_ref_id_bot_user_id_registration_id");
+
+                    b.ToTable("olympiad_deliveries", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("Capacity")
+                        .HasColumnType("integer")
+                        .HasColumnName("capacity");
+
+                    b.Property<DateTime?>("CheckinClosedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("checkin_closed_at");
+
+                    b.Property<int>("Code")
+                        .HasColumnType("integer")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("end_time");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_number");
+
+                    b.Property<int>("LastWaitlistSeq")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_waitlist_seq");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("location");
+
+                    b.Property<string>("LocationMapUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("location_map_url");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("max_score");
+
+                    b.Property<string>("OnFull")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("on_full");
+
+                    b.Property<DateTime?>("RegistrationClosesAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("registration_closes_at");
+
+                    b.Property<DateTime?>("RegistrationOpensAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("registration_opens_at");
+
+                    b.Property<DateTime?>("ResultsSentAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("results_sent_at");
+
+                    b.Property<string>("RulesDisplay")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("rules_display");
+
+                    b.Property<string>("RulesFileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("rules_file_name");
+
+                    b.Property<string>("RulesFileUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rules_file_url");
+
+                    b.Property<string>("RulesText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rules_text");
+
+                    b.Property<int>("RulesVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("rules_version");
+
+                    b.Property<int>("SeatsTaken")
+                        .HasColumnType("integer")
+                        .HasColumnName("seats_taken");
+
+                    b.Property<bool>("ShowCertificate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_certificate");
+
+                    b.Property<bool>("ShowInvite")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_invite");
+
+                    b.Property<bool>("ShowRank")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_rank");
+
+                    b.Property<bool>("ShowScore")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_score");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("start_time");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_events");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_olympiad_events_code");
+
+                    b.HasIndex("Status", "StartsAt")
+                        .HasDatabaseName("ix_olympiad_events_status_starts_at");
+
+                    b.ToTable("olympiad_events", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadMediaCache", b =>
+                {
+                    b.Property<string>("Path")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("path");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FileId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("file_id");
+
+                    b.HasKey("Path")
+                        .HasName("pk_olympiad_media_cache");
+
+                    b.ToTable("olympiad_media_cache", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BotUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("bot_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("full_name");
+
+                    b.Property<int>("Grade")
+                        .HasColumnType("integer")
+                        .HasColumnName("grade");
+
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_hidden");
+
+                    b.Property<DateTime?>("LeadConvertedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("lead_converted_at");
+
+                    b.Property<string>("LeadId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("lead_id");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("School")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("school");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_participants");
+
+                    b.HasIndex("BotUserId")
+                        .HasDatabaseName("ix_olympiad_participants_bot_user_id");
+
+                    b.HasIndex("Phone")
+                        .HasDatabaseName("ix_olympiad_participants_phone");
+
+                    b.ToTable("olympiad_participants", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadRegistration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<DateTime?>("CheckedInAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("checked_in_at");
+
+                    b.Property<string>("CheckedInBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("checked_in_by");
+
+                    b.Property<string>("CheckinMethod")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("checkin_method");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedVia")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("created_via");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("participant_id");
+
+                    b.Property<string>("QrToken")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("qr_token");
+
+                    b.Property<DateTime?>("ResultSentAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("result_sent_at");
+
+                    b.Property<decimal?>("ResultSentScore")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("result_sent_score");
+
+                    b.Property<DateTime?>("RulesAcceptedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("rules_accepted_at");
+
+                    b.Property<int>("RulesVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("rules_version");
+
+                    b.Property<decimal?>("Score")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("score");
+
+                    b.Property<string>("ScoreSource")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("score_source");
+
+                    b.Property<DateTime?>("ScoreUpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("score_updated_at");
+
+                    b.Property<string>("ScoreUpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("score_updated_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("WaitlistSeq")
+                        .HasColumnType("integer")
+                        .HasColumnName("waitlist_seq");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_registrations");
+
+                    b.HasIndex("ParticipantId")
+                        .HasDatabaseName("ix_olympiad_registrations_participant_id");
+
+                    b.HasIndex("QrToken")
+                        .IsUnique()
+                        .HasDatabaseName("ix_olympiad_registrations_qr_token");
+
+                    b.HasIndex("EventId", "ParticipantId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_olympiad_registrations_event_id_participant_id");
+
+                    b.ToTable("olympiad_registrations", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadReminder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AttachmentsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("attachments_json");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<int?>("OffsetMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("offset_minutes");
+
+                    b.Property<DateTime?>("SendAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("send_at");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<int>("SentCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sent_count");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("target");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_reminders");
+
+                    b.HasIndex("EventId")
+                        .HasDatabaseName("ix_olympiad_reminders_event_id");
+
+                    b.HasIndex("Status", "EventId")
+                        .HasDatabaseName("ix_olympiad_reminders_status_event_id");
+
+                    b.ToTable("olympiad_reminders", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AdminLink")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("admin_link");
+
+                    b.Property<string>("BotName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("bot_name");
+
+                    b.Property<string>("BotToken")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("bot_token");
+
+                    b.Property<string>("BotUsername")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("bot_username");
+
+                    b.Property<string>("CertificateFormat")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("certificate_format");
+
+                    b.Property<string>("DefaultOnFull")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("default_on_full");
+
+                    b.Property<int>("GradeFrom")
+                        .HasColumnType("integer")
+                        .HasColumnName("grade_from");
+
+                    b.Property<int>("GradeTo")
+                        .HasColumnType("integer")
+                        .HasColumnName("grade_to");
+
+                    b.Property<string>("InviteText")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("invite_text");
+
+                    b.Property<string>("InviteUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("invite_url");
+
+                    b.Property<bool>("Reminder1Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reminder1enabled");
+
+                    b.Property<int>("Reminder1Minutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("reminder1minutes");
+
+                    b.Property<bool>("Reminder2Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reminder2enabled");
+
+                    b.Property<int>("Reminder2Minutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("reminder2minutes");
+
+                    b.Property<bool>("ResultShowCertificate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("result_show_certificate");
+
+                    b.Property<bool>("ResultShowInvite")
+                        .HasColumnType("boolean")
+                        .HasColumnName("result_show_invite");
+
+                    b.Property<bool>("ResultShowRank")
+                        .HasColumnType("boolean")
+                        .HasColumnName("result_show_rank");
+
+                    b.Property<bool>("ResultShowScore")
+                        .HasColumnType("boolean")
+                        .HasColumnName("result_show_score");
+
+                    b.Property<string>("RulesDisplay")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("rules_display");
+
+                    b.Property<string>("RulesFileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("rules_file_name");
+
+                    b.Property<string>("RulesFileUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rules_file_url");
+
+                    b.Property<string>("RulesText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rules_text");
+
+                    b.Property<int>("RulesVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("rules_version");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_olympiad_settings");
+
+                    b.ToTable("olympiad_settings", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadTemplate", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("AttachmentsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("attachments_json");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Key")
+                        .HasName("pk_olympiad_templates");
+
+                    b.ToTable("olympiad_templates", (string)null);
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.OnboardingStepTemplate", b =>
@@ -13257,6 +14139,42 @@ namespace SchoolLms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_notification_states_users_user_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadParticipant", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.OlympiadBotUser", null)
+                        .WithMany()
+                        .HasForeignKey("BotUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_olympiad_participants_olympiad_bot_users_bot_user_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadRegistration", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.OlympiadEvent", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_olympiad_registrations_olympiad_events_event_id");
+
+                    b.HasOne("SchoolLms.Domain.OlympiadParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("ParticipantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_olympiad_registrations_olympiad_participants_participant_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.OlympiadReminder", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.OlympiadEvent", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_olympiad_reminders_olympiad_events_event_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.Payment", b =>

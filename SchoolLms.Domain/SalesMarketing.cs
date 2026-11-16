@@ -53,7 +53,10 @@ public static class LeadSource
     /// <summary>Ommaviy ariza formasi (<c>/ariza/:slug</c>) orqali kelgan.</summary>
     public const string Survey = "survey";
 
-    public static readonly IReadOnlyList<string> All = [Manual, Survey];
+    /// <summary>Olimpiada bo'limidan "Lidga aylantirish" (docs/modules/olympiad.md).</summary>
+    public const string Olympiad = "olympiad";
+
+    public static readonly IReadOnlyList<string> All = [Manual, Survey, Olympiad];
 }
 
 /// <summary>

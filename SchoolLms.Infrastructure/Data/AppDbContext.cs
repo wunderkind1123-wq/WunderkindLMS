@@ -303,6 +303,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<MonitoringItem> MonitoringItems => Set<MonitoringItem>();
     public DbSet<MonitoringParticipant> MonitoringParticipants => Set<MonitoringParticipant>();
 
+    // Olimpiada (Olympiad.cs, docs/modules/olympiad.md). Configuration: OlympiadModel.cs.
+    public DbSet<OlympiadSettings> OlympiadSettings => Set<OlympiadSettings>();
+    public DbSet<OlympiadChannel> OlympiadChannels => Set<OlympiadChannel>();
+    public DbSet<OlympiadBotUser> OlympiadBotUsers => Set<OlympiadBotUser>();
+    public DbSet<OlympiadParticipant> OlympiadParticipants => Set<OlympiadParticipant>();
+    public DbSet<OlympiadEvent> OlympiadEvents => Set<OlympiadEvent>();
+    public DbSet<OlympiadRegistration> OlympiadRegistrations => Set<OlympiadRegistration>();
+    public DbSet<OlympiadReminder> OlympiadReminders => Set<OlympiadReminder>();
+    public DbSet<OlympiadBroadcast> OlympiadBroadcasts => Set<OlympiadBroadcast>();
+    public DbSet<OlympiadDelivery> OlympiadDeliveries => Set<OlympiadDelivery>();
+    public DbSet<OlympiadTemplate> OlympiadTemplates => Set<OlympiadTemplate>();
+    public DbSet<OlympiadMediaCache> OlympiadMediaCache => Set<OlympiadMediaCache>();
+
     /// <inheritdoc />
     public Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default) =>
@@ -590,6 +603,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Bilimlar bazasi — shaxsiy eslatmalar (2026-11-03, docs/modules/wiki.md).
         WikiModel.Apply(b);
+
+        // Olimpiada (2026-11-16, docs/modules/olympiad.md).
+        OlympiadModel.Apply(b);
 
         // ----- PostgreSQL: vaqt turi -----
         // Tizim sanalarni Toshkent "devor soati" sifatida saqlaydi (AppClock.Now — Kind=Unspecified),

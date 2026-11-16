@@ -20,6 +20,7 @@ import {
   Newspaper,
   ListChecks,
   NotebookPen,
+  Trophy,
 } from 'lucide-react'
 import type { Role } from '@/types'
 import { SHOW_PARENT_FINANCE } from './flags'
@@ -105,6 +106,21 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Sinov', to: '/admin/chatbot/playground', perm: 'chatbot', group: 'CHATBOT' },
         { label: 'Sozlamalar', to: '/admin/chatbot/settings', perm: 'chatbot', group: 'CHATBOT' },
         { label: 'Foydalanuvchilar', to: '/admin/chatbot/users', perm: 'chatbot', group: 'CHATBOT' },
+      ],
+    },
+    // Olimpiada (docs/modules/olympiad.md, 2026-11-16): tashqi bolalar uchun bepul olimpiadalar — alohida bot,
+    // QR bilan kirish, natija va sertifikat. «Kirish (QR)» — o'z kaliti (`olympiadCheckin`): imtihon kuni
+    // eshikdagi xodimga faqat shu sahifa beriladi.
+    {
+      label: 'Olimpiada',
+      to: '/admin/olimpiada',
+      icon: Trophy,
+      children: [
+        { label: 'Tadbirlar', to: '/admin/olimpiada', end: true, perm: 'olympiad', group: 'TADBIRLAR' },
+        { label: 'Kirish (QR)', to: '/admin/olimpiada/kirish', perm: 'olympiadCheckin', group: 'TADBIRLAR' },
+        { label: 'Ishtirokchilar', to: '/admin/olimpiada/ishtirokchilar', perm: 'olympiad', group: 'BAZA' },
+        { label: 'Rassilka', to: '/admin/olimpiada/rassilka', perm: 'olympiad', group: 'ALOQA' },
+        { label: 'Sozlamalar', to: '/admin/olimpiada/sozlamalar', perm: 'olympiad', group: 'SOZLAMALAR' },
       ],
     },
     {

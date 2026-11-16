@@ -328,6 +328,10 @@ builder.Services.AddHostedService<SchoolLms.Application.Services.TurnstileLiveSe
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<TelegramService>();
 builder.Services.AddHostedService<TelegramBotService>();
+// Olimpiada boti (docs/modules/olympiad.md) — maktab botidan alohida token va xizmat.
+builder.Services.AddSingleton<SchoolLms.Application.Olympiad.OlympiadTelegram>();
+builder.Services.AddHostedService<SchoolLms.Application.Olympiad.OlympiadBotService>();
+builder.Services.AddHostedService<SchoolLms.Application.Olympiad.OlympiadScheduler>();
 
 // O'zgarishlar tarixi (audit) — joriy foydalanuvchini aniqlash uchun HttpContext kerak
 builder.Services.AddHttpContextAccessor();
@@ -512,6 +516,9 @@ using (var scope = app.Services.CreateScope())
     // Telegram bot tokeni — restartdan keyin bot avtomatik ishga tushadi; token yo'q bo'lsa
     // admin Sozlamadan kiritguncha kutadi.
     scope.ServiceProvider.GetRequiredService<TelegramService>().Load(db);
+    // Olimpiada boti tokeni — jadval hali yo'q bo'lsa (migratsiya o'chiq) ishga tushish to'xtamasin.
+    try { scope.ServiceProvider.GetRequiredService<SchoolLms.Application.Olympiad.OlympiadTelegram>().Load(db); }
+    catch (Exception ex) { app.Logger.LogWarning(ex, "Olimpiada boti sozlamasi o'qilmadi"); }
 
     // Dars tahlili: the 34 checklist criteria in 8 sections — only into an EMPTY sections
     // table (old rule: a restart must not undo an admin's edits). Best-effort: with

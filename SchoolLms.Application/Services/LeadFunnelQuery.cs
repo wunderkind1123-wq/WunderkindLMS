@@ -157,7 +157,7 @@ public static class LeadFunnelQuery
                 var enrolled = enrolledBySource.GetValueOrDefault(key);
                 var label = key.SurveyId is { } id
                     ? surveyNames.GetValueOrDefault(id, "Ariza")
-                    : ManualSourceLabel;
+                    : key.Source == LeadSource.Olympiad ? "Olimpiada" : ManualSourceLabel;
                 return new LeadFunnelSourceDto(
                     key.Source, key.SurveyId, label,
                     g.Count, inFunnel, final, sourceLost,

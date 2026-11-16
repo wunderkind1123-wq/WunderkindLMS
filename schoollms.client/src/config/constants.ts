@@ -133,6 +133,9 @@ export const adminPermissions: { key: string; label: string }[] = [
   { key: 'audit', label: "O'zgarishlar tarixi" },
   // Instagram/Telegram AI agenti (docs/modules/chatbot.md): to'liq — sozlamalar ham, ko'rish — inbox va lidlar.
   { key: 'chatbot', label: 'Chatbot' },
+  // Olimpiada (docs/modules/olympiad.md, 2026-11-16): to'liq bo'lim va faqat imtihon kuni kirishni belgilash.
+  { key: 'olympiad', label: 'Olimpiada' },
+  { key: 'olympiadCheckin', label: 'Olimpiada — kirishni belgilash' },
 ]
 
 /**
@@ -141,6 +144,7 @@ export const adminPermissions: { key: string; label: string }[] = [
  */
 export const adminPermissionGroups: { label: string; keys: string[] }[] = [
   { label: 'Asosiy', keys: ['dashboard', 'leads', 'chatbot', 'marketing', 'admission'] },
+  { label: 'Olimpiada', keys: ['olympiad', 'olympiadCheckin'] },
   { label: 'Moliya', keys: ['finance', 'contracts'] },
   { label: "O'quv bo'limi", keys: ['students', 'classes', 'teachers', 'journal', 'schedule', 'curriculum', 'monitoring'] },
   { label: 'Davomat', keys: ['attendance', 'attendanceMark', 'attendanceCases', 'attendanceEvening', 'attendanceDorm'] },

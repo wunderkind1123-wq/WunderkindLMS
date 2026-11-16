@@ -52,7 +52,7 @@ export interface LeadFunnelGrade {
  * ariza formasidan kelganlar — har bir ariza alohida qator.
  */
 export interface LeadFunnelSource {
-  source: 'manual' | 'survey'
+  source: 'manual' | 'survey' | 'olympiad'
   /** Faqat `survey` qatorida. */
   surveyId: string | null
   label: string

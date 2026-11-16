@@ -32,6 +32,8 @@ public class ViewAccessSweepTests(ApiFixture fixture)
         "journal", "messages", "app", "gradesReport", "teacherReports", "dailyReport", "contracts", "finance",
         "academicYear", "settings", "staff", "feedback", "gps", "cameras", "discipline",
         "lessonAnalysis", "hrTasks", "polls", "kpi", "recruitment", "audit", "chatbot", "curriculum", "monitoring",
+        // Olimpiada (docs/modules/olympiad.md, 2026-11-16).
+        "olympiad", "olympiadCheckin",
     ];
 
     /// <summary>
