@@ -49,6 +49,12 @@ public class OlympiadApiTests(ApiFixture fixture)
         return (admin, id);
     }
 
+    /// <summary>
+    /// Parallel so'rovlar pulda o'nlab bo'sh ulanish qoldiradi (bir necha daqiqa yopilmaydi) — to'liq yurishda
+    /// keyingi test sinflariga Postgres ulanishi yetmay qolardi (53300). Shu test ochganlarini darrov yopamiz.
+    /// </summary>
+    private static void ReleaseIdleConnections() => Npgsql.NpgsqlConnection.ClearAllPools();
+
     private static string Phone() => "+99890" + Random.Shared.Next(1000000, 9999999);
 
     [Fact]
@@ -106,6 +112,7 @@ public class OlympiadApiTests(ApiFixture fixture)
 
         var id = a.GetProperty("id").GetString();
         await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => admin.PostAsync($"{Base}/registrations/{id}/cancel", null)));
+        ReleaseIdleConnections();
 
         var list = (await OkAsync(admin.GetAsync($"{Base}/events/{ev}/registrations"))).EnumerateArray()
             .ToDictionary(r => r.GetProperty("id").GetString()!, r => r.GetProperty("status").GetString());
@@ -134,6 +141,7 @@ public class OlympiadApiTests(ApiFixture fixture)
         var calls = Enumerable.Range(0, 12).Select(i =>
             admin.PostAsJsonAsync($"{Base}/events/{ev}/registrations", Kid($"Bola Nomer{(char)('A' + i)}", Phone())));
         await Task.WhenAll(calls);
+        ReleaseIdleConnections();
         var list = await OkAsync(admin.GetAsync($"{Base}/events/{ev}/registrations"));
         var regs = list.EnumerateArray().ToList();
         Assert.Equal(3, regs.Count(r => r.GetProperty("status").GetString() == "registered"));
