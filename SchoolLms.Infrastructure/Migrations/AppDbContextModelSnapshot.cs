@@ -2715,6 +2715,11 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("subject_id");
 
+                    b.Property<string>("TeacherId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("teacher_id");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -2731,15 +2736,28 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasIndex("GroupId")
                         .HasDatabaseName("ix_curriculum_plans_group_id");
 
+                    b.HasIndex("TeacherId")
+                        .HasDatabaseName("ix_curriculum_plans_teacher_id");
+
                     b.HasIndex("SubjectId", "Grade")
                         .IsUnique()
                         .HasDatabaseName("ux_curriculum_plans_subject_grade")
-                        .HasFilter("grade is not null");
+                        .HasFilter("grade is not null and teacher_id is null");
 
                     b.HasIndex("SubjectId", "GroupId")
                         .IsUnique()
                         .HasDatabaseName("ux_curriculum_plans_subject_group")
-                        .HasFilter("group_id is not null");
+                        .HasFilter("group_id is not null and teacher_id is null");
+
+                    b.HasIndex("SubjectId", "Grade", "TeacherId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_curriculum_plans_subject_grade_teacher")
+                        .HasFilter("grade is not null and teacher_id is not null");
+
+                    b.HasIndex("SubjectId", "GroupId", "TeacherId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_curriculum_plans_subject_group_teacher")
+                        .HasFilter("group_id is not null and teacher_id is not null");
 
                     b.ToTable("curriculum_plans", null, t =>
                         {
@@ -13232,6 +13250,12 @@ namespace SchoolLms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_curriculum_plans_subjects_subject_id");
+
+                    b.HasOne("SchoolLms.Domain.Teacher", null)
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_curriculum_plans_teachers_teacher_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.CurriculumProgress", b =>

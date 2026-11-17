@@ -18,6 +18,15 @@ namespace SchoolLms.Domain;
 //  Reja bitta, lekin 5-A va 5-B o'z tezligida yuradi: `CurriculumProgress` mavzu ×
 //  ega (sinf yoki guruh). Belgini o'qituvchi ham, o'quv bo'limi ham qo'yadi.
 //
+//  USTOZNING O'Z REJASI (mijoz, 2026-11-17)
+//  ----------------------------------------
+//  "5-A va 5-B ga alohida ustoz kirishi mumkin va ularning ish rejasi farq qilishi mumkin."
+//  Reja ixtiyoriy ravishda ustozga bog'lanadi (`TeacherId`): u holda rejaning egalari — shu
+//  darajaning faqat shu ustoz jadvalda shu fandan dars beradigan sinf/guruhlari. Ustozsiz
+//  (umumiy) reja qolgan sinflarni qamraydi: sinfda shu fandan dars beradigan HAR bir ustozning
+//  o'z rejasi bo'lsa, sinf umumiy rejadan chiqadi. Ustoz rejasi uning dars soatlariga mos
+//  tushishi tekshiriladi (CurriculumService.FitAsync).
+//
 //  QAYTA YUKLASH BELGILARNI SAQLAYDI
 //  ---------------------------------
 //  Yangi Excel mavzularni TARTIB RAQAMI bo'yicha yangilaydi: shu raqamli mavzu bor
@@ -37,6 +46,12 @@ public class CurriculumPlan
 
     /// <summary>Yo'nalish guruhi (study_groups.id, <c>is_track</c>). Daraja rejasida null.</summary>
     public Guid? GroupId { get; set; }
+
+    /// <summary>
+    /// Ustozning o'z rejasi (teachers.id): egalari — shu ustoz jadvalda shu fandan dars beradigan
+    /// sinf/guruhlar. null — umumiy reja (ustoz rejasi bo'lmagan sinflar uchun).
+    /// </summary>
+    public string? TeacherId { get; set; }
 
     /// <summary>Ko'rsatiladigan nom ("5-sinf Matematika").</summary>
     public string Title { get; set; } = string.Empty;

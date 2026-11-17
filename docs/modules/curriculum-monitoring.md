@@ -29,6 +29,23 @@ unique topic+owner).
 A teacher sees and marks the plans of the class/group + subject pairs they teach (schedule). Teachers mark
 from the **web panel and the Telegram Mini App** (asked 2026-11-06).
 
+### 1.1 Teacher's own plan (2026-11-17)
+
+*"5-A va 5-B ga alohida ustoz kirishi mumkin va ularning ish rejasi farq qilishi mumkin … ustozning
+ish rejasi o'zining dars soatlariga mos tushadimi yo'qmi tekshirish."*
+
+- `curriculum_plans.teacher_id` (optional). A teacher plan's owners are the classes/groups of its grade
+  (or track) where that teacher teaches the subject in the timetable. Upload rejects a teacher who
+  teaches none of them. One plan per subject + grade/track + teacher; the shared plan (no teacher) stays.
+- The shared plan drops a class when **every** teacher of that subject there has an own plan (a split
+  class with one teacher lacking a plan stays on the shared plan).
+- A teacher sees and marks only their own plan; for a key where they have one, the shared plan is hidden.
+- **Fit** (`GET plans/{id}/fit`, teacher `GET {id}/fit`, also in the import dry run): per owner × quarter,
+  plan hours vs lessons in the timetable (the week's assigned template, else the main one — counted as
+  estimated weeks), without Sundays and holidays; a split half at the same time = one lesson; teacher
+  plans count only that teacher's lessons. Exact topic dates without a lesson that day are listed.
+  Substitutions are ignored.
+
 ## 2. Ichki monitoring (`monitoring`)
 
 *"Yo'nalish guruhlardan blok testdan tashqari ichki monitoring test olinadi … oddiy 30–100 test

@@ -15,8 +15,13 @@ namespace SchoolLms.Application.Services;
 /// jadvalda hech biri bo'lmasa — darajaning barcha sinflari. Yo'nalish rejasining egasi — yo'nalishning
 /// o'zi. "O'tildi" belgisi har ega uchun alohida.
 /// </para>
+/// <para>
+/// <b>Ustoz rejasi</b> (<see cref="CurriculumPlan.TeacherId"/>) — egalari shu darajaning faqat shu ustoz
+/// jadvalda shu fandan dars beradigan sinf/guruhlari; umumiy reja ular uchun ishlamaydi (sinfning shu
+/// fandagi har bir ustozi o'z rejasiga ega bo'lsa). Jadvalga mosligi — <see cref="FitAsync"/>.
+/// </para>
 /// </summary>
-public static class CurriculumService
+public static partial class CurriculumService
 {
     /// <summary>Namuna Excel ustunlari. Import ustunlarni SARLAVHA nomi bo'yicha topadi.</summary>
     public static readonly string[] Columns =
@@ -489,11 +494,19 @@ public static class CurriculumService
 
     public sealed record Owner(string Kind, string Id, string Name, int Grade);
 
+    /// <param name="TeachersOf">(ega, fan) → jadvalda shu darsni beradigan ustozlar.</param>
+    /// <param name="TeacherPlans">Mavjud ustoz rejalarining kalitlari.</param>
     private sealed record World(
         List<SchoolClass> Classes,
         List<StudyGroup> Groups,
         Dictionary<Guid, int> GroupGrade,
-        HashSet<(string OwnerKind, string OwnerId, string SubjectId)> Taught);
+        HashSet<(string OwnerKind, string OwnerId, string SubjectId)> Taught,
+        Dictionary<(string OwnerKind, string OwnerId, string SubjectId), HashSet<string>> TeachersOf,
+        HashSet<(string SubjectId, int? Grade, Guid? GroupId, string TeacherId)> TeacherPlans)
+    {
+        public bool Teaches(string ownerKind, string ownerId, string subjectId, string teacherId) =>
+            TeachersOf.TryGetValue((ownerKind, ownerId, subjectId), out var set) && set.Contains(teacherId);
+    }
 
     private static async Task<World> WorldAsync(IAppDbContext db, CancellationToken ct)
     {
@@ -503,11 +516,40 @@ public static class CurriculumService
         var groupGrade = (await db.StudyGroupClasses.AsNoTracking().ToListAsync(ct))
             .Where(x => gradeOf.ContainsKey(x.ClassId))
             .GroupBy(x => x.GroupId).ToDictionary(g => g.Key, g => g.Min(x => gradeOf[x.ClassId]));
-        return new World(classes, groups, groupGrade, await TaughtPairsAsync(db, ct));
+
+        var scope = await LessonRoster.GroupScopeAsync(db, ct);
+        var lessons = await (from t in db.ScheduleTemplates.AsNoTracking()
+                             where !t.IsArchived
+                             from l in t.Lessons
+                             select new { t.OwnerKind, t.ClassId, l.SubjectId, l.TeacherId }).Distinct().ToListAsync(ct);
+        var taughtBy = lessons.Where(r => scope.Allows(r.OwnerKind, r.ClassId)).ToList();
+        var teachersOf = taughtBy.Where(r => !string.IsNullOrEmpty(r.TeacherId))
+            .GroupBy(r => (r.OwnerKind, r.ClassId, r.SubjectId))
+            .ToDictionary(g => g.Key, g => g.Select(r => r.TeacherId).ToHashSet(StringComparer.Ordinal));
+        var teacherPlans = (await db.CurriculumPlans.AsNoTracking().Where(p => p.TeacherId != null)
+                .Select(p => new { p.SubjectId, p.Grade, p.GroupId, p.TeacherId }).ToListAsync(ct))
+            .Select(p => (p.SubjectId, p.Grade, p.GroupId, p.TeacherId!)).ToHashSet();
+
+        return new World(classes, groups, groupGrade,
+            [.. taughtBy.Select(r => (r.OwnerKind, r.ClassId, r.SubjectId))], teachersOf, teacherPlans);
     }
 
-    /// <summary>Rejani o'tadigan sinf/guruhlar (sinfiy tartibda).</summary>
+    /// <summary>
+    /// Rejani o'tadigan sinf/guruhlar (sinfiy tartibda). Ustoz rejasi — shu ustoz dars beradiganlari;
+    /// umumiy reja — qolganlari (sinfning shu fandagi har bir ustozi o'z rejasiga ega bo'lsa, sinf chiqadi).
+    /// </summary>
     private static List<Owner> OwnersOf(CurriculumPlan plan, World w)
+    {
+        if (plan.TeacherId is { } teacherId)
+            return [.. Candidates(plan, w, taughtOnly: false).Where(o => w.Teaches(o.Kind, o.Id, plan.SubjectId, teacherId))];
+        return [.. Candidates(plan, w, taughtOnly: true).Where(o => !HasOwnPlans(o, plan, w))];
+    }
+
+    /// <summary>
+    /// Rejaning kaliti (fan + daraja yoki yo'nalish) bo'yicha mumkin bo'lgan egalar. <paramref name="taughtOnly"/>
+    /// (umumiy reja) — jadvalda shu fan bor sinflar; hech biri bo'lmasa — darajaning barcha sinflari.
+    /// </summary>
+    private static List<Owner> Candidates(CurriculumPlan plan, World w, bool taughtOnly)
     {
         if (plan.GroupId is { } gid)
         {
@@ -521,10 +563,52 @@ public static class CurriculumService
             .Where(g => !g.IsTrack && g.SubjectId == plan.SubjectId && w.GroupGrade.GetValueOrDefault(g.Id, -2) == grade
                         && w.Taught.Contains((LessonOwnerKind.Group, g.Id.ToString(), plan.SubjectId)))
             .ToList();
-        var owners = (taughtClasses.Count + groups.Count > 0 ? taughtClasses : gradeClasses)
-            .Select(c => new Owner(LessonOwnerKind.Class, c.Id, c.Name, c.Grade)).ToList();
+        var classes = !taughtOnly ? gradeClasses : taughtClasses.Count + groups.Count > 0 ? taughtClasses : gradeClasses;
+        var owners = classes.Select(c => new Owner(LessonOwnerKind.Class, c.Id, c.Name, c.Grade)).ToList();
         owners.AddRange(groups.Select(g => new Owner(LessonOwnerKind.Group, g.Id.ToString(), g.Name, grade)));
         return owners;
+    }
+
+    /// <summary>Egada shu fandan dars beradigan har bir ustozning shu kalit bo'yicha o'z rejasi bor.</summary>
+    private static bool HasOwnPlans(Owner o, CurriculumPlan plan, World w) =>
+        w.TeachersOf.TryGetValue((o.Kind, o.Id, plan.SubjectId), out var teachers) && teachers.Count > 0
+        && teachers.All(t => w.TeacherPlans.Contains((plan.SubjectId, plan.Grade, plan.GroupId, t)));
+
+    /// <summary>
+    /// Yuklash formasi uchun: har ustoz jadvalda dars beradigan (fan, daraja yoki yo'nalish) juftliklari.
+    /// </summary>
+    public static async Task<List<CurriculumTeacherOptionDto>> TeacherOptionsAsync(IAppDbContext db, CancellationToken ct)
+    {
+        var w = await WorldAsync(db, ct);
+        var keys = new Dictionary<string, HashSet<(string, int?, Guid?)>>(StringComparer.Ordinal);
+        foreach (var ((kind, ownerId, subjectId), teachers) in w.TeachersOf)
+        {
+            if (KeyOf(kind, ownerId, subjectId, w) is not { } key) continue;
+            foreach (var t in teachers)
+            {
+                if (!keys.TryGetValue(t, out var set)) keys[t] = set = [];
+                set.Add(key);
+            }
+        }
+        var names = await db.Teachers.AsNoTracking().Where(t => !t.IsArchived)
+            .Select(t => new { t.Id, t.FullName }).ToListAsync(ct);
+        return [.. names
+            .Where(t => keys.ContainsKey(t.Id))
+            .OrderBy(t => t.FullName)
+            .Select(t => new CurriculumTeacherOptionDto(t.Id, t.FullName,
+                [.. keys[t.Id].Select(k => new CurriculumTeacherKeyDto(k.Item1, k.Item2, k.Item3))]))];
+    }
+
+    /// <summary>
+    /// Ustoz rejasi yuklanishidan oldin: ustoz shu kalit (fan + daraja/yo'nalish) bo'yicha jadvalda
+    /// biror sinf yoki guruhda dars beradimi.
+    /// </summary>
+    public static async Task<bool> TeacherTeachesKeyAsync(
+        IAppDbContext db, string teacherId, string subjectId, int? grade, Guid? groupId, CancellationToken ct)
+    {
+        var w = await WorldAsync(db, ct);
+        var probe = new CurriculumPlan { SubjectId = subjectId, Grade = grade, GroupId = groupId, TeacherId = teacherId };
+        return OwnersOf(probe, w).Count > 0;
     }
 
     /// <summary>Ega va fan qaysi rejaga tushadi: (fan, daraja) yoki (fan, yo'nalish).</summary>
@@ -606,6 +690,7 @@ public static class CurriculumService
         var progress = await db.CurriculumProgress.AsNoTracking().Where(p => topicIds.Contains(p.TopicId))
             .Select(p => new { p.TopicId, p.OwnerKind, p.OwnerId }).ToListAsync(ct);
         var passedBy = progress.GroupBy(p => p.TopicId).ToDictionary(g => g.Key, g => g.Select(x => (x.OwnerKind, x.OwnerId)).ToHashSet());
+        var teachers = await TeacherNamesAsync(db, plans, ct);
 
         return [.. plans
             .Select(p =>
@@ -618,9 +703,19 @@ public static class CurriculumService
                     p.Id, p.Title, p.SubjectId, subjects.GetValueOrDefault(p.SubjectId) ?? "—", p.Grade, p.GroupId,
                     p.GroupId is { } g ? w.Groups.FirstOrDefault(x => x.Id == g)?.Name : null,
                     total, p.Topics.Sum(t => t.Hours), p.FileUrl, p.FileName, p.UpdatedAt,
-                    [.. owners.Select(o => o.Name)], avg);
+                    [.. owners.Select(o => o.Name)], avg,
+                    p.TeacherId, p.TeacherId is { } t ? teachers.GetValueOrDefault(t) : null);
             })
-            .OrderBy(p => p.GroupId is null ? 0 : 1).ThenBy(p => p.Grade).ThenBy(p => p.GroupName).ThenBy(p => p.SubjectName)];
+            .OrderBy(p => p.GroupId is null ? 0 : 1).ThenBy(p => p.Grade).ThenBy(p => p.GroupName).ThenBy(p => p.SubjectName)
+            .ThenBy(p => p.TeacherName is null ? 0 : 1).ThenBy(p => p.TeacherName)];
+    }
+
+    private static async Task<Dictionary<string, string>> TeacherNamesAsync(
+        IAppDbContext db, IEnumerable<CurriculumPlan> plans, CancellationToken ct)
+    {
+        var ids = plans.Select(p => p.TeacherId).OfType<string>().Distinct().ToList();
+        if (ids.Count == 0) return [];
+        return await db.Teachers.AsNoTracking().Where(t => ids.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
     }
 
     /// <summary>
@@ -640,6 +735,7 @@ public static class CurriculumService
         var cal = await CalendarAsync(db, ct);
         var planned = PlannedDates(topics, cal);
         var subjectName = await db.Subjects.AsNoTracking().Where(s => s.Id == plan.SubjectId).Select(s => s.Name).FirstOrDefaultAsync(ct) ?? "—";
+        var teacherName = (await TeacherNamesAsync(db, [plan], ct)).GetValueOrDefault(plan.TeacherId ?? "");
 
         return new CurriculumPlanDetailDto(
             plan.Id, plan.Title, plan.SubjectId, subjectName, plan.Grade, plan.GroupId, plan.FileUrl, plan.FileName, plan.UpdatedAt,
@@ -648,7 +744,8 @@ public static class CurriculumService
                 t.Id, t.Order, t.Quarter, t.Week, t.Section, t.Title, t.Hours, t.Goal, t.Homework,
                 planned.TryGetValue(t.Id, out var d) ? d.ToString("yyyy-MM-dd") : null, t.PlannedOn is not null,
                 [.. marks.Where(m => m.TopicId == t.Id && owners.Any(o => o.Kind == m.OwnerKind && o.Id == m.OwnerId))
-                    .Select(m => new CurriculumMarkDto(m.OwnerKind, m.OwnerId, m.PassedOn.ToString("yyyy-MM-dd")))]))]);
+                    .Select(m => new CurriculumMarkDto(m.OwnerKind, m.OwnerId, m.PassedOn.ToString("yyyy-MM-dd")))]))],
+            plan.TeacherId, teacherName);
     }
 
     /// <summary>Belgi qo'yish / olib tashlash. Ega rejaning egalaridan biri bo'lishi shart.</summary>
@@ -689,7 +786,10 @@ public static class CurriculumService
         return null;
     }
 
-    /// <summary>O'qituvchining rejalari: u dars beradigan (ega, fan) juftliklariga tushganlari.</summary>
+    /// <summary>
+    /// O'qituvchining rejalari: u dars beradigan (ega, fan) juftliklariga tushganlari. O'zining rejasi
+    /// bo'lsa — shu kalit bo'yicha umumiy reja ko'rsatilmaydi; boshqa ustozning rejasi hech qachon.
+    /// </summary>
     public static async Task<List<TeacherCurriculumDto>> ForTeacherAsync(IAppDbContext db, string teacherId, CancellationToken ct)
     {
         var pairs = await TeacherOwnerAccess.PairsAsync(db, teacherId, ct);
@@ -701,6 +801,8 @@ public static class CurriculumService
         var result = new List<TeacherCurriculumDto>();
         foreach (var plan in plans)
         {
+            if (plan.TeacherId is { } owner && owner != teacherId) continue;
+            if (plan.TeacherId is null && w.TeacherPlans.Contains((plan.SubjectId, plan.Grade, plan.GroupId, teacherId))) continue;
             var mine = OwnersOf(plan, w).Where(o => pairs.Contains((o.Id, o.Kind, plan.SubjectId))).ToList();
             if (mine.Count == 0) continue;
             var topics = plan.Topics.OrderBy(t => t.Order).ToList();
@@ -768,14 +870,19 @@ public static class CurriculumService
         var marksByOwner = marks.ToLookup(m => (m.OwnerKind, m.OwnerId));
 
         var rows = new List<CurriculumReportRowDto>();
+        var covered = new HashSet<(string, string, string)>();
+        var teachers = await TeacherNamesAsync(db, plans, ct);
         foreach (var plan in plans)
         {
             var topics = plan.Topics.OrderBy(t => t.Order).ToList();
             var planned = PlannedDates(topics, cal);
             var totalHours = topics.Sum(t => t.Hours);
             var topicSet = topics.ToDictionary(t => t.Id);
+            var title = plan.TeacherId is { } tid && teachers.TryGetValue(tid, out var tn) && !plan.Title.Contains(tn)
+                ? $"{plan.Title} ({tn})" : plan.Title;
             foreach (var o in OwnersOf(plan, w))
             {
+                covered.Add((o.Kind, o.Id, plan.SubjectId));
                 var mine = marksByOwner[(o.Kind, o.Id)].Where(m => topicSet.ContainsKey(m.TopicId)).ToList();
                 var passedIds = mine.Select(m => m.TopicId).ToHashSet();
                 var progress = ProgressOf(topics, planned, mine, cal, today);
@@ -786,7 +893,7 @@ public static class CurriculumService
                     mine.Count(m => m.PassedOn >= q.Start && m.PassedOn <= q.End))).ToList();
 
                 rows.Add(new CurriculumReportRowDto(
-                    plan.Id, plan.Title, subjects.GetValueOrDefault(plan.SubjectId) ?? "—", o.Kind, o.Id, o.Name,
+                    plan.Id, title, subjects.GetValueOrDefault(plan.SubjectId) ?? "—", o.Kind, o.Id, o.Name,
                     topics.Count, passedIds.Count, totalHours, progress.PassedHours,
                     topics.Count == 0 ? 0 : Math.Round(passedIds.Count * 100m / topics.Count, 1),
                     progress.Expected, progress.Delta, progress.Finish?.ToString("yyyy-MM-dd"), progress.LateWarning,
@@ -794,12 +901,11 @@ public static class CurriculumService
             }
         }
 
-        // taught (subject, grade/track) without a plan
-        var planKeys = plans.Select(p => (p.SubjectId, p.Grade, p.GroupId)).ToHashSet();
+        // taught (class/group, subject) that no plan covers — grouped by (subject, grade/track)
         var missing = new Dictionary<(string, int?, Guid?), List<string>>();
         foreach (var (kind, ownerId, subjectId) in w.Taught)
         {
-            if (KeyOf(kind, ownerId, subjectId, w) is not { } key || planKeys.Contains(key)) continue;
+            if (covered.Contains((kind, ownerId, subjectId)) || KeyOf(kind, ownerId, subjectId, w) is not { } key) continue;
             var name = kind == LessonOwnerKind.Class
                 ? w.Classes.FirstOrDefault(c => c.Id == ownerId)?.Name
                 : w.Groups.FirstOrDefault(g => g.Id.ToString() == ownerId)?.Name;

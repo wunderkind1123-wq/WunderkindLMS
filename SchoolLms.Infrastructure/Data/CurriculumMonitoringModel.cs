@@ -32,12 +32,19 @@ internal static class CurriculumMonitoringModel
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.FileUrl).HasMaxLength(500);
             e.Property(x => x.FileName).HasMaxLength(255);
-            // one plan per subject + grade, one per subject + track group
-            e.HasIndex(x => new { x.SubjectId, x.Grade }).IsUnique().HasFilter("grade is not null")
+            e.Property(x => x.TeacherId).HasMaxLength(64);
+            // one shared plan per subject + grade (or track group), plus one per teacher
+            e.HasIndex(x => new { x.SubjectId, x.Grade }).IsUnique().HasFilter("grade is not null and teacher_id is null")
                 .HasDatabaseName("ux_curriculum_plans_subject_grade");
-            e.HasIndex(x => new { x.SubjectId, x.GroupId }).IsUnique().HasFilter("group_id is not null")
+            e.HasIndex(x => new { x.SubjectId, x.GroupId }).IsUnique().HasFilter("group_id is not null and teacher_id is null")
                 .HasDatabaseName("ux_curriculum_plans_subject_group");
+            e.HasIndex(x => new { x.SubjectId, x.Grade, x.TeacherId }).IsUnique().HasFilter("grade is not null and teacher_id is not null")
+                .HasDatabaseName("ux_curriculum_plans_subject_grade_teacher");
+            e.HasIndex(x => new { x.SubjectId, x.GroupId, x.TeacherId }).IsUnique().HasFilter("group_id is not null and teacher_id is not null")
+                .HasDatabaseName("ux_curriculum_plans_subject_group_teacher");
             e.HasOne<Subject>().WithMany().HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.Restrict);
+            // a teacher's own plan goes with the teacher (teachers are normally archived, not deleted)
+            e.HasOne<Teacher>().WithMany().HasForeignKey(x => x.TeacherId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StudyGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(x => x.Topics).WithOne().HasForeignKey(t => t.PlanId).OnDelete(DeleteBehavior.Cascade);
         });

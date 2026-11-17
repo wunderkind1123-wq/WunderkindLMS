@@ -20,6 +20,9 @@ export interface CurriculumPlanListItem {
   updatedAt: string
   owners: string[]
   averagePercent: number
+  /** Ustozning o'z rejasi; null — umumiy reja. */
+  teacherId: string | null
+  teacherName: string | null
 }
 
 export interface CurriculumOwner {
@@ -63,6 +66,8 @@ export interface CurriculumPlanDetail {
   updatedAt: string
   owners: CurriculumOwner[]
   topics: CurriculumTopic[]
+  teacherId: string | null
+  teacherName: string | null
 }
 
 export interface CurriculumPreviewTopic {
@@ -83,6 +88,36 @@ export interface CurriculumImportResult {
   preview: CurriculumPreviewTopic[]
   /** Bayram yoki yakshanbaga tushgan darslar — saqlashga to'sqinlik qilmaydi. */
   warnings: string[]
+  /** Jadvalga mosligi (har sinf/guruh); xatoli faylda yo'q. */
+  fit?: CurriculumFit[] | null
+}
+
+export interface CurriculumFitQuarter {
+  quarter: number
+  planHours: number
+  lessons: number
+  /** Jadval biriktirilmagan haftalar — asosiy jadvaldan taxmin. */
+  estimatedWeeks: number
+}
+
+export interface CurriculumFitDate {
+  order: number
+  title: string
+  date: string
+  reason: string
+}
+
+/** Reja ↔ jadval: rejadagi soat va jadvaldagi dars, chorak bo'yicha. */
+export interface CurriculumFit {
+  ownerKind: string
+  ownerId: string
+  ownerName: string
+  weeklyLessons: number
+  planHours: number
+  lessons: number
+  unplacedHours: number
+  quarters: CurriculumFitQuarter[]
+  dateIssues: CurriculumFitDate[]
 }
 
 export interface CurriculumQuarter {
@@ -178,6 +213,8 @@ export interface CurriculumImportInput {
   title?: string
   originalUrl?: string
   originalName?: string
+  /** Ustozning o'z rejasi. */
+  teacherId?: string
 }
 
 /** `dryRun` — faqat tekshiradi (mavzular ko'rinishi). Xatoli fayl 400 bilan `errors` qaytaradi. */
@@ -190,6 +227,7 @@ export async function importCurriculum(input: CurriculumImportInput, dryRun: boo
   if (input.title) fd.append('title', input.title)
   if (input.originalUrl) fd.append('originalUrl', input.originalUrl)
   if (input.originalName) fd.append('originalName', input.originalName)
+  if (input.teacherId) fd.append('teacherId', input.teacherId)
   try {
     const { data } = await api.post<CurriculumImportResult>(`/admin/curriculum/plans/import${dryRun ? '?dryRun=true' : ''}`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -256,9 +294,16 @@ export interface CurriculumOptions {
   subjects: { id: string; name: string }[]
   grades: number[]
   tracks: { id: string; name: string }[]
+  /** Ustozlar — jadvalda dars beradigan (fan, daraja yoki yo'nalish) juftliklari bilan. */
+  teachers: { id: string; name: string; keys: { subjectId: string; grade: number | null; groupId: string | null }[] }[]
 }
 
 export async function getCurriculumOptions(): Promise<CurriculumOptions> {
   const { data } = await api.get<CurriculumOptions>('/admin/curriculum/options')
+  return data
+}
+
+export async function getCurriculumFit(id: string, teacher = false): Promise<CurriculumFit[]> {
+  const { data } = await api.get<CurriculumFit[]>(teacher ? `/teacher/curriculum/${id}/fit` : `/admin/curriculum/plans/${id}/fit`)
   return data
 }

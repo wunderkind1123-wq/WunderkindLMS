@@ -85,6 +85,7 @@ export function CurriculumPlansPage() {
           <li>«Namuna (Excel)» ni yuklab oling. Ustunlar: № · Chorak · Hafta · Sana · Bo'lim · <b>Mavzu</b> · Soat · Maqsad · Uy vazifasi.</li>
           <li>Har mavzu alohida qatorda, butun o'quv yili uchun, o'qituvchi darsda ishlatadigan to'liq nomi bilan. «Sana» — darsning aniq kuni (10.11 yoki 10.11.2026); yozilsa, reja shu sanaga qarab kuzatiladi.</li>
           <li>«Ish reja yuklash» — fan va sinf darajasini (yoki yo'nalishni) tanlang, Excel faylni (yoki «Mavzu» ustunli jadvali bor Word .docx ish rejani) va xohlasangiz asl hujjatni (Word/PDF) biriktiring.</li>
+          <li>Parallel sinflarda (5-A, 5-B) ustozlar har xil bo'lsa — ustozni tanlab, har biriga o'z rejasini yuklang. Reja shu ustozning dars jadvaliga bog'lanadi: chorak bo'yicha rejadagi soat jadvaldagi darslar soniga mos tushishi tekshiriladi.</li>
           <li>O'qituvchilar o'z sinflarida mavzuga «o'tildi» belgisini qo'yadi; hisobotda kim rejadan orqada ekanligi ko'rinadi.</li>
         </ol>
       </Card>
@@ -123,7 +124,10 @@ export function CurriculumPlansPage() {
                       </Link>
                       <p className="text-xs text-slate-400">{p.subjectName}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{p.groupName ?? `${p.grade}-sinf`}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {p.groupName ?? `${p.grade}-sinf`}
+                      <p className="text-xs text-slate-400">{p.teacherName ? `Ustoz: ${p.teacherName}` : 'Umumiy'}</p>
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{p.owners.length ? p.owners.join(', ') : '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{p.topicCount}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{p.totalHours}</td>

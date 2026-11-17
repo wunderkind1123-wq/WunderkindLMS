@@ -8,7 +8,7 @@ namespace SchoolLms.Application.Dtos;
 public record CurriculumPlanListItemDto(
     Guid Id, string Title, string SubjectId, string SubjectName, int? Grade, Guid? GroupId, string? GroupName,
     int TopicCount, int TotalHours, string? FileUrl, string? FileName, DateTimeOffset UpdatedAt,
-    List<string> Owners, decimal AveragePercent);
+    List<string> Owners, decimal AveragePercent, string? TeacherId = null, string? TeacherName = null);
 
 public record CurriculumOwnerDto(string Kind, string Id, string Name);
 
@@ -27,7 +27,7 @@ public record CurriculumTopicDateRequest(string? PlannedOn);
 public record CurriculumPlanDetailDto(
     Guid Id, string Title, string SubjectId, string SubjectName, int? Grade, Guid? GroupId,
     string? FileUrl, string? FileName, DateTimeOffset UpdatedAt,
-    List<CurriculumOwnerDto> Owners, List<CurriculumTopicDto> Topics);
+    List<CurriculumOwnerDto> Owners, List<CurriculumTopicDto> Topics, string? TeacherId = null, string? TeacherName = null);
 
 public record CurriculumMarkRequest(Guid TopicId, string OwnerKind, string OwnerId, bool Passed, string? PassedOn = null);
 
@@ -36,7 +36,8 @@ public record CurriculumMarkRequest(Guid TopicId, string OwnerKind, string Owner
 /// warnings (a lesson on a holiday or a Sunday) do not.
 /// </summary>
 public record CurriculumImportResultDto(
-    Guid? PlanId, int TopicCount, int TotalHours, List<string> Errors, List<CurriculumPreviewTopicDto> Preview, List<string> Warnings);
+    Guid? PlanId, int TopicCount, int TotalHours, List<string> Errors, List<CurriculumPreviewTopicDto> Preview, List<string> Warnings,
+    List<CurriculumFitDto>? Fit = null);
 
 public record CurriculumPreviewTopicDto(int Order, int? Quarter, int? Week, string? Section, string Title, int Hours, string? PlannedOn);
 
@@ -64,3 +65,28 @@ public record CurriculumMissingDto(string SubjectId, string SubjectName, int? Gr
 
 public record CurriculumReportDto(
     string Today, string? YearEnd, bool QuartersSet, List<CurriculumReportRowDto> Rows, List<CurriculumMissingDto> Missing);
+
+// ---------------------------------------------------------------------------
+//  Rejaning jadvalga mosligi (mijoz, 2026-11-17): rejadagi soatlar ↔ jadvaldagi darslar.
+// ---------------------------------------------------------------------------
+
+/// <param name="PlanHours">Rejada shu chorakka tushgan soatlar.</param>
+/// <param name="Lessons">Jadval bo'yicha shu chorakdagi darslar (yakshanba va bayramlarsiz).</param>
+/// <param name="EstimatedWeeks">Jadval biriktirilmagan haftalar — ular asosiy jadvaldan taxmin qilindi.</param>
+public record CurriculumFitQuarterDto(int Quarter, int PlanHours, int Lessons, int EstimatedWeeks);
+
+/// <summary>Aniq reja sanasi, lekin o'sha kuni dars yo'q (bayram, yakshanba yoki jadvalda dars yo'q).</summary>
+public record CurriculumFitDateDto(int Order, string Title, string Date, string Reason);
+
+/// <summary>Bitta ega (sinf/guruh) bo'yicha reja ↔ jadval. Ustoz rejasida faqat shu ustozning darslari sanaladi.</summary>
+/// <param name="WeeklyLessons">Asosiy jadvalda haftasiga necha dars.</param>
+/// <param name="UnplacedHours">Hech bir chorakka tushmagan mavzular soati (choraklar kiritilmagan bo'lsa — hammasi).</param>
+public record CurriculumFitDto(
+    string OwnerKind, string OwnerId, string OwnerName, int WeeklyLessons,
+    int PlanHours, int Lessons, int UnplacedHours,
+    List<CurriculumFitQuarterDto> Quarters, List<CurriculumFitDateDto> DateIssues);
+
+/// <summary>Yuklash formasidagi ustoz tanlovi: ustoz jadvalda dars beradigan (fan, daraja/yo'nalish) juftliklari.</summary>
+public record CurriculumTeacherOptionDto(string Id, string Name, List<CurriculumTeacherKeyDto> Keys);
+
+public record CurriculumTeacherKeyDto(string SubjectId, int? Grade, Guid? GroupId);

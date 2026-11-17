@@ -3,15 +3,18 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Paperclip, Pencil, X } from 'lucide-react'
 import {
   curriculumError,
+  getCurriculumFit,
   getCurriculumPlan,
   markCurriculumTopic,
   setCurriculumTopicDate,
+  type CurriculumFit,
   type CurriculumPlanDetail,
   type CurriculumTopic,
 } from '@/api/services/curriculum'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { cn, formatDate } from '@/lib/utils'
+import { CurriculumFitTable } from './CurriculumFitTable'
 
 /**
  * Bitta ish reja: mavzular × sinf/guruh. Katakni bosish — "o'tildi" (bugungi sana bilan) yoki
@@ -25,6 +28,8 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tashkent' })
   const back = teacher ? '/teacher/ish-reja' : '/admin/curriculum'
 
+  const [fit, setFit] = useState<CurriculumFit[] | null>(null)
+
   const load = useCallback(() => {
     getCurriculumPlan(id, teacher)
       .then((p) => {
@@ -37,6 +42,15 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
   useEffect(() => {
     load()
   }, [load])
+
+  // the timetable check changes only with the plan's dates — not on every mark
+  const datesKey = plan?.topics.map((t) => `${t.id}:${t.plannedOn ?? ''}`).join(',')
+  useEffect(() => {
+    if (!datesKey) return
+    getCurriculumFit(id, teacher)
+      .then(setFit)
+      .catch(() => setFit(null))
+  }, [id, teacher, datesKey])
 
   async function toggle(topic: CurriculumTopic, ownerKind: string, ownerId: string, passed: boolean): Promise<void> {
     const key = `${topic.id}|${ownerId}`
@@ -67,7 +81,9 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-slate-800">{plan.title}</h1>
           <p className="text-sm text-slate-400">
-            {plan.subjectName} · {plan.topics.length} mavzu · {plan.topics.reduce((s, t) => s + t.hours, 0)} soat
+            {plan.subjectName}
+            {plan.teacherName && !teacher && ` · Ustoz: ${plan.teacherName}`} · {plan.topics.length} mavzu ·{' '}
+            {plan.topics.reduce((s, t) => s + t.hours, 0)} soat
             {plan.fileUrl && (
               <>
                 {' · '}
@@ -98,6 +114,12 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
               )
             })}
           </div>
+          {fit && fit.length > 0 && (
+            <Card className="space-y-2 p-4">
+              <p className="text-sm font-medium text-slate-700">Dars jadvaliga mosligi</p>
+              <CurriculumFitTable fit={fit} personal={!!plan.teacherId} />
+            </Card>
+          )}
           <p className="text-xs text-slate-400">
             Katakni bosing — mavzu bugungi sana bilan «o'tildi» deb belgilanadi; qayta bosish belgini olib tashlaydi.
             «Reja» — ish rejadagi aniq dars sanasi; sana yozilmagan mavzuda chorak va haftadan taxmin («~» bilan).

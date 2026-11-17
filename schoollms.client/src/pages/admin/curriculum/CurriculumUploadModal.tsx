@@ -10,6 +10,7 @@ import {
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
+import { CurriculumFitTable } from './CurriculumFitTable'
 
 const control =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400'
@@ -33,6 +34,7 @@ export function CurriculumUploadModal({
   const [subjectId, setSubjectId] = useState(plan?.subjectId ?? '')
   const [grade, setGrade] = useState(plan?.grade != null ? String(plan.grade) : '')
   const [groupId, setGroupId] = useState(plan?.groupId ?? '')
+  const [teacherId, setTeacherId] = useState(plan?.teacherId ?? '')
   const [title, setTitle] = useState(plan?.title ?? '')
   const [file, setFile] = useState<File | null>(null)
   const [original, setOriginal] = useState<File | null>(null)
@@ -42,6 +44,12 @@ export function CurriculumUploadModal({
 
   const ready = !!file && !!subjectId && (kind === 'grade' ? grade !== '' : !!groupId)
 
+  // teachers who teach this subject in this grade / track (from the timetable)
+  const teachers = (options.teachers ?? []).filter((t) =>
+    t.keys.some((k) => k.subjectId === subjectId && (kind === 'grade' ? k.grade === Number(grade) && grade !== '' : k.groupId === groupId)),
+  )
+  const chosenTeacher = teachers.some((t) => t.id === teacherId) || plan?.teacherId ? teacherId : ''
+
   function input() {
     return {
       file: file!,
@@ -49,6 +57,7 @@ export function CurriculumUploadModal({
       grade: kind === 'grade' ? Number(grade) : undefined,
       groupId: kind === 'track' ? groupId : undefined,
       title: title.trim() || undefined,
+      teacherId: chosenTeacher || undefined,
     }
   }
 
@@ -147,6 +156,27 @@ export function CurriculumUploadModal({
             </div>
           </div>
           <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="font-medium text-slate-600">Ustoz</span>
+            <select
+              className={control}
+              value={chosenTeacher}
+              disabled={!!plan}
+              onChange={(e) => { setTeacherId(e.target.value); setPreview(null) }}
+            >
+              <option value="">Umumiy reja — barcha sinflar uchun</option>
+              {plan?.teacherId && !teachers.some((t) => t.id === plan.teacherId) && (
+                <option value={plan.teacherId}>{plan.teacherName ?? 'Ustoz'}</option>
+              )}
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>{t.name} — o'z rejasi</option>
+              ))}
+            </select>
+            <span className="block text-xs text-slate-400">
+              Ustoz tanlansa, reja faqat u dars jadvalida shu fandan dars beradigan sinflarga tegishli bo'ladi va uning
+              dars soatlariga mosligi tekshiriladi. Sinf umumiy rejadan chiqadi.
+            </span>
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">
             <span className="font-medium text-slate-600">Nomi (ixtiyoriy)</span>
             <input className={control} value={title} placeholder="Masalan: 5-sinf Matematika (2026–2027)" onChange={(e) => setTitle(e.target.value)} />
           </label>
@@ -180,6 +210,12 @@ export function CurriculumUploadModal({
                 <li key={w}>{w}</li>
               ))}
             </ul>
+          </div>
+        )}
+        {okPreview && preview.fit && preview.fit.length > 0 && (
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">Dars jadvaliga mosligi</p>
+            <CurriculumFitTable fit={preview.fit} personal={!!chosenTeacher} />
           </div>
         )}
         {okPreview && (
