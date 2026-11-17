@@ -256,7 +256,12 @@ internal static class SalesMarketingModel
 
             e.ToTable(t =>
             {
-                t.HasCheckConstraint("ck_leads_source", "source in ('manual','survey','olympiad')");
+                t.HasCheckConstraint("ck_leads_source", "source in ('manual','survey','olympiad','archive')");
+
+                // `archive` manbali lid arxivdagi o'quvchiga bog'langan, boshqalari - yo'q.
+                t.HasCheckConstraint(
+                    "ck_leads_source_student",
+                    "(source = 'archive') = (from_student_id is not null)");
 
                 // Ikki ustun bir-biridan uzoqlashib ketmasin: `survey` manbali
                 // lidda ariza BO'LISHI SHART, `manual` da esa BO'LMASLIGI shart.

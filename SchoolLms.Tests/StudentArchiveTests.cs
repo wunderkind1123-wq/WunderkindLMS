@@ -210,7 +210,7 @@ public class StudentArchiveTests(ApiFixture fixture)
 
         await SchoolMetaFlags.WithAsync(fixture.Api, m => m.ArchiveOnlyNonDebtorStudents = true, async () =>
         {
-            var refused = await admin.PostAsJsonAsync(url, new { reason = "Ketdi" });
+            var refused = await admin.PostAsJsonAsync(url, new { reason = "Ketdi", archiveReasonId = Other });
             Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
             using (var body = JsonDocument.Parse(await refused.Content.ReadAsStringAsync()))
             {
@@ -223,10 +223,10 @@ public class StudentArchiveTests(ApiFixture fixture)
 
             // Admin `force` yuborsa ham — rad.
             Assert.Equal(HttpStatusCode.BadRequest,
-                (await admin.PostAsJsonAsync(url, new { reason = "Ketdi", force = true })).StatusCode);
+                (await admin.PostAsJsonAsync(url, new { reason = "Ketdi", archiveReasonId = Other, force = true })).StatusCode);
 
             // Superadmin `force` siz — rad, lekin chetlab o'tish mumkinligini biladi.
-            var superRefused = await super.PostAsJsonAsync(url, new { reason = "Ketdi" });
+            var superRefused = await super.PostAsJsonAsync(url, new { reason = "Ketdi", archiveReasonId = Other });
             Assert.Equal(HttpStatusCode.BadRequest, superRefused.StatusCode);
             using (var body = JsonDocument.Parse(await superRefused.Content.ReadAsStringAsync()))
                 Assert.True(body.RootElement.GetProperty("canOverride").GetBoolean());
@@ -234,7 +234,7 @@ public class StudentArchiveTests(ApiFixture fixture)
 
             // Superadmin, ataylab.
             Assert.Equal(HttpStatusCode.NoContent,
-                (await super.PostAsJsonAsync(url, new { reason = "Ketdi", force = true })).StatusCode);
+                (await super.PostAsJsonAsync(url, new { reason = "Ketdi", archiveReasonId = Other, force = true })).StatusCode);
             await AssertArchivedAsync(debtor.Id, true);
         });
     }
@@ -248,7 +248,7 @@ public class StudentArchiveTests(ApiFixture fixture)
 
         await SchoolMetaFlags.WithAsync(fixture.Api, m => m.ArchiveOnlyNonDebtorStudents = false, async () =>
             Assert.Equal(HttpStatusCode.NoContent,
-                (await admin.PostAsJsonAsync($"{Students}/{debtor.Id}/archive", new { reason = "Ketdi" })).StatusCode));
+                (await admin.PostAsJsonAsync($"{Students}/{debtor.Id}/archive", new { reason = "Ketdi", archiveReasonId = Other })).StatusCode));
 
         await AssertArchivedAsync(debtor.Id, true);
     }
@@ -313,7 +313,7 @@ public class StudentArchiveTests(ApiFixture fixture)
 
         await SchoolMetaFlags.WithAsync(fixture.Api, m => m.ArchiveOnlyNonDebtorStudents = true, async () =>
         {
-            var refused = await admin.PostAsJsonAsync(ArchiveMany, new { studentIds = ids, reason = "Bitirdi" });
+            var refused = await admin.PostAsJsonAsync(ArchiveMany, new { studentIds = ids, reason = "Bitirdi", archiveReasonId = Graduated });
             Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
             using (var body = JsonDocument.Parse(await refused.Content.ReadAsStringAsync()))
             {
@@ -323,7 +323,7 @@ public class StudentArchiveTests(ApiFixture fixture)
             }
             foreach (var id in ids) await AssertArchivedAsync(id, false);
 
-            var forced = await super.PostAsJsonAsync(ArchiveMany, new { studentIds = ids, reason = "Bitirdi", force = true });
+            var forced = await super.PostAsJsonAsync(ArchiveMany, new { studentIds = ids, reason = "Bitirdi", archiveReasonId = Graduated, force = true });
             Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
             foreach (var id in ids) await AssertArchivedAsync(id, true);
         });
@@ -338,7 +338,7 @@ public class StudentArchiveTests(ApiFixture fixture)
         Assert.Equal(HttpStatusCode.BadRequest,
             (await admin.PostAsJsonAsync(ArchiveMany, new { studentIds = Array.Empty<string>(), reason = "X" })).StatusCode);
 
-        var noText = await admin.PostAsJsonAsync(ArchiveMany, new { studentIds = new[] { s.Id }, reason = "" });
+        var noText = await admin.PostAsJsonAsync(ArchiveMany, new { studentIds = new[] { s.Id }, reason = "", archiveReasonId = Other });
         Assert.Equal(HttpStatusCode.BadRequest, noText.StatusCode);
         Assert.Equal(StudentArchiveService.ReasonRequiredMessage, await MessageAsync(noText));
         await AssertArchivedAsync(s.Id, false);

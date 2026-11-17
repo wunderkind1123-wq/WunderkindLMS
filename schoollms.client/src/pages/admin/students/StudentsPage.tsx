@@ -19,6 +19,8 @@ import {
   FileSignature,
   CheckCircle2,
   Circle,
+  Columns3,
+  List,
 } from 'lucide-react'
 import type { Student } from '@/types'
 import type { StudentPayload } from '@/api/services/students'
@@ -60,6 +62,7 @@ import { SmsModal } from './SmsModal'
 import { AttachContractModal } from './AttachContractModal'
 import { PaymentHistoryModal } from './PaymentHistoryModal'
 import { ArchiveStudentsModal } from './ArchiveStudentsModal'
+import { ArchiveBoard } from './ArchiveBoard'
 import { StudentListFilters } from './StudentListFilters'
 import { StudentImportModal } from './StudentImportModal'
 import { StudentCommentsModal } from './StudentCommentsModal'
@@ -174,6 +177,24 @@ export function StudentsPage({ initialTab = 'active' }: { initialTab?: Tab } = {
   const [page, setPage] = useState<StudentListPage>(EMPTY_PAGE)
   const [loading, setLoading] = useState(true)
   const [archivedTotal, setArchivedTotal] = useState(0)
+
+  // Arxivda ikki ko'rinish (2026-11-13): jadval yoki sabab guruhlari bo'yicha ustunlar.
+  // Tanlov shu brauzerda eslab qolinadi; saqlab bo'lmasa (yashirin oyna) — jadval.
+  const [archiveView, setArchiveView] = useState<'table' | 'board'>(() => {
+    try {
+      return localStorage.getItem('students.archiveView') === 'board' ? 'board' : 'table'
+    } catch {
+      return 'table'
+    }
+  })
+  const chooseArchiveView = (v: 'table' | 'board') => {
+    setArchiveView(v)
+    try {
+      localStorage.setItem('students.archiveView', v)
+    } catch {
+      /* saqlab bo'lmadi — faqat shu safar */
+    }
+  }
 
   // Ma'lumotnomalar (filtr tanlovlari uchun).
   const [classNames, setClassNames] = useState<string[]>([])
@@ -476,6 +497,35 @@ export function StudentsPage({ initialTab = 'active' }: { initialTab?: Tab } = {
             </button>
           </div>
 
+          {tab === 'archived' && (
+            <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                title="Jadval"
+                onClick={() => chooseArchiveView('table')}
+                className={cn(
+                  'rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
+                  archiveView === 'table' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <List className="mr-1 inline h-4 w-4" />
+                Jadval
+              </button>
+              <button
+                type="button"
+                title="Sabab guruhlari bo'yicha ustunlar"
+                onClick={() => chooseArchiveView('board')}
+                className={cn(
+                  'rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
+                  archiveView === 'board' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+                )}
+              >
+                <Columns3 className="mr-1 inline h-4 w-4" />
+                Ustunlar
+              </button>
+            </div>
+          )}
+
           {user?.role === 'superadmin' && (
             <Button variant="secondary" onClick={() => downloadStudentCredentials()}>
               <Download className="h-4 w-4" /> Login/parollar
@@ -518,6 +568,14 @@ export function StudentsPage({ initialTab = 'active' }: { initialTab?: Tab } = {
         </div>
       )}
 
+      {tab === 'archived' && archiveView === 'board' ? (
+        <ArchiveBoard
+          onChanged={() => {
+            reload()
+            searchStudents({ state: 'archived', pageSize: 1 }).then((p) => setArchivedTotal(p.total))
+          }}
+        />
+      ) : (
       <Card className="p-0">
         <StudentListFilters
           filter={filter}
@@ -790,6 +848,7 @@ export function StudentsPage({ initialTab = 'active' }: { initialTab?: Tab } = {
           </div>
         )}
       </Card>
+      )}
 
       {/* Modallar */}
       <StudentFormModal

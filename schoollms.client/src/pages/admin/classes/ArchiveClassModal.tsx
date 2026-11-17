@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Archive } from 'lucide-react'
 import type { SchoolClass } from '@/types'
-import { getArchiveReasons, type ArchiveReason } from '@/api/services/archiveReasons'
 import { archiveClass } from '@/api/services/classes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Select, Textarea } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Input'
+import { ArchiveReasonSelect } from '@/pages/admin/students/ArchiveReasonSelect'
 
 /**
- * Sinfni arxivlash — o'quvchilar ham arxivlanadi. Ketish sababi katalogdan tanlanadi (ixtiyoriy) va
- * izoh yoziladi (student-flow.md, 2026-10-15): "O'quvchilar oqimi" hisobotida har o'quvchining
- * ketishi shu sabab bilan ko'rinadi. Ikkalasi bo'sh — izoh "Sinf arxivlandi (…)" bo'lib qoladi.
+ * Sinfni arxivlash — o'quvchilar ham arxivlanadi. Ketish sababi katalogdan tanlanadi va izoh yoziladi
+ * (student-flow.md, 2026-10-15): "O'quvchilar oqimi" hisobotida har o'quvchining ketishi shu sabab
+ * bilan ko'rinadi. Sabab 2026-11-13 dan MAJBURIY (arxiv doskasi uni guruhlaydi); izoh bo'sh bo'lsa
+ * "Sinf arxivlandi (…)" bo'lib qoladi.
  */
 export function ArchiveClassModal({
   cls,
@@ -21,7 +22,6 @@ export function ArchiveClassModal({
   onClose: () => void
   onArchived: (cls: SchoolClass, archivedStudents: number) => void
 }) {
-  const [reasons, setReasons] = useState<ArchiveReason[]>([])
   const [reasonId, setReasonId] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -33,16 +33,13 @@ export function ArchiveClassModal({
     setReasonId('')
     setNote('')
     setError(null)
-    getArchiveReasons()
-      .then(setReasons)
-      .catch(() => setReasons([]))
   }, [cls])
 
   const submit = () => {
-    if (!cls) return
+    if (!cls || !reasonId) return
     setBusy(true)
     setError(null)
-    archiveClass(cls.id, { archiveReasonId: reasonId || null, reason: note.trim() || null })
+    archiveClass(cls.id, { archiveReasonId: reasonId, reason: note.trim() || null })
       .then((r) => onArchived(cls, r.archivedStudents))
       .catch((e) => setError(e?.response?.data?.message ?? 'Arxivlashda xatolik'))
       .finally(() => setBusy(false))
@@ -59,7 +56,7 @@ export function ArchiveClassModal({
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Bekor qilish
           </Button>
-          <Button variant="danger" onClick={submit} disabled={busy}>
+          <Button variant="danger" onClick={submit} disabled={busy || !reasonId}>
             <Archive className="h-4 w-4" />
             {busy ? 'Arxivlanmoqda…' : 'Arxivlash'}
           </Button>
@@ -68,14 +65,7 @@ export function ArchiveClassModal({
     >
       <div className="space-y-3 text-sm text-slate-600">
         <p>Sinfdagi barcha o'quvchilar ham arxivlanadi (login bloklanadi). Sinf arxivdan chiqarilsa, ular qaytadi.</p>
-        <Select label="Ketish sababi" value={reasonId} onChange={(e) => setReasonId(e.target.value)}>
-          <option value="">Tanlanmagan</option>
-          {reasons.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </Select>
+        <ArchiveReasonSelect label="Ketish sababi" value={reasonId} onChange={setReasonId} reload={cls} />
         <Textarea
           label="Izoh"
           rows={2}

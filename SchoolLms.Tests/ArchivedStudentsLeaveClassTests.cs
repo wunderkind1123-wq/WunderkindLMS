@@ -28,7 +28,7 @@ public class ArchivedStudentsLeaveClassTests(ApiFixture fixture)
         using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
         var (cls, student, other) = await SeedClassAsync(grade: 5);
 
-        var archive = await admin.PostAsJsonAsync($"{Students}/{student}/archive", new { reason = "Maktabdan ketdi" });
+        var archive = await admin.PostAsJsonAsync($"{Students}/{student}/archive", new { reason = "Maktabdan ketdi", archiveReasonId = new Guid("00000000-0000-0000-0000-0000000000a9") });
         Assert.Equal(HttpStatusCode.NoContent, archive.StatusCode);
 
         await fixture.Api.WithDbAsync(async db =>
@@ -55,7 +55,7 @@ public class ArchivedStudentsLeaveClassTests(ApiFixture fixture)
         using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
         var (cls, a, b) = await SeedClassAsync(grade: 11);
 
-        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsync($"{Classes}/{cls.Id}/archive", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync($"{Classes}/{cls.Id}/archive", new { archiveReasonId = new Guid("00000000-0000-0000-0000-0000000000a9") })).StatusCode);
         await fixture.Api.WithDbAsync(async db =>
         {
             var rows = await db.Students.AsNoTracking().Where(s => s.Id == a || s.Id == b).ToListAsync();

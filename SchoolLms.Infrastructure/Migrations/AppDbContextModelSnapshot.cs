@@ -6186,6 +6186,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("FromStudentId")
+                        .HasColumnType("text")
+                        .HasColumnName("from_student_id");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("text")
@@ -6248,7 +6252,9 @@ namespace SchoolLms.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("ck_leads_admission_status", "admission_status in ('none','invited','testing','tested','accepted','rejected')");
 
-                            t.HasCheckConstraint("ck_leads_source", "source in ('manual','survey','olympiad')");
+                            t.HasCheckConstraint("ck_leads_source", "source in ('manual','survey','olympiad','archive')");
+
+                            t.HasCheckConstraint("ck_leads_source_student", "(source = 'archive') = (from_student_id is not null)");
 
                             t.HasCheckConstraint("ck_leads_source_survey", "(source = 'survey') = (survey_id is not null)");
                         });
@@ -6290,7 +6296,7 @@ namespace SchoolLms.Infrastructure.Migrations
 
                     b.ToTable("lead_conversions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_lead_conversions_source", "source in ('manual','survey')");
+                            t.HasCheckConstraint("ck_lead_conversions_source", "source in ('manual','survey','olympiad','archive')");
                         });
                 });
 
@@ -10789,6 +10795,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -10807,6 +10817,9 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_student_archive_reasons");
 
+                    b.HasIndex("GroupId")
+                        .HasDatabaseName("ix_student_archive_reasons_group_id");
+
                     b.HasIndex("Name")
                         .IsUnique()
                         .HasDatabaseName("ix_student_archive_reasons_name");
@@ -10816,6 +10829,50 @@ namespace SchoolLms.Infrastructure.Migrations
                             t.HasCheckConstraint("ck_student_archive_reasons_name", "btrim(name) <> ''");
 
                             t.HasCheckConstraint("ck_student_archive_reasons_position", "position >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.StudentArchiveReasonGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("slate")
+                        .HasColumnName("color");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.HasKey("Id")
+                        .HasName("pk_student_archive_reason_groups");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_student_archive_reason_groups_name");
+
+                    b.ToTable("student_archive_reason_groups", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_student_archive_reason_groups_name", "btrim(name) <> ''");
+
+                            t.HasCheckConstraint("ck_student_archive_reason_groups_position", "position >= 0");
                         });
                 });
 
@@ -14448,6 +14505,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasForeignKey("StatusId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_students_student_statuses_status_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.StudentArchiveReason", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.StudentArchiveReasonGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_student_archive_reasons_student_archive_reason_groups_group");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.StudentComment", b =>

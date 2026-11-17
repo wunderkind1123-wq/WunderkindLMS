@@ -695,6 +695,17 @@ export interface StudentFlowReason {
   name: string
   count: number
   percent: number
+  /** Sababning guruhi (2026-11-13); null — guruhsiz yoki sababsiz. */
+  groupId?: string | null
+}
+
+/** Ketganlar sabab GURUHI bo'yicha ("o'zi ketdi / maktab chiqardi / tabiiy"). groupId null — "Sababi aniqlanmagan". */
+export interface StudentFlowGroup {
+  groupId: string | null
+  name: string
+  color: StageColor
+  count: number
+  percent: number
 }
 
 export interface StudentFlowClass {
@@ -734,6 +745,7 @@ export interface StudentFlowReport {
   activatedList: StudentFlowRow[]
   leftList: StudentFlowRow[]
   returnedList: StudentFlowRow[]
+  byGroup?: StudentFlowGroup[] | null
 }
 
 /* ---------- O'qituvchilar ---------- */

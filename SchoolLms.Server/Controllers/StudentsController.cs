@@ -222,6 +222,10 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
     /// xodimga qo'shimcha <c>leads</c> ham kerak, chunki lid o'chiriladi.
     /// </para>
     /// </summary>
+    public const string LeadFromArchiveMessage =
+        "Bu lid arxivdagi o'quvchidan. Yangi o'quvchi ochilmaydi: uni O'quvchilar → Arxiv bo'limidan "
+        + "qaytaring — lid o'zi yopiladi.";
+
     [HttpPost("~/api/admin/leads/{leadId}/enrol")]
     public async Task<ActionResult<LeadEnrolResultDto>> EnrolLead(string leadId, LeadEnrolPayload body)
     {
@@ -230,6 +234,11 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
 
         var lead = await db.Leads.FindAsync(leadId);
         if (lead is null) return NotFound(new { message = "Lid topilmadi" });
+
+        // Arxivdan qaytarilgan lid YANGI o'quvchi bo'lmaydi — ikkinchi kartochka (qarz, tarix,
+        // davomat ikkiga bo'linib) paydo bo'lardi. O'quvchi arxivdan qaytariladi, lid o'zi yopiladi.
+        if (lead.FromStudentId is { } fromId && await db.Students.AnyAsync(s => s.Id == fromId))
+            return Conflict(new { message = LeadFromArchiveMessage, studentId = fromId });
 
         var p = body.Student;
         if (BadRelation(p.Guardians) is { } badRelation)
@@ -698,6 +707,9 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         var reason = (req.Reason ?? "").Trim();
         if (reason.Length == 0)
             return BadRequest(new { message = StudentArchiveService.ReasonRequiredMessage });
+        // Katalog sababi ham majburiy (2026-11-13): aks holda arxivni guruhlab bo'lmaydi.
+        if (req.ArchiveReasonId is null)
+            return BadRequest(new { message = StudentArchiveService.ReasonTypeRequiredMessage });
         if (!await archive.ReasonIsUsableAsync(req.ArchiveReasonId, ct))
             return BadRequest(new { message = StudentArchiveService.ReasonNotFoundMessage });
 
@@ -768,6 +780,16 @@ public class StudentsController(AppDbContext db, AuditService audit) : Controlle
         audit.Record(AuditService.EntityStudent, student.Id, "restore",
             $"O'quvchi arxivdan qaytarildi ({student.FullName})",
             studentId: student.Id);
+
+        // "Lidlarga qaytarish" bilan ochilgan lid (2026-11-13) o'z ishini qildi: o'quvchi qaytdi.
+        // Lid yopiladi va voronkada "archive" manbali aylantirish sifatida sanaladi.
+        foreach (var lead in await db.Leads.Where(l => l.FromStudentId == student.Id).ToListAsync())
+        {
+            db.LeadConversions.Add(new LeadConversion { Source = lead.Source, SurveyId = lead.SurveyId });
+            db.Leads.Remove(lead);
+            audit.Record(AuditService.EntityLead, lead.Id, "enrol",
+                $"Lid yopildi — o'quvchi arxivdan qaytarildi ({student.FullName})", studentId: student.Id);
+        }
         // Archiving emptied the class, so the pupil comes back without one (placed later).
         await Flow.ReturnedAsync(student, student.ClassName, StudentEventSource.Manual);
 

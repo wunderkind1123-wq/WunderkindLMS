@@ -48,6 +48,9 @@ public class StudentBulkArchiveController(AppDbContext db, AuditService audit) :
         if (reason.Length == 0)
             return BadRequest(new { message = StudentArchiveService.ReasonRequiredMessage });
 
+        if (req.ArchiveReasonId is null)
+            return BadRequest(new { message = StudentArchiveService.ReasonTypeRequiredMessage });
+
         var archive = new StudentArchiveService(db);
         if (!await archive.ReasonIsUsableAsync(req.ArchiveReasonId, ct))
             return BadRequest(new { message = StudentArchiveService.ReasonNotFoundMessage });

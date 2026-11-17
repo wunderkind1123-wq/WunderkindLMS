@@ -26,6 +26,7 @@ public static class StudentFlowReport
 
     public const string OtherReason = "Boshqa";
     public const string NoClass = "Sinfsiz";
+    public const string UnassignedGroup = "Sababi aniqlanmagan";
 
     public static async Task<StudentFlowReportDto> BuildAsync(
         IAppDbContext db, DateOnly from, DateOnly to, string? classId, CancellationToken ct = default)
@@ -80,7 +81,10 @@ public static class StudentFlowReport
             .ToList();
 
         // ----- lookups for the lists -----
-        var reasons = await db.StudentArchiveReasons.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name, ct);
+        var reasonRows = await db.StudentArchiveReasons.AsNoTracking().ToListAsync(ct);
+        var reasons = reasonRows.ToDictionary(r => r.Id, r => r.Name);
+        var groupOfReason = reasonRows.Where(r => r.GroupId != null).ToDictionary(r => r.Id, r => r.GroupId!.Value);
+        var groups = await db.StudentArchiveReasonGroups.AsNoTracking().ToDictionaryAsync(g => g.Id, ct);
         var ids = events.Select(e => e.StudentId).Distinct().ToList();
         var existing = (await db.Students.AsNoTracking().Where(s => ids.Contains(s.Id)).Select(s => s.Id).ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
@@ -89,6 +93,7 @@ public static class StudentFlowReport
             .ToDictionary(g => g.Key, g => g.First().Grade, StringComparer.Ordinal);
 
         string? ReasonName(Guid? id) => id is { } r ? reasons.GetValueOrDefault(r) : null;
+        Guid? GroupOf(Guid? id) => id is { } r && groupOfReason.TryGetValue(r, out var gid) && groups.ContainsKey(gid) ? gid : null;
         StudentFlowRowDto Row(StudentEvent e) => new(
             e.Id, e.StudentId, e.StudentName, e.ClassName, Iso(e.OnDate),
             e.ReasonId, ReasonName(e.ReasonId), e.ReasonText, e.Source, e.ActorName, existing.Contains(e.StudentId));
@@ -98,8 +103,23 @@ public static class StudentFlowReport
             .GroupBy(e => ReasonName(e.ReasonId) ?? OtherReason)
             .Select(g => new StudentFlowReasonDto(
                 g.Key == OtherReason ? null : g.First().ReasonId, g.Key, g.Count(),
-                Math.Round(100.0 * g.Count() / left.Count, 1)))
+                Math.Round(100.0 * g.Count() / left.Count, 1),
+                g.Key == OtherReason ? null : GroupOf(g.First().ReasonId)))
             .OrderByDescending(r => r.Count).ThenBy(r => r.Name, StringComparer.CurrentCulture)
+            .ToList();
+
+        // ----- by group (2026-11-13): the reason's group; none → "Sababi aniqlanmagan" -----
+        var byGroup = left
+            .GroupBy(e => GroupOf(e.ReasonId))
+            .Select(g =>
+            {
+                var grp = g.Key is { } gid ? groups.GetValueOrDefault(gid) : null;
+                return new StudentFlowGroupDto(
+                    grp?.Id, grp?.Name ?? UnassignedGroup, grp?.Color ?? "slate", g.Count(),
+                    Math.Round(100.0 * g.Count() / left.Count, 1));
+            })
+            .OrderBy(g => g.GroupId is null ? 1 : 0)
+            .ThenBy(g => g.GroupId is { } gid && groups.TryGetValue(gid, out var x) ? x.Position : int.MaxValue)
             .ToList();
 
         // ----- by class (the class at the moment of the event) -----
@@ -123,7 +143,8 @@ public static class StudentFlowReport
                 enrolled.Count, activated.Count, left.Count, returned.Count, net,
                 headcountEnd - net, headcountEnd),
             byReason, byClass,
-            [.. enrolled.Select(Row)], activated, [.. left.Select(Row)], [.. returned.Select(Row)]);
+            [.. enrolled.Select(Row)], activated, [.. left.Select(Row)], [.. returned.Select(Row)],
+            byGroup);
     }
 
     /// <summary>

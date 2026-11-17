@@ -13,7 +13,13 @@ public record StudentFlowTotalsDto(
     int New, int Activated, int Left, int Returned, int Net, int HeadcountStart, int HeadcountEnd);
 
 /// <summary>Departures per catalog reason. No reason (or a deleted one) is counted under "Boshqa".</summary>
-public record StudentFlowReasonDto(Guid? ReasonId, string Name, int Count, double Percent);
+public record StudentFlowReasonDto(Guid? ReasonId, string Name, int Count, double Percent, Guid? GroupId = null);
+
+/// <summary>
+/// Departures per reason GROUP (2026-11-13: "o'zi ketdi / maktab chiqardi / tabiiy"). No reason, or a reason
+/// without a group → "Sababi aniqlanmagan" (<c>GroupId = null</c>).
+/// </summary>
+public record StudentFlowGroupDto(Guid? GroupId, string Name, string Color, int Count, double Percent);
 
 public record StudentFlowClassDto(string? ClassId, string ClassName, int New, int Left, int Returned, int Net);
 
@@ -34,7 +40,8 @@ public record StudentFlowReportDto(
     IReadOnlyList<StudentFlowRowDto> NewList,
     IReadOnlyList<StudentFlowRowDto> ActivatedList,
     IReadOnlyList<StudentFlowRowDto> LeftList,
-    IReadOnlyList<StudentFlowRowDto> ReturnedList);
+    IReadOnlyList<StudentFlowRowDto> ReturnedList,
+    IReadOnlyList<StudentFlowGroupDto>? ByGroup = null);
 
 /// <summary>Change a departure's reason later (from the report).</summary>
 /// <param name="ReasonId">Catalog row; null — "Boshqa" / none.</param>

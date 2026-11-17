@@ -24,6 +24,7 @@ import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { StatCard } from '@/components/ui/StatCard'
 import { cn, formatDate } from '@/lib/utils'
+import { stageColors } from '@/config/stageColors'
 import { displayDate, monthEnd, monthStart, presetRange, tashkentToday } from '@/pages/admin/dashboardPeriod'
 
 /**
@@ -263,6 +264,37 @@ export function StudentFlowPage() {
             <Card>
               <h2 className="font-semibold text-slate-800">Ketish sabablari</h2>
               <p className="text-xs text-slate-400">Sababi tanlanmaganlar — «Boshqa»</p>
+              {(report.byGroup?.length ?? 0) > 0 && (
+                // Guruhlar (2026-11-13): kim tashabbusi bilan ketgani — bitta chiziqda ulushlar.
+                <div className="mt-3">
+                  <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+                    {report.byGroup!.map((g) => (
+                      <div
+                        key={g.groupId ?? 'none'}
+                        title={`${g.name}: ${g.count} (${g.percent}%)`}
+                        className={g.groupId ? (stageColors[g.color] ?? stageColors.slate).bar : 'bg-amber-300'}
+                        style={{ width: `${g.percent}%` }}
+                      />
+                    ))}
+                  </div>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                    {report.byGroup!.map((g) => (
+                      <li key={g.groupId ?? 'none'} className="inline-flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            'h-2 w-2 rounded-full',
+                            g.groupId ? (stageColors[g.color] ?? stageColors.slate).dot : 'bg-amber-300',
+                          )}
+                        />
+                        {g.name}
+                        <span className="font-medium tabular-nums text-slate-800">
+                          {g.count} · {g.percent}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {report.byReason.length === 0 ? (
                 <p className="py-6 text-center text-sm text-slate-400">Bu davrda ketgan o'quvchi yo'q.</p>
               ) : (

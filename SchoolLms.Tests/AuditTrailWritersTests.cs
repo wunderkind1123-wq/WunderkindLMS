@@ -38,7 +38,7 @@ public class AuditTrailWritersTests(ApiFixture fixture)
 
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsync($"{Students}/{id}/reset-password", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent,
-            (await admin.PostAsJsonAsync($"{Students}/{id}/archive", new { reason = "Ko'chib ketdi" })).StatusCode);
+            (await admin.PostAsJsonAsync($"{Students}/{id}/archive", new { reason = "Ko'chib ketdi", archiveReasonId = new Guid("00000000-0000-0000-0000-0000000000a3") })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsJsonAsync($"{Students}/{id}/restore", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{Students}/{id}")).StatusCode);
 

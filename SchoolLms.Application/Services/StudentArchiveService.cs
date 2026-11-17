@@ -39,6 +39,9 @@ public sealed class StudentArchiveService(IAppDbContext db)
     /// <summary>Erkin matn bo'sh bo'lsa chiqadigan xabar — ikkala kirish nuqtasida bir xil.</summary>
     public const string ReasonRequiredMessage = "Arxivlash sababini yozing";
 
+    /// <summary>Katalog qatori tanlanmagan bo'lsa (2026-11-13 dan majburiy).</summary>
+    public const string ReasonTypeRequiredMessage = "Sabab turini tanlang";
+
     /// <summary>Katalog qatori yaroqsiz bo'lsa.</summary>
     public const string ReasonNotFoundMessage = "Arxivlash sababi katalogdan topilmadi yoki faol emas";
 

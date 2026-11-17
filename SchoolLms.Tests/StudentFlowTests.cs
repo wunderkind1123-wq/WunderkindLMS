@@ -317,18 +317,20 @@ public class StudentFlowTests(ApiFixture fixture) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync($"{Report}?from=2026-10-31&to=2026-10-01")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync(Report)).StatusCode);
 
-        // A pupil archived without a catalog reason; the reason is set later from the report.
+        // A pupil archived with one catalog reason; the reason is corrected later from the report.
+        // (Archiving without a catalog reason is refused since 2026-11-13 — archive-reason-groups.md.)
         var tag = Tag();
         var cls = await SeedClassAsync($"8-{tag}", 8);
         var payload = Payload(tag, cls.Name);
         payload["enrollmentDate"] = AppClock.Today.ToString("yyyy-MM-dd");
         var id = (await JsonAsync(await admin.PostAsJsonAsync(Students, payload))).GetProperty("id").GetString()!;
-        Assert.Equal(HttpStatusCode.NoContent, (await admin.PostAsJsonAsync($"{Students}/{id}/archive", new { reason = "ketdi" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PostAsJsonAsync($"{Students}/{id}/archive", new { reason = "ketdi" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await admin.PostAsJsonAsync($"{Students}/{id}/archive", new { reason = "ketdi", archiveReasonId = Moved })).StatusCode);
 
         var report = await JsonAsync(await admin.GetAsync(Report + period));
         var row = report.GetProperty("leftList").EnumerateArray().Single(r => r.GetProperty("studentId").GetString() == id);
-        Assert.Equal("Boshqa", report.GetProperty("byReason").EnumerateArray()
-            .First(r => r.GetProperty("reasonId").ValueKind == JsonValueKind.Null).GetProperty("name").GetString());
+        Assert.Equal("Boshqa shaharga ko'chdi", row.GetProperty("reason").GetString());
         var eventId = row.GetProperty("eventId").GetString()!;
         var enrolledId = report.GetProperty("newList").EnumerateArray().Single(r => r.GetProperty("studentId").GetString() == id)
             .GetProperty("eventId").GetString()!;

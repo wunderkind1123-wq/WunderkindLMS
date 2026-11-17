@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Archive, AlertTriangle } from 'lucide-react'
 import type { Student } from '@/types'
-import {
-  archiveManyStudents,
-  getArchiveReasons,
-  type ArchiveBlockedStudent,
-  type ArchiveReason,
-} from '@/api/services/archiveReasons'
+import { archiveManyStudents, type ArchiveBlockedStudent } from '@/api/services/archiveReasons'
+import { ArchiveReasonSelect } from './ArchiveReasonSelect'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/context/auth-context'
@@ -20,7 +16,8 @@ import { formatMoney } from '@/lib/utils'
  * emas, bitta: ro'yxat uzunligi farq qiladi, xatti-harakat emas.
  *
  * SABAB IKKI QISMDAN. Katalogdan tanlov (guruhlash uchun) + erkin matn
- * (tafsilot uchun). Matn MAJBURIY — "Boshqa" tanlanganda ham, tanlanmaganda ham.
+ * (tafsilot uchun). Ikkalasi ham MAJBURIY (tanlov — 2026-11-13 dan): sababsiz
+ * arxivlanganlar arxiv doskasida "Sababi aniqlanmagan" bo'lib qolardi.
  *
  * QARZDOR RAD ETILADI. Server 400 qaytaradi va qaysi bola qancha qarzi borligini
  * aytadi. Superadmin uchun qo'shimcha tugma chiqadi — lekin AVTOMATIK o'tib
@@ -50,7 +47,6 @@ export function ArchiveStudentsModal({ students, onClose, onArchived }: Props) {
   const open = students.length > 0
   const bulk = students.length > 1
 
-  const [reasons, setReasons] = useState<ArchiveReason[]>([])
   const [reasonId, setReasonId] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -64,15 +60,15 @@ export function ArchiveStudentsModal({ students, onClose, onArchived }: Props) {
       setNote('')
       setError(null)
       setBlocked([])
-      getArchiveReasons()
-        .then(setReasons)
-        .catch(() => setReasons([]))
     }
   }, [open])
 
+  // Sabab turi ham, izoh ham majburiy (2026-11-13): turi guruhlaydi, izoh tafsilotni yozadi.
+  const ready = reasonId !== '' && note.trim() !== ''
+
   const submit = async (force: boolean) => {
     const reason = note.trim()
-    if (!reason) return
+    if (!reason || !reasonId) return
     setBusy(true)
     setError(null)
     try {
@@ -80,7 +76,7 @@ export function ArchiveStudentsModal({ students, onClose, onArchived }: Props) {
       await archiveManyStudents({
         studentIds: ids,
         reason,
-        archiveReasonId: reasonId || null,
+        archiveReasonId: reasonId,
         force,
       })
       onArchived(ids, reason)
@@ -104,11 +100,11 @@ export function ArchiveStudentsModal({ students, onClose, onArchived }: Props) {
             Bekor qilish
           </Button>
           {blocked.length > 0 && isSuperAdmin && (
-            <Button variant="danger" onClick={() => submit(true)} disabled={busy || !note.trim()}>
+            <Button variant="danger" onClick={() => submit(true)} disabled={busy || !ready}>
               Baribir arxivlash
             </Button>
           )}
-          <Button variant="danger" onClick={() => submit(false)} disabled={busy || !note.trim()}>
+          <Button variant="danger" onClick={() => submit(false)} disabled={busy || !ready}>
             <Archive className="h-4 w-4" />
             {busy ? 'Arxivlanmoqda…' : "Arxivga ko'chirish"}
           </Button>
@@ -138,24 +134,7 @@ export function ArchiveStudentsModal({ students, onClose, onArchived }: Props) {
           <li>Login bloklanadi (akkaunt paroli o'chiriladi)</li>
         </ul>
 
-        <div>
-          <span className="mb-1 block text-sm font-medium text-slate-700">Sabab turi</span>
-          <select
-            value={reasonId}
-            onChange={(e) => setReasonId(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-400"
-          >
-            <option value="">Tanlanmagan</option>
-            {reasons.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-slate-400">
-            Hisobotda guruhlash uchun. Ro'yxat "Sozlamalar → Arxivlash sabablari"da boshqariladi.
-          </p>
-        </div>
+        <ArchiveReasonSelect value={reasonId} onChange={setReasonId} reload={open} />
 
         <div>
           <span className="mb-1 block text-sm font-medium text-slate-700">Izoh (majburiy)</span>

@@ -216,6 +216,28 @@ internal static class ParityModel
             .HasOne<StudentArchiveReason>().WithMany()
             .HasForeignKey(s => s.ArchiveReasonId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Sabab guruhlari (2026-11-13) — arxiv doskasining ustunlari.
+        b.Entity<StudentArchiveReasonGroup>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.IsActive).HasDefaultValue(true);
+            e.Property(x => x.Color).HasDefaultValue("slate");
+
+            e.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_student_archive_reason_groups_name", "btrim(name) <> ''");
+                t.HasCheckConstraint("ck_student_archive_reason_groups_position", "position >= 0");
+            });
+        });
+
+        // RESTRICT — ichida sabab bor guruh o'chirilmaydi: avval sabablar boshqa
+        // guruhga o'tkaziladi (aks holda o'quvchilar jimgina "aniqlanmagan"ga tushardi).
+        b.Entity<StudentArchiveReason>()
+            .HasOne<StudentArchiveReasonGroup>().WithMany()
+            .HasForeignKey(r => r.GroupId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     // =====================================================================

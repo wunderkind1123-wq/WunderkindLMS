@@ -125,6 +125,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CertificateType> CertificateTypes => Set<CertificateType>();
     public DbSet<Certificate> Certificates => Set<Certificate>();
     public DbSet<StudentArchiveReason> StudentArchiveReasons => Set<StudentArchiveReason>();
+    public DbSet<StudentArchiveReasonGroup> StudentArchiveReasonGroups => Set<StudentArchiveReasonGroup>();
 
     // O'quv guruhlari va sinf a'zoligi (docs/modules/students-parity.md §3.1).
     // Konfiguratsiya: StudyGroupModel.cs. Hozircha ilovadan HECH KIM o'qimaydi —

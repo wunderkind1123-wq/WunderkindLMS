@@ -56,7 +56,10 @@ public static class LeadSource
     /// <summary>Olimpiada bo'limidan "Lidga aylantirish" (docs/modules/olympiad.md).</summary>
     public const string Olympiad = "olympiad";
 
-    public static readonly IReadOnlyList<string> All = [Manual, Survey, Olympiad];
+    /// <summary>Arxivdagi o'quvchidan "Lidlarga qaytarish" bilan yaratilgan (<see cref="Lead.FromStudentId"/>).</summary>
+    public const string Archive = "archive";
+
+    public static readonly IReadOnlyList<string> All = [Manual, Survey, Olympiad, Archive];
 }
 
 /// <summary>

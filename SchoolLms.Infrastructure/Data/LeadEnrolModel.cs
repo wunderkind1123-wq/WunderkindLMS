@@ -4,8 +4,8 @@ using SchoolLms.Domain;
 namespace SchoolLms.Infrastructure.Data;
 
 /// <summary>
-/// Lid → o'quvchi statistikasi (<c>LeadConversions</c> migratsiyasi). Lidning o'zi
-/// aylantirilganda o'chiriladi; bu jadval faqat SONni saqlaydi — shaxsiy ma'lumotsiz.
+/// Lid в†’ o'quvchi statistikasi (<c>LeadConversions</c> migratsiyasi). Lidning o'zi
+/// aylantirilganda o'chiriladi; bu jadval faqat SONni saqlaydi вЂ” shaxsiy ma'lumotsiz.
 /// </summary>
 internal static class LeadEnrolModel
 {
@@ -14,7 +14,7 @@ internal static class LeadEnrolModel
         b.Entity<LeadConversion>(e =>
         {
             e.ToTable("lead_conversions", t =>
-                t.HasCheckConstraint("ck_lead_conversions_source", "source in ('manual','survey')"));
+                t.HasCheckConstraint("ck_lead_conversions_source", "source in ('manual','survey','olympiad','archive')"));
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             e.Property(x => x.Source).HasDefaultValue(LeadSource.Manual);

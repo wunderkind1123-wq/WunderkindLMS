@@ -266,7 +266,7 @@ public class PupilLifecycleWalkTests(ApiFixture fixture)
         //  8. ARXIVLASH — pul tarixi yo'qolmasligi kerak
         // ===================================================================
         var archiveResponse = await admin.PostAsJsonAsync($"/api/admin/students/{studentId}/archive",
-            new ArchiveStudentRequest("Namuna: sinov yakunlandi, arxivga ko'chirildi"));
+            new ArchiveStudentRequest("Namuna: sinov yakunlandi, arxivga ko'chirildi", new Guid("00000000-0000-0000-0000-0000000000a9")));
         Assert.Equal(HttpStatusCode.NoContent, archiveResponse.StatusCode);
 
         var archivedList = await admin.GetFromJsonAsync<List<StudentDto>>("/api/admin/students/archived");

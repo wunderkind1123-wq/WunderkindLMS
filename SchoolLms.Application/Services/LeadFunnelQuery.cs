@@ -41,6 +41,9 @@ public static class LeadFunnelQuery
     /// <summary>Manba kesimida qo'lda kiritilgan lidlar qatorining nomi.</summary>
     public const string ManualSourceLabel = "Qo'lda kiritilgan";
 
+    /// <summary>Arxivdagi o'quvchidan "Lidlarga qaytarish" bilan (2026-11-13).</summary>
+    public const string ArchiveSourceLabel = "Arxivdan qaytarilgan";
+
     /// <param name="db">Baza konteksti.</param>
     /// <param name="lostStageIds">"Yo'qotildi" deb hisoblanadigan ustunlar id'lari (ixtiyoriy).</param>
     /// <param name="surveyId">
@@ -157,7 +160,8 @@ public static class LeadFunnelQuery
                 var enrolled = enrolledBySource.GetValueOrDefault(key);
                 var label = key.SurveyId is { } id
                     ? surveyNames.GetValueOrDefault(id, "Ariza")
-                    : key.Source == LeadSource.Olympiad ? "Olimpiada" : ManualSourceLabel;
+                    : key.Source == LeadSource.Olympiad ? "Olimpiada"
+                    : key.Source == LeadSource.Archive ? ArchiveSourceLabel : ManualSourceLabel;
                 return new LeadFunnelSourceDto(
                     key.Source, key.SurveyId, label,
                     g.Count, inFunnel, final, sourceLost,

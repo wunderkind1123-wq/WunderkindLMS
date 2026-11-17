@@ -44,7 +44,7 @@ public class ArchiveReasonsController(AppDbContext db) : ControllerBase
 
         return rows
             .Select(r => new StudentArchiveReasonDto(
-                r.Id, r.Name, r.IsActive, r.Position, used.GetValueOrDefault(r.Id)))
+                r.Id, r.Name, r.IsActive, r.Position, used.GetValueOrDefault(r.Id), r.GroupId))
             .ToList();
     }
 
@@ -59,16 +59,18 @@ public class ArchiveReasonsController(AppDbContext db) : ControllerBase
 
         var position = req.Position ?? 0;
         if (position < 0) return BadRequest(new { message = "Tartib raqami manfiy bo'lmasin" });
+        if (await BadGroupAsync(req.GroupId, ct) is { } badGroup) return BadRequest(new { message = badGroup });
 
         var row = new StudentArchiveReason
         {
             Name = name,
             IsActive = req.IsActive ?? true,
             Position = position,
+            GroupId = req.GroupId,
         };
         db.StudentArchiveReasons.Add(row);
         await db.SaveChangesAsync(ct);
-        return new StudentArchiveReasonDto(row.Id, row.Name, row.IsActive, row.Position, 0);
+        return new StudentArchiveReasonDto(row.Id, row.Name, row.IsActive, row.Position, 0, row.GroupId);
     }
 
     [HttpPut("{id:guid}")]
@@ -83,7 +85,12 @@ public class ArchiveReasonsController(AppDbContext db) : ControllerBase
         if (await db.StudentArchiveReasons.AnyAsync(r => r.Name == name && r.Id != id, ct))
             return BadRequest(new { message = "Bunday nomli sabab allaqachon bor" });
 
+        // Faolsiz guruhda qolgan sabab qayta saqlanganda xato bermasin — faqat O'ZGARGAN guruh tekshiriladi.
+        if (req.GroupId != row.GroupId && await BadGroupAsync(req.GroupId, ct) is { } badGroup)
+            return BadRequest(new { message = badGroup });
+
         row.Name = name;
+        row.GroupId = req.GroupId;
         if (req.IsActive is { } active) row.IsActive = active;
         if (req.Position is { } position)
         {
@@ -93,7 +100,7 @@ public class ArchiveReasonsController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync(ct);
 
         var used = (await UsedByAsync(id, ct)).GetValueOrDefault(id);
-        return new StudentArchiveReasonDto(row.Id, row.Name, row.IsActive, row.Position, used);
+        return new StudentArchiveReasonDto(row.Id, row.Name, row.IsActive, row.Position, used, row.GroupId);
     }
 
     /// <summary>
@@ -119,6 +126,14 @@ public class ArchiveReasonsController(AppDbContext db) : ControllerBase
         db.StudentArchiveReasons.Remove(row);
         await db.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    /// <summary>Guruh mavjud va faolmi. null — "guruhsiz", yaroqli.</summary>
+    private async Task<string?> BadGroupAsync(Guid? groupId, CancellationToken ct)
+    {
+        if (groupId is null) return null;
+        var ok = await db.StudentArchiveReasonGroups.AsNoTracking().AnyAsync(g => g.Id == groupId && g.IsActive, ct);
+        return ok ? null : "Guruh topilmadi yoki faol emas";
     }
 
     /// <summary>

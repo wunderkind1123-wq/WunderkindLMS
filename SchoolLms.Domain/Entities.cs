@@ -423,6 +423,14 @@ public class Lead
     /// deletes the lead (2026-09-22), so that state has no row to live on.
     /// </summary>
     public string AdmissionStatus { get; set; } = LeadAdmissionStatus.None;
+
+    /// <summary>
+    /// Arxivdagi qaysi o'quvchidan "Lidlarga qaytarish" bilan yaratilgan (<see cref="LeadSource.Archive"/>).
+    /// Additive — the design-frozen board neither reads nor renders it. While it is set the lead is not
+    /// enrolled as a NEW pupil: the pupil is restored from the archive and the lead closes itself.
+    /// No FK — a deleted pupil leaves the lead as an ordinary one.
+    /// </summary>
+    public string? FromStudentId { get; set; }
 }
 
 /// <summary>Lid bosqichi (kanban ustuni).</summary>

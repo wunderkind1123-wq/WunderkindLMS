@@ -160,6 +160,7 @@ public interface IAppDbContext
     DbSet<CertificateType> CertificateTypes { get; }
     DbSet<Certificate> Certificates { get; }
     DbSet<StudentArchiveReason> StudentArchiveReasons { get; }
+    DbSet<StudentArchiveReasonGroup> StudentArchiveReasonGroups { get; }
 
     // ---------- O'quv guruhlari va sinf a'zoligi (students-parity.md §3.1) ----------
     // Sxema oldin keladi (M-slice), xizmatlar keyin (1-slice). `class_memberships`

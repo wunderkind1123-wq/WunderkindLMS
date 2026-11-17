@@ -326,11 +326,16 @@ public class ClassesController(AppDbContext db, AuditService audit) : Controller
         var note = (req?.Reason ?? "").Trim();
         var reasonText = note.Length > 0 ? note : $"Sinf arxivlandi ({cls.Name})";
 
+        var students = await db.Students.Where(s => s.ClassName == cls.Name && !s.IsArchived).ToListAsync();
+        // Sinfda o'quvchi bo'lsa ular arxivga ketadi — katalog sababi majburiy (2026-11-13).
+        // Bo'sh sinf sababsiz ham arxivlanadi: hech kim ketmayapti.
+        if (students.Count > 0 && req?.ArchiveReasonId is null)
+            return BadRequest(new { message = StudentArchiveService.ReasonTypeRequiredMessage });
+
         var today = AppClock.Today.ToString("yyyy-MM-dd");
         cls.IsArchived = true;
         cls.ArchivedAt = today;
 
-        var students = await db.Students.Where(s => s.ClassName == cls.Name && !s.IsArchived).ToListAsync();
         var flow = new StudentFlowRecorder(db, StudentEventActor.From(User));
         foreach (var s in students)
         {
