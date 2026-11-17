@@ -83,11 +83,12 @@ public class StudentArchiveBoardController(AppDbContext db, AuditService audit) 
             [.. xs.OrderByDescending(c => c.ArchivedAt).ThenBy(c => c.FullName, StringComparer.OrdinalIgnoreCase)];
 
         var known = groups.Select(g => g.Id).ToHashSet();
-        var columns = new List<ArchiveBoardColumnDto>
-        {
-            new(null, UnassignedColumn, "slate",
-                Sorted(cards.Where(c => c.GroupId is null || !known.Contains(c.GroupId.Value)).Select(c => c.Card))),
-        };
+        // "Sababi aniqlanmagan" faqat ichida o'quvchi bo'lsa ko'rinadi (mijoz, 2026-11-17: hamma
+        // ajratilgach bu ustun turmasin). Kimdir guruhsiz sabab bilan arxivlansa — qayta chiqadi,
+        // o'quvchi doskadan yo'qolib qolmaydi.
+        var columns = new List<ArchiveBoardColumnDto>();
+        var unassigned = Sorted(cards.Where(c => c.GroupId is null || !known.Contains(c.GroupId.Value)).Select(c => c.Card));
+        if (unassigned.Count > 0) columns.Add(new(null, UnassignedColumn, "slate", unassigned));
         foreach (var g in groups)
         {
             var inGroup = Sorted(cards.Where(c => c.GroupId == g.Id).Select(c => c.Card));

@@ -34,7 +34,8 @@ import { ArchiveReasonSelect } from './ArchiveReasonSelect'
  *  USTUN = SABAB GURUHI ("O'zi ketdi", "Maktab chiqardi", …) — Sozlamalarda
  *  maktabning o'zi boshqaradi. Birinchi ustun tizimniki: "Sababi aniqlanmagan"
  *  (sababsiz yoki guruhsiz sabab bilan arxivlanganlar) — eski arxivni tartibga
- *  keltirish shu ustundan boshlanadi.
+ *  keltirish shu ustundan boshlanadi. Bo'sh bo'lsa server uni qaytarmaydi
+ *  (2026-11-17) — kimdir guruhsiz sabab bilan arxivlansa, qayta chiqadi.
  *
  *  Kartochkani boshqa ustunga sudrash = sababni o'zgartirish: o'sha guruhning
  *  aniq sababi so'raladi (guruh sababdan kelib chiqadi, aksi emas). Ustun

@@ -32,7 +32,9 @@ family, payment → O'zi ketdi; expelled → Maktab chiqardi; graduated, moved c
 - The group is never picked by hand: it follows from the reason. Moving a reason to another group moves
   everyone who left with it.
 - A reason without a group, or no reason at all (old rows) → board column **"Sababi aniqlanmagan"**
-  (system column, always first, cannot be removed or dropped into).
+  (system column, first, cannot be dropped into). Since 2026-11-17 it is shown **only while it has
+  pupils** — the client sorted everyone out and wanted it gone; a pupil archived with an ungrouped
+  reason brings it back, so nobody disappears from the board.
 - An inactive group keeps its column only while pupils are in it ("(faol emas)").
 
 ## API
