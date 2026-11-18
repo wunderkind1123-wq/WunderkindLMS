@@ -24,6 +24,7 @@ internal static class OlympiadModel
             e.Property(x => x.InviteUrl).HasMaxLength(500);
             e.Property(x => x.CertificateFormat).HasMaxLength(8);
             e.Property(x => x.AdminLink).HasMaxLength(200);
+            e.Property(x => x.AdminPhones).HasMaxLength(2000);
             e.Property(x => x.UpdatedBy).HasMaxLength(200);
         });
 

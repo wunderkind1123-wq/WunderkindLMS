@@ -68,14 +68,17 @@ public sealed record OlympiadSettingsDto(
     string RulesText, string RulesFileUrl, string RulesFileName, string RulesDisplay, int RulesVersion,
     bool Reminder1Enabled, int Reminder1Minutes, bool Reminder2Enabled, int Reminder2Minutes,
     bool ResultShowScore, bool ResultShowRank, bool ResultShowCertificate, bool ResultShowInvite,
-    string InviteText, string InviteUrl, string CertificateFormat, string AdminLink, DateTime? UpdatedAt);
+    string InviteText, string InviteUrl, string CertificateFormat, string AdminLink, DateTime? UpdatedAt,
+    string AdminPhones = "");
 
+/// <param name="AdminPhones">Bot adminlari telefonlari (qator yoki vergul bilan). null — o'zgarmaydi.</param>
 public sealed record OlympiadSettingsInput(
     int GradeFrom, int GradeTo, string? DefaultOnFull,
     string? RulesText, string? RulesFileUrl, string? RulesFileName, string? RulesDisplay,
     bool Reminder1Enabled, int Reminder1Minutes, bool Reminder2Enabled, int Reminder2Minutes,
     bool ResultShowScore, bool ResultShowRank, bool ResultShowCertificate, bool ResultShowInvite,
-    string? InviteText, string? InviteUrl, string? CertificateFormat, string? AdminLink);
+    string? InviteText, string? InviteUrl, string? CertificateFormat, string? AdminLink,
+    string? AdminPhones = null);
 
 public sealed record BotTokenInput(string? Token);
 

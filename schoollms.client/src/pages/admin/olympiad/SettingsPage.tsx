@@ -22,7 +22,7 @@ import {
 } from '@/api/services/olympiad'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { Input, Select } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
@@ -53,6 +53,7 @@ function toInput(s: OlympiadSettings): SettingsInput {
     inviteUrl: s.inviteUrl,
     certificateFormat: s.certificateFormat,
     adminLink: s.adminLink,
+    adminPhones: s.adminPhones,
   }
 }
 
@@ -577,6 +578,24 @@ export default function SettingsPage() {
           onChange={(e) => set('adminLink', e.target.value)}
           placeholder="https://t.me/username"
         />
+      </Card>
+
+      <Card>
+        <SectionTitle
+          title="Bot adminlari"
+          hint="Kirish joyidagi xodimlar. Botda /admin yozib, o'z raqamini tugma orqali yuborgan xodimga QR skaner paneli ochiladi."
+        />
+        <Textarea
+          label="Telefon raqamlari (har qatorda bittasi)"
+          rows={4}
+          value={f.adminPhones}
+          onChange={(e) => set('adminPhones', e.target.value)}
+          placeholder={'+998901234567\n+998931234567'}
+        />
+        <p className="mt-2 text-xs text-slate-400">
+          Raqam ro'yxatdan o'chirilsa, skaner shu zahoti ishlamay qoladi. Xodim raqamni qo'lda yozib admin bo'la olmaydi — faqat Telegram
+          tugmasi orqali o'z raqamini yuboradi.
+        </p>
       </Card>
 
       <TemplatesSection toast={setToast} />

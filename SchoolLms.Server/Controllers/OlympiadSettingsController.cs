@@ -61,7 +61,7 @@ public sealed class OlympiadSettingsController(AppDbContext db, AuditService aud
         s.RulesText, s.RulesFileUrl, s.RulesFileName, s.RulesDisplay, s.RulesVersion,
         s.Reminder1Enabled, s.Reminder1Minutes, s.Reminder2Enabled, s.Reminder2Minutes,
         s.ResultShowScore, s.ResultShowRank, s.ResultShowCertificate, s.ResultShowInvite,
-        s.InviteText, s.InviteUrl, s.CertificateFormat, s.AdminLink, s.UpdatedAt);
+        s.InviteText, s.InviteUrl, s.CertificateFormat, s.AdminLink, s.UpdatedAt, s.AdminPhones);
 
     [HttpGet]
     public async Task<OlympiadSettingsDto> Get(CancellationToken ct) => ToDto(await LoadAsync(db, ct));
@@ -75,7 +75,21 @@ public sealed class OlympiadSettingsController(AppDbContext db, AuditService aud
             return BadRequest(new { message = "Admin havolasi https://t.me/... ko'rinishida bo'lsin" });
         if (!string.IsNullOrWhiteSpace(i.InviteUrl) && !i.InviteUrl.Trim().StartsWith("http", StringComparison.Ordinal))
             return BadRequest(new { message = "Taklif havolasi http(s):// bilan boshlansin" });
+        string? adminPhones = null;
+        if (i.AdminPhones is not null)
+        {
+            var (phones, bad) = OlympiadText.ParseAdminPhones(i.AdminPhones);
+            if (bad.Count > 0) return BadRequest(new { message = "Admin raqami noto'g'ri: " + string.Join(", ", bad) + ". Masalan: +998901234567" });
+            if (phones.Count > 50) return BadRequest(new { message = "Ko'pi bilan 50 ta admin raqami" });
+            adminPhones = string.Join("\n", phones);
+        }
         var s = await LoadAsync(db, ct);
+        if (adminPhones is not null && adminPhones != s.AdminPhones)
+        {
+            audit.Record("olympiad_settings", "1", "admin_phones", "Olimpiada bot adminlari o'zgartirildi",
+                new { phones = s.AdminPhones }, new { phones = adminPhones });
+            s.AdminPhones = adminPhones;
+        }
         if (s.RulesText != (i.RulesText ?? "") || s.RulesFileUrl != (i.RulesFileUrl ?? "")) s.RulesVersion++;
         s.GradeFrom = i.GradeFrom;
         s.GradeTo = i.GradeTo;

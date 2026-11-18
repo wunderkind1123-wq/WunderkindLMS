@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import { CheckCircle2, Search, TriangleAlert, Undo2, XCircle } from 'lucide-react'
 import {
   checkinManual,
@@ -25,11 +25,45 @@ const TONE: Record<CheckinResult['outcome'], { box: string; Icon: typeof CheckCi
   error: { box: 'bg-red-50 text-red-700 border-red-200', Icon: XCircle },
 }
 
+/** Kirish so'rovlari. Admin paneli — JWT; olimpiada botidagi skaner — Telegram initData (`OlympiadScannerPage`). */
+export interface CheckinApi {
+  summary: (eventId: string) => Promise<CheckinSummary>
+  search: (eventId: string, q: string) => Promise<OlympiadRegistration[]>
+  scan: (eventId: string, token: string) => Promise<CheckinResult>
+  checkin: (registrationId: string) => Promise<CheckinResult>
+  undo: (registrationId: string) => Promise<OlympiadRegistration>
+  /** Yo'q bo'lsa «Yakunlash» tugmasi chiqmaydi (botdagi skanerda — faqat admin panelida). */
+  finish?: (eventId: string) => Promise<CheckinSummary>
+}
+
+const adminCheckinApi: CheckinApi = {
+  summary: getCheckinSummary,
+  search: searchCheckin,
+  scan: scanQr,
+  checkin: checkinManual,
+  undo: undoCheckin,
+  finish: finishCheckin,
+}
+
 /**
  * Imtihon kuni kirish (docs/modules/olympiad.md §8): QR skaner, qidiruv, hisob, yakunlash.
- * Ham alohida «Kirish (QR)» sahifasida, ham tadbir sahifasining «Kirish» tabida ishlatiladi.
+ * Ham alohida «Kirish (QR)» sahifasida, ham tadbir sahifasining «Kirish» tabida, ham olimpiada
+ * botidagi skanerda (`api` va `Scanner` bilan) ishlatiladi.
  */
-export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string; closed?: boolean; onFinished?: () => void }) {
+export function CheckinPanel({
+  eventId,
+  closed,
+  onFinished,
+  api = adminCheckinApi,
+  Scanner,
+}: {
+  eventId: string
+  closed?: boolean
+  onFinished?: () => void
+  api?: CheckinApi
+  /** Kamera o'rniga boshqa skaner (masalan, Telegramning o'z QR oynasi). `onScan` natijani qaytaradi. */
+  Scanner?: ComponentType<{ onScan: (text: string) => Promise<CheckinResult | null> }>
+}) {
   const [summary, setSummary] = useState<CheckinSummary | null>(null)
   const [result, setResult] = useState<CheckinResult | null>(null)
   const [q, setQ] = useState('')
@@ -40,8 +74,8 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
   const scanning = useRef(false)
 
   const refresh = useCallback(() => {
-    getCheckinSummary(eventId).then(setSummary).catch(() => {})
-  }, [eventId])
+    api.summary(eventId).then(setSummary).catch(() => {})
+  }, [eventId, api])
 
   // Tadbir almashsa komponent `key` bilan qayta yaratiladi — bu yerda faqat hisobni o'qiymiz.
   useEffect(refresh, [refresh])
@@ -52,26 +86,28 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
   useEffect(() => {
     if (q.trim().length < 2) return
     const t = setTimeout(() => {
-      searchCheckin(eventId, q.trim()).then(setHits).catch((e) => setError(errText(e)))
+      api.search(eventId, q.trim()).then(setHits).catch((e) => setError(errText(e)))
     }, 300)
     return () => clearTimeout(t)
-  }, [q, eventId])
+  }, [q, eventId, api])
 
   const replaceHit = (r: OlympiadRegistration | null) => {
     if (!r) return
     setHits((h) => h.map((x) => (x.id === r.id ? r : x)))
   }
 
-  const onScan = async (text: string) => {
-    if (scanning.current) return
+  const onScan = async (text: string): Promise<CheckinResult | null> => {
+    if (scanning.current) return null
     scanning.current = true
     setError('')
     try {
-      const r = await scanQr(eventId, text)
+      const r = await api.scan(eventId, text)
       setResult(r)
       if (r.outcome === 'ok') refresh()
+      return r
     } catch (e) {
       setError(errText(e))
+      return null
     } finally {
       scanning.current = false
     }
@@ -81,7 +117,7 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
     setBusy(true)
     setError('')
     try {
-      const r = await checkinManual(id)
+      const r = await api.checkin(id)
       setResult(r)
       replaceHit(r.registration)
       refresh()
@@ -96,7 +132,7 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
     setBusy(true)
     setError('')
     try {
-      const r = await undoCheckin(id)
+      const r = await api.undo(id)
       replaceHit(r)
       if (result?.registration?.id === id) setResult(null)
       refresh()
@@ -108,10 +144,11 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
   }
 
   const finish = async () => {
+    if (!api.finish) return
     setConfirmFinish(false)
     setBusy(true)
     try {
-      setSummary(await finishCheckin(eventId))
+      setSummary(await api.finish(eventId))
       onFinished?.()
     } catch (e) {
       setError(errText(e))
@@ -155,7 +192,7 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
         </div>
       )}
 
-      <QrScanner onScan={onScan} />
+      {Scanner ? <Scanner onScan={onScan} /> : <QrScanner onScan={onScan} />}
 
       <Card className="space-y-3">
         <div className="relative">
@@ -196,14 +233,16 @@ export function CheckinPanel({ eventId, closed, onFinished }: { eventId: string;
         {searching && shown.length === 0 && <p className="text-sm text-slate-400">Topilmadi</p>}
       </Card>
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-slate-400">
-          {closed ? 'Kirish yakunlangan. Kech kelganni baribir belgilash mumkin.' : "Tadbir tugagach «Yakunlash» — belgilanmaganlar «Kelmadi» bo'ladi."}
-        </p>
-        <Button variant="secondary" disabled={busy} onClick={() => setConfirmFinish(true)}>
-          Yakunlash
-        </Button>
-      </div>
+      {api.finish && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-slate-400">
+            {closed ? 'Kirish yakunlangan. Kech kelganni baribir belgilash mumkin.' : "Tadbir tugagach «Yakunlash» — belgilanmaganlar «Kelmadi» bo'ladi."}
+          </p>
+          <Button variant="secondary" disabled={busy} onClick={() => setConfirmFinish(true)}>
+            Yakunlash
+          </Button>
+        </div>
+      )}
 
       <Confirm open={confirmFinish} title="Kirishni yakunlash" onClose={() => setConfirmFinish(false)} onConfirm={finish} busy={busy}>
         Belgilanmagan {summary?.notYet ?? 0} ta ishtirokchi «Kelmadi» deb belgilanadi, tadbir «Yakunlangan» bo'ladi. Davom etamizmi?

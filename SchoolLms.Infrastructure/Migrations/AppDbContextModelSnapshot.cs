@@ -8806,6 +8806,12 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("admin_link");
 
+                    b.Property<string>("AdminPhones")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("admin_phones");
+
                     b.Property<string>("BotName")
                         .IsRequired()
                         .HasMaxLength(200)

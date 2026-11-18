@@ -30,6 +30,47 @@ public static partial class OlympiadText
     public const string BtnSendPhone = "📱 Raqamni yuborish";
     /// <summary>Salomlashish ostidagi inline tugma — ro'yxatdan o'tishni boshlaydi.</summary>
     public const string BtnJoin = "✍️ Qatnashish";
+    /// <summary>Faqat adminlar menyusida — QR skaner paneli.</summary>
+    public const string BtnAdmin = "🛡 Admin panel";
+
+    // ---------------- Bot adminlari ----------------
+
+    /// <summary>
+    /// Sozlamadagi admin raqamlari: qator, vergul yoki nuqtali vergul bilan ajratilgan. Har biri
+    /// <see cref="NormalizePhone"/> dan o'tadi; takrorlar olib tashlanadi. Noto'g'rilari — <c>Bad</c> da.
+    /// </summary>
+    public static (List<string> Phones, List<string> Bad) ParseAdminPhones(string? raw)
+    {
+        var phones = new List<string>();
+        var bad = new List<string>();
+        foreach (var part in (raw ?? "").Split(['\n', '\r', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (NormalizePhone(part) is { } p) { if (!phones.Contains(p)) phones.Add(p); }
+            else bad.Add(part);
+        }
+        return (phones, bad);
+    }
+
+    /// <summary>
+    /// <paramref name="phone"/> admin ro'yxatidami. <paramref name="phone"/> — botda foydalanuvchining O'Z
+    /// kontakti orqali tasdiqlangan raqami (<see cref="OlympiadBotUser.Phone"/>); qo'lda yozilgani emas.
+    /// </summary>
+    public static bool IsAdminPhone(string? adminPhones, string? phone)
+    {
+        var key = PhoneKey(phone);
+        if (key.Length != 9) return false;
+        return ParseAdminPhones(adminPhones).Phones.Any(p => PhoneKey(p) == key);
+    }
+
+    /// <summary>Telegram ichida ochiladigan QR skaner sahifasi (SPA <c>/olimpiada-skaner</c>). Null — manzil sozlanmagan.</summary>
+    public static string? ScannerUrl(Microsoft.Extensions.Configuration.IConfiguration? config)
+    {
+        var baseUrl = config?["Receipts:PublicBaseUrl"];
+        if (string.IsNullOrWhiteSpace(baseUrl)) return null;
+        baseUrl = baseUrl.Trim().TrimEnd('/');
+        // Telegram web_app tugmasi faqat https manzilni qabul qiladi.
+        return baseUrl.StartsWith("https://", StringComparison.Ordinal) ? baseUrl + "/olimpiada-skaner" : null;
+    }
 
     private const string RegTokens = "{bola}, {tadbir}, {sana}, {vaqt}, {manzil}, {raqam}";
 
