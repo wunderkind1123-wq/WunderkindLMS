@@ -484,13 +484,21 @@ public class BlockTests(ApiFixture fixture)
         var result = "";
         await fixture.Api.WithDbAsync(async db =>
         {
-            var subGroups = await db.Students.Where(s => s.ClassName == w.Class5AName || s.ClassName == w.Class5BName)
-                .OrderBy(s => s.Id).Select(s => s.Id + ":" + s.SubGroup).ToListAsync();
-            result = string.Join(",", subGroups)
-                     + $"|templates={await db.ScheduleTemplates.CountAsync()}"
-                     + $"|lessons={await db.ScheduleTemplates.SelectMany(t => t.Lessons).CountAsync()}"
-                     + $"|journal={await db.JournalEntries.CountAsync()}"
-                     + $"|notes={await db.LessonNotes.CountAsync()}"
+            // Faqat SHU testning sinflari, o'quvchilari va guruhlari — boshqa kolleksiyalar parallel
+            // ravishda butun bazaga qator yozadi, umumiy son bu yerda hech narsani isbotlamaydi.
+            var students = await db.Students.Where(s => s.ClassName == w.Class5AName || s.ClassName == w.Class5BName)
+                .OrderBy(s => s.Id).ToListAsync();
+            var studentIds = students.Select(s => s.Id).ToList();
+            var owners = new List<string> { w.Class5A, w.Class5B };
+            owners.AddRange((await db.StudyGroups.Where(g => g.Name.Contains(w.Tag)).Select(g => g.Id).ToListAsync())
+                .Select(id => id.ToString()));
+            var blockIds = await db.Blocks.Where(b => b.Name.Contains(w.Tag)).Select(b => b.Id).ToListAsync();
+            result = string.Join(",", students.Select(s => s.Id + ":" + s.SubGroup))
+                     + $"|templates={await db.ScheduleTemplates.CountAsync(t => owners.Contains(t.ClassId))}"
+                     + $"|lessons={await db.ScheduleTemplates.SelectMany(t => t.Lessons)
+                         .CountAsync(l => l.BlockId != null && blockIds.Contains(l.BlockId.Value))}"
+                     + $"|journal={await db.JournalEntries.CountAsync(j => studentIds.Contains(j.StudentId))}"
+                     + $"|notes={await db.LessonNotes.CountAsync(n => owners.Contains(n.ClassId))}"
                      + $"|switch={await LessonRoster.GroupLessonsEnabledAsync(db)}";
         });
         return result;
