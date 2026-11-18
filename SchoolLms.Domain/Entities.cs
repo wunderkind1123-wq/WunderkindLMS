@@ -489,6 +489,12 @@ public class JournalEntry
     /// ishlaydi (students-parity.md §2.1.4, §3.1).
     /// </summary>
     public string OwnerKind { get; set; } = LessonOwnerKind.Class;
+
+    /// <summary>Blok guruhi (block_groups.id) — blok darsida to'ldiriladi, oddiy darsda null (docs/modules/blocks.md).</summary>
+    public Guid? BlockGroupId { get; set; }
+
+    /// <summary>Yozuv paytidagi o'quvchining manba sinfi yoki yo'nalishi — sinf jurnali va hisobotlar shu bo'yicha. Oddiy darsda null.</summary>
+    public string? SourceClassId { get; set; }
 }
 
 /// <summary>
@@ -514,6 +520,12 @@ public class QuarterGrade
     /// ishlaydi (students-parity.md §2.1.4, §3.1).
     /// </summary>
     public string OwnerKind { get; set; } = LessonOwnerKind.Class;
+
+    /// <summary>Blok guruhi (block_groups.id) — blok darsida to'ldiriladi, oddiy darsda null (docs/modules/blocks.md).</summary>
+    public Guid? BlockGroupId { get; set; }
+
+    /// <summary>Yozuv paytidagi o'quvchining manba sinfi yoki yo'nalishi — sinf jurnali va hisobotlar shu bo'yicha. Oddiy darsda null.</summary>
+    public string? SourceClassId { get; set; }
 }
 
 /// <summary>Dars mavzusi va uyga vazifa (sana bo'yicha).</summary>
@@ -541,6 +553,9 @@ public class LessonNote
     /// ishlaydi (students-parity.md §2.1.4, §3.1).
     /// </summary>
     public string OwnerKind { get; set; } = LessonOwnerKind.Class;
+
+    /// <summary>Blok guruhi (block_groups.id) — blok darsining mavzusi, oddiy darsda null (docs/modules/blocks.md).</summary>
+    public Guid? BlockGroupId { get; set; }
 }
 
 /// <summary>Sinf uchun nomli dars jadvali varianti.</summary>
@@ -587,6 +602,9 @@ public class ScheduleLesson
     /// saqlanadi.
     /// </summary>
     public int SubGroup { get; set; }
+
+    /// <summary>Blok darsi bo'lsa — blok (blocks.id). Katak blokning barcha manba sinflari jadvalida bir xil turadi. Oddiy darsda null.</summary>
+    public Guid? BlockId { get; set; }
 }
 
 /// <summary>Chorak ichidagi haftaga jadval biriktirish.</summary>
@@ -794,6 +812,12 @@ public class DisciplinePoint
     /// yozuv shu kalit bo'yicha tuzatiladi. null — qo'lda qo'yilgan ball.
     /// </summary>
     public string? SourceKey { get; set; }
+
+    /// <summary>Blok guruhi (block_groups.id) — blok darsida to'ldiriladi, oddiy darsda null (docs/modules/blocks.md).</summary>
+    public Guid? BlockGroupId { get; set; }
+
+    /// <summary>Yozuv paytidagi o'quvchining manba sinfi yoki yo'nalishi — sinf jurnali va hisobotlar shu bo'yicha. Oddiy darsda null.</summary>
+    public string? SourceClassId { get; set; }
 }
 
 /// <summary>

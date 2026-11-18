@@ -186,10 +186,19 @@ public class StudyGroupMember
     /// <summary>Chiqish sababi (erkin matn).</summary>
     public string? LeaveReason { get; set; }
 
-    /// <summary>Kim qo'shgan (users.id).</summary>
+    /// <summary>Kim qo'shgan (users.id). Blok guruhida — kim ko'chirgan.</summary>
     public string CreatedBy { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// Blok guruhida: qo'shilgan paytdagi o'quvchining manba sinfi yoki yo'nalishi
+    /// ("Ali V. · Filologiya"). Oddiy va yo'nalish guruhlarida null (docs/modules/blocks.md).
+    /// </summary>
+    public string? SourceClassId { get; set; }
+
+    /// <summary>Blok guruhiga ko'chirish sababi ("darajasi yetdi"). Ixtiyoriy.</summary>
+    public string? JoinReason { get; set; }
 }
 
 /// <summary>

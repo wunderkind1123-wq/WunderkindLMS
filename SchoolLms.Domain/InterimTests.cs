@@ -35,6 +35,12 @@ public class InterimTest
     public string CreatedBy { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// Blok guruhi (block_groups.id) — yo'nalishli blokning testi (Fil+Ijt ingliz tili ...);
+    /// bunda <see cref="GroupId"/> blok guruhining o'quv guruhi. Oddiy yo'nalish testida null.
+    /// </summary>
+    public Guid? BlockGroupId { get; set; }
 }
 
 /// <summary>One pupil's result on an <see cref="InterimTest"/>: correct answers, or absent.</summary>
@@ -57,4 +63,7 @@ public class InterimTestResult
     public string UpdatedBy { get; set; } = string.Empty;
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>Blok testida: o'quvchining manba yo'nalishi (study_groups.id). Oddiy testda null.</summary>
+    public string? SourceClassId { get; set; }
 }

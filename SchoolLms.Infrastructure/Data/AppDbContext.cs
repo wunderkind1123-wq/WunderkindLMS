@@ -206,6 +206,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     // Yo'nalishlarning haftalik oraliq testlari (2026-11-10). Konfiguratsiya: InterimTestModel.cs.
     public DbSet<InterimTest> InterimTests => Set<InterimTest>();
     public DbSet<InterimTestResult> InterimTestResults => Set<InterimTestResult>();
+    // Bloklar — birlashgan va daraja guruhlari (2026-11-18). Konfiguratsiya: BlockModel.cs.
+    public DbSet<Block> Blocks => Set<Block>();
+    public DbSet<BlockClass> BlockClasses => Set<BlockClass>();
+    public DbSet<BlockGroup> BlockGroups => Set<BlockGroup>();
+    public DbSet<BlockGroupTeacher> BlockGroupTeachers => Set<BlockGroupTeacher>();
     // Teacher certificates and named allowances paid with the salary (teacher-allowances.md, 2026-10-15).
     public DbSet<TeacherAllowance> TeacherAllowances => Set<TeacherAllowance>();
     // Thank-you / warning messages after a test (exam-awards.md, 2026-10-15).
@@ -607,6 +612,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Olimpiada (2026-11-16, docs/modules/olympiad.md).
         OlympiadModel.Apply(b);
+
+        // Bloklar — birlashgan va daraja guruhlari (2026-11-18, docs/modules/blocks.md).
+        BlockModel.Apply(b);
 
         // ----- PostgreSQL: vaqt turi -----
         // Tizim sanalarni Toshkent "devor soati" sifatida saqlaydi (AppClock.Now — Kind=Unspecified),

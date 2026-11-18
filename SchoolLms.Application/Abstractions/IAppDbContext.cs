@@ -286,6 +286,11 @@ public interface IAppDbContext
     /// <summary>Track groups' weekly interim tests and their results (2026-11-10).</summary>
     DbSet<InterimTest> InterimTests { get; }
     DbSet<InterimTestResult> InterimTestResults { get; }
+    /// <summary>Blocks: merged classes split into two groups per subject (2026-11-18, docs/modules/blocks.md).</summary>
+    DbSet<Block> Blocks { get; }
+    DbSet<BlockClass> BlockClasses { get; }
+    DbSet<BlockGroup> BlockGroups { get; }
+    DbSet<BlockGroupTeacher> BlockGroupTeachers { get; }
     /// <summary>One rule's run per period: status, approval, counts (2026-10-15).</summary>
     DbSet<AutoMessageRun> AutoMessageRuns { get; }
     /// <summary>Teacher certificates and named allowances paid with the salary (2026-10-15).</summary>

@@ -1496,6 +1496,248 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.Block", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("AcademicYear")
+                        .IsRequired()
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)")
+                        .HasColumnName("academic_year");
+
+                    b.Property<string>("BlockType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("block_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DayPattern")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("day_pattern");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("subject_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_blocks");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_blocks_created_by");
+
+                    b.HasIndex("SubjectId")
+                        .HasDatabaseName("ix_blocks_subject_id");
+
+                    b.HasIndex("AcademicYear", "SubjectId")
+                        .HasDatabaseName("ix_blocks_year_subject");
+
+                    b.ToTable("blocks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_blocks_block_type", "block_type in ('level','base_class')");
+
+                            t.HasCheckConstraint("ck_blocks_day_pattern", "day_pattern in ('odd','even','custom')");
+
+                            t.HasCheckConstraint("ck_blocks_name", "btrim(name) <> ''");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.BlockClass", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BlockId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_id");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("OwnerKind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("owner_kind");
+
+                    b.HasKey("Id")
+                        .HasName("pk_block_classes");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_block_classes_owner");
+
+                    b.HasIndex("BlockId", "OwnerKind", "OwnerId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_block_classes_block_owner");
+
+                    b.ToTable("block_classes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_block_classes_owner_kind", "owner_kind in ('class','group')");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.BlockGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("BaseOwnerId")
+                        .HasColumnType("text")
+                        .HasColumnName("base_owner_id");
+
+                    b.Property<string>("BaseOwnerKind")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("base_owner_kind");
+
+                    b.Property<Guid>("BlockId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("room_id");
+
+                    b.Property<short>("SortOrder")
+                        .HasColumnType("smallint")
+                        .HasColumnName("sort_order");
+
+                    b.Property<Guid>("StudyGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("study_group_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_block_groups");
+
+                    b.HasIndex("RoomId")
+                        .HasDatabaseName("ix_block_groups_room_id");
+
+                    b.HasIndex("StudyGroupId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_block_groups_study_group");
+
+                    b.HasIndex("BlockId", "SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("ux_block_groups_block_sort");
+
+                    b.ToTable("block_groups", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_block_groups_base_owner", "(base_owner_kind is null) = (base_owner_id is null) and (base_owner_kind is null or base_owner_kind in ('class','group'))");
+
+                            t.HasCheckConstraint("ck_block_groups_code", "code in ('KATTA','KICHIK','custom')");
+
+                            t.HasCheckConstraint("ck_block_groups_name", "btrim(name) <> ''");
+
+                            t.HasCheckConstraint("ck_block_groups_sort_order", "sort_order in (1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.BlockGroupTeacher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BlockGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_group_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("TeacherId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("teacher_id");
+
+                    b.Property<DateOnly>("ValidFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_from");
+
+                    b.Property<DateOnly?>("ValidTo")
+                        .HasColumnType("date")
+                        .HasColumnName("valid_to");
+
+                    b.HasKey("Id")
+                        .HasName("pk_block_group_teachers");
+
+                    b.HasIndex("BlockGroupId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_block_group_teachers_one_current")
+                        .HasFilter("valid_to is null");
+
+                    b.HasIndex("CreatedBy")
+                        .HasDatabaseName("ix_block_group_teachers_created_by");
+
+                    b.HasIndex("TeacherId")
+                        .HasDatabaseName("ix_block_group_teachers_teacher");
+
+                    b.ToTable("block_group_teachers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_block_group_teachers_period", "valid_to is null or valid_to >= valid_from");
+                        });
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.BoardingAttendance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3051,6 +3293,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("BlockGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_group_id");
+
                     b.Property<string>("CreatedAt")
                         .IsRequired()
                         .HasColumnType("text")
@@ -3084,6 +3330,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("reason_name");
 
+                    b.Property<string>("SourceClassId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_class_id");
+
                     b.Property<string>("SourceKey")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -3104,6 +3354,10 @@ namespace SchoolLms.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_discipline_points");
+
+                    b.HasIndex("BlockGroupId")
+                        .HasDatabaseName("ix_discipline_points_block_group")
+                        .HasFilter("block_group_id is not null");
 
                     b.HasIndex("SourceKey")
                         .IsUnique()
@@ -5639,6 +5893,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("BlockGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_group_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -5678,6 +5936,9 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_interim_tests");
 
+                    b.HasIndex("BlockGroupId")
+                        .HasDatabaseName("ix_interim_tests_block_group_id");
+
                     b.HasIndex("SubjectId")
                         .HasDatabaseName("ix_interim_tests_subject_id");
 
@@ -5705,6 +5966,10 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.Property<int?>("Correct")
                         .HasColumnType("integer")
                         .HasColumnName("correct");
+
+                    b.Property<string>("SourceClassId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_class_id");
 
                     b.Property<string>("StudentId")
                         .IsRequired()
@@ -6032,6 +6297,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("behavior");
 
+                    b.Property<Guid?>("BlockGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_group_id");
+
                     b.Property<string>("ClassId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -6073,6 +6342,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("reason_id");
 
+                    b.Property<string>("SourceClassId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_class_id");
+
                     b.Property<string>("StudentId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -6090,11 +6363,21 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_journal_entries");
 
+                    b.HasIndex("BlockGroupId")
+                        .HasDatabaseName("ix_journal_entries_block_group")
+                        .HasFilter("block_group_id is not null");
+
+                    b.HasIndex("SourceClassId")
+                        .HasDatabaseName("ix_journal_entries_source_class")
+                        .HasFilter("source_class_id is not null");
+
                     b.HasIndex("ClassId", "SubjectId", "Quarter")
                         .HasDatabaseName("ix_journal_entries_class_id_subject_id_quarter");
 
                     b.ToTable("journal_entries", null, t =>
                         {
+                            t.HasCheckConstraint("ck_journal_entries_block_group", "block_group_id is null or owner_kind = 'group'");
+
                             t.HasCheckConstraint("ck_journal_entries_owner_kind", "owner_kind in ('class','group')");
                         });
                 });
@@ -6509,6 +6792,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("BlockGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_group_id");
+
                     b.Property<string>("ClassId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -6559,11 +6846,16 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_lesson_notes");
 
+                    b.HasIndex("BlockGroupId")
+                        .HasDatabaseName("ix_lesson_notes_block_group_id");
+
                     b.HasIndex("ClassId", "SubjectId", "Quarter")
                         .HasDatabaseName("ix_lesson_notes_class_id_subject_id_quarter");
 
                     b.ToTable("lesson_notes", null, t =>
                         {
+                            t.HasCheckConstraint("ck_lesson_notes_block_group", "block_group_id is null or owner_kind = 'group'");
+
                             t.HasCheckConstraint("ck_lesson_notes_owner_kind", "owner_kind in ('class','group')");
                         });
                 });
@@ -9718,6 +10010,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("BlockGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_group_id");
+
                     b.Property<string>("ClassId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -9738,6 +10034,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("quarter");
 
+                    b.Property<string>("SourceClassId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_class_id");
+
                     b.Property<string>("StudentId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -9751,12 +10051,17 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_quarter_grades");
 
+                    b.HasIndex("BlockGroupId")
+                        .HasDatabaseName("ix_quarter_grades_block_group_id");
+
                     b.HasIndex("ClassId", "SubjectId", "Quarter", "StudentId")
                         .IsUnique()
                         .HasDatabaseName("ix_quarter_grades_class_id_subject_id_quarter_student_id");
 
                     b.ToTable("quarter_grades", null, t =>
                         {
+                            t.HasCheckConstraint("ck_quarter_grades_block_group", "block_group_id is null or owner_kind = 'group'");
+
                             t.HasCheckConstraint("ck_quarter_grades_owner_kind", "owner_kind in ('class','group')");
                         });
                 });
@@ -10005,6 +10310,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("BlockId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("block_id");
+
                     b.Property<int>("Day")
                         .HasColumnType("integer")
                         .HasColumnName("day");
@@ -10034,6 +10343,10 @@ namespace SchoolLms.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_schedule_lesson");
+
+                    b.HasIndex("BlockId")
+                        .HasDatabaseName("ix_schedule_lesson_block")
+                        .HasFilter("block_id is not null");
 
                     b.HasIndex("TemplateId")
                         .HasDatabaseName("ix_schedule_lesson_template_id");
@@ -11643,6 +11956,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
 
+                    b.Property<string>("JoinReason")
+                        .HasColumnType("text")
+                        .HasColumnName("join_reason");
+
                     b.Property<DateOnly>("JoinedOn")
                         .HasColumnType("date")
                         .HasColumnName("joined_on");
@@ -11654,6 +11971,10 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.Property<DateOnly?>("LeftOn")
                         .HasColumnType("date")
                         .HasColumnName("left_on");
+
+                    b.Property<string>("SourceClassId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_class_id");
 
                     b.Property<string>("StudentId")
                         .IsRequired()
@@ -13042,6 +13363,80 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasConstraintName("fk_billing_settings_users_updated_by");
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.Block", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_blocks_users_created_by");
+
+                    b.HasOne("SchoolLms.Domain.Subject", null)
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_blocks_subjects_subject_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.BlockClass", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Block", null)
+                        .WithMany()
+                        .HasForeignKey("BlockId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_block_classes_blocks_block_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.BlockGroup", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Block", null)
+                        .WithMany()
+                        .HasForeignKey("BlockId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_block_groups_blocks_block_id");
+
+                    b.HasOne("SchoolLms.Domain.Room", null)
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_block_groups_rooms_room_id");
+
+                    b.HasOne("SchoolLms.Domain.StudyGroup", null)
+                        .WithMany()
+                        .HasForeignKey("StudyGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_block_groups_study_groups_study_group_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.BlockGroupTeacher", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.BlockGroup", null)
+                        .WithMany()
+                        .HasForeignKey("BlockGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_block_group_teachers_block_groups_block_group_id");
+
+                    b.HasOne("SchoolLms.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_block_group_teachers_users_created_by");
+
+                    b.HasOne("SchoolLms.Domain.Teacher", null)
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_block_group_teachers_teachers_teacher_id");
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.BoardingAttendance", b =>
                 {
                     b.HasOne("SchoolLms.Domain.Student", null)
@@ -13356,6 +13751,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_debtor_actions_students_student_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.DisciplinePoint", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.BlockGroup", null)
+                        .WithMany()
+                        .HasForeignKey("BlockGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_discipline_points_block_groups_block_group_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.Discount", b =>
@@ -13818,6 +14222,12 @@ namespace SchoolLms.Infrastructure.Migrations
 
             modelBuilder.Entity("SchoolLms.Domain.InterimTest", b =>
                 {
+                    b.HasOne("SchoolLms.Domain.BlockGroup", null)
+                        .WithMany()
+                        .HasForeignKey("BlockGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_interim_tests_block_groups_block_group_id");
+
                     b.HasOne("SchoolLms.Domain.StudyGroup", null)
                         .WithMany()
                         .HasForeignKey("GroupId")
@@ -13905,6 +14315,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasConstraintName("fk_job_applicants_vacancies_vacancy_id");
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.JournalEntry", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.BlockGroup", null)
+                        .WithMany()
+                        .HasForeignKey("BlockGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_journal_entries_block_groups_block_group_id");
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Lead", b =>
                 {
                     b.HasOne("SchoolLms.Domain.Survey", null)
@@ -13953,6 +14372,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasForeignKey("ReversalOf")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_ledger_entries_ledger_entries_reversal_of");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.LessonNote", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.BlockGroup", null)
+                        .WithMany()
+                        .HasForeignKey("BlockGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_lesson_notes_block_groups_block_group_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.LessonObservation", b =>
@@ -14389,6 +14817,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasConstraintName("fk_poll_responses_polls_poll_id");
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.QuarterGrade", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.BlockGroup", null)
+                        .WithMany()
+                        .HasForeignKey("BlockGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_quarter_grades_block_groups_block_group_id");
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Question", b =>
                 {
                     b.HasOne("SchoolLms.Domain.QuestionBank", null)
@@ -14427,6 +14864,12 @@ namespace SchoolLms.Infrastructure.Migrations
 
             modelBuilder.Entity("SchoolLms.Domain.ScheduleLesson", b =>
                 {
+                    b.HasOne("SchoolLms.Domain.Block", null)
+                        .WithMany()
+                        .HasForeignKey("BlockId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_schedule_lesson_blocks_block_id");
+
                     b.HasOne("SchoolLms.Domain.ScheduleTemplate", null)
                         .WithMany("Lessons")
                         .HasForeignKey("TemplateId")
