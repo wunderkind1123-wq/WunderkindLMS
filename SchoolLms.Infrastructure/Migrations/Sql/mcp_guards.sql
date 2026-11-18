@@ -34,6 +34,9 @@ DECLARE
         -- bell_*: the timetable tool reads each owner's lesson times through BellTimes (2026-10-11)
         'bell_schedule_owners', 'bell_schedule_periods', 'bell_schedules',
         'assignment_types', 'assignments', 'billing_settings', 'boarding_attendance', 'broadcasts',
+        -- blocks: LessonRoster reads which block groups are live; every roster-based tool needs it
+        -- (docs/modules/blocks.md, 2026-11-18)
+        'block_classes', 'block_group_teachers', 'block_groups', 'blocks',
         'cash_box_transactions', 'cash_boxes', 'cash_handovers', 'cash_shifts',
         -- cash_box_transfer_decisions: a transfer's status in the journal tool (2026-10-12)
         'cash_box_transfer_decisions',
