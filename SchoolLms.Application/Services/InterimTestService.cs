@@ -67,8 +67,10 @@ public static class InterimTestService
         var pairs = await TeacherOwnerAccess.PairsAsync(db, teacherId, ct);
         var ids = pairs.Where(p => p.OwnerKind == LessonOwnerKind.Group)
             .Select(p => Guid.TryParse(p.OwnerId, out var g) ? g : (Guid?)null).OfType<Guid>().Distinct().ToList();
+        // Yo'nalishli blok guruhi ham oraliq test oladi — unda jurnal bahosi yo'q (docs/modules/blocks.md).
+        var trackBlocks = await BlockJournal.TrackBlockGroupIdsAsync(db, ct);
         var tracks = (await db.StudyGroups.AsNoTracking()
-                .Where(g => ids.Contains(g.Id) && g.IsTrack && !g.IsArchived)
+                .Where(g => ids.Contains(g.Id) && (g.IsTrack || trackBlocks.Contains(g.Id)) && !g.IsArchived)
                 .Select(g => g.Id)
                 .ToListAsync(ct))
             .ToHashSet();
@@ -82,8 +84,9 @@ public static class InterimTestService
     public static async Task<List<InterimOptionDto>> OptionsAsync(
         IAppDbContext db, HashSet<(Guid GroupId, string SubjectId)>? scope, CancellationToken ct = default)
     {
+        var trackBlocks = await BlockJournal.TrackBlockGroupIdsAsync(db, ct);
         var groups = await db.StudyGroups.AsNoTracking()
-            .Where(g => g.IsTrack && !g.IsArchived)
+            .Where(g => (g.IsTrack || trackBlocks.Contains(g.Id)) && !g.IsArchived)
             .Select(g => new { g.Id, g.Name })
             .ToListAsync(ct);
 
@@ -144,7 +147,8 @@ public static class InterimTestService
         var subjectId = req.SubjectId?.Trim();
         if (string.IsNullOrEmpty(subjectId)) return Bad("Fanni tanlang");
         if (scope is not null && !scope.Contains((groupId, subjectId))) return new InterimError(403, NotYoursMessage);
-        if (!await db.StudyGroups.AnyAsync(g => g.Id == groupId && g.IsTrack && !g.IsArchived, ct))
+        var trackBlocks = await BlockJournal.TrackBlockGroupIdsAsync(db, ct);
+        if (!await db.StudyGroups.AnyAsync(g => g.Id == groupId && (g.IsTrack || trackBlocks.Contains(g.Id)) && !g.IsArchived, ct))
             return Bad("Yo'nalish topilmadi");
         if (!await db.Subjects.AnyAsync(s => s.Id == subjectId, ct)) return Bad("Fan topilmadi");
         if (CheckFields(req) is { } error) return error;

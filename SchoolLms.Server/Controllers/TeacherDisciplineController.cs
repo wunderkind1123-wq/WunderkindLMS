@@ -186,6 +186,16 @@ public sealed class TeacherDisciplineController(
             CreatedBy = t.FullName,
             CreatedByUserId = Uid,
         };
+        // Blok darsida qo'yilgan ball — blok guruhi va o'quvchining manba sinfi bilan (17:00 hisoboti
+        // ustoz bo'yicha har guruhni alohida ko'rsatadi, docs/modules/blocks.md).
+        if (!string.IsNullOrWhiteSpace(req.OwnerId) && Guid.TryParse(req.OwnerId, out var sg)
+            && await db.BlockGroups.Where(g => g.StudyGroupId == sg).Select(g => (Guid?)g.Id).FirstOrDefaultAsync(ct) is { } bg)
+        {
+            point.BlockGroupId = bg;
+            point.SourceClassId = await db.StudyGroupMembers.AsNoTracking()
+                .Where(m => m.GroupId == sg && m.StudentId == student.Id && m.LeftOn == null)
+                .Select(m => m.SourceClassId).FirstOrDefaultAsync(ct);
+        }
         db.DisciplinePoints.Add(point);
         await db.SaveChangesAsync(ct);
 

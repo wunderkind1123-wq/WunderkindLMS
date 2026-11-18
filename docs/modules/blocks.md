@@ -140,6 +140,23 @@ bilan, bo'sh katak oynasida "Yoki fan o'rniga blok".
 
 Testlar: `BlockScheduleTests` (13 ta, har biri o'z bazasida).
 
+## Ustoz ekranlari (5-bosqich)
+
+| Narsa | Qanday |
+|---|---|
+| Belgi | Blok darsining jurnal qatori, mavzusi, chorak bahosi, uy vazifasi bali va oraliq test natijasi `block_group_id` + `source_class_id` (o'quvchining shu sanadagi manbasi) oladi. Bitta joyda — `AppDbContext.SaveChangesAsync` → `BlockStamping` (har yozish yo'liga alohida qo'shilmaydi). Sinf va oddiy guruh qatoriga tegmaydi; qo'yilgan belgi qayta yozilmaydi |
+| Ustoz qo'ygan ball | Mini App ball oynasi darsning egasini (`ownerId`) yuboradi — blok guruhida ball blok guruhi va manba sinfini oladi |
+| Yo'nalishli blok | Manbalaridan biri yo'nalish bo'lsa jurnal bahosi va chorak bahosi rad etiladi (`BlockJournal.NoGradesMessage`), davomat/uy vazifasi — yoziladi. Oraliq test shu guruhlarda olinadi (`InterimTestService`). 3- va 4-sinf bloklarida baho odatdagidek |
+| Nomlar | Ustoz ro'yxatlari va haftasi: "Ingliz tili, Katta (Fil+Ijt Ingliz)" (`BlockJournal.LabelsAsync`); `TeacherLessonDto.NoGrades` — Mini App baho tugmalarini yashiradi |
+| Manba sinf | Ustoz va admin jurnal ro'yxatida blok guruhi o'quvchisining `className` — manba sinfi/yo'nalishi; ekranlar uni ism yonida ko'rsatadi |
+| Ro'yxat | Guruh a'zoligidan, sanaga qarab (ko'chirilgan kundan yangi ustozda) — `LessonRoster` (4-bosqich) |
+
+Testlar: `BlockTeacherTests` (7 ta).
+
+Tuzatish (4-bosqich): MCP o'qish roli `app_ro` blok jadvallarini o'qiy olmasdi — `LessonRoster` ularni o'qigani
+uchun ro'yxatga tayanadigan MCP vositalari yiqilardi. `mcp_guards.sql` ro'yxatiga qo'shildi, migratsiya
+`BlocksMcpGrants`.
+
 ## Bosqichlar
 1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI ✅ —
-4. Jadval ✅ — 5. Ustoz ekranlari — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).
+4. Jadval ✅ — 5. Ustoz ekranlari ✅ — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).

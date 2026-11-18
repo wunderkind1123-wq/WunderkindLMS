@@ -603,7 +603,10 @@ function LessonAttendance({ lesson, quarter, date, isToday = true, reasons, canM
                 reasons={reasons}
                 canMark={canMark}
                 nurseMark={current[s.id] ? reasonById.get(current[s.id]) || { name: "Yo'q", isLate: false } : null}
-                showGrades={canMark ? !current[s.id] : inClass(s.id)}
+                // Yo'nalishli blok darsida baho yo'q — oraliq test (docs/modules/blocks.md).
+                showGrades={lesson.noGrades ? false : canMark ? !current[s.id] : inClass(s.id)}
+                // Guruh darsida o'quvchi yonida manba sinfi ("Ali V. · Filologiya").
+                source={isGroup ? s.className : null}
                 // Xulq o'tgan sanaga yozilmaydi — faqat bugungi darsda.
                 behaviour={isToday && behaviourReasons.data ? scoreOf.get(s.id) || { remaining: null, today: 0 } : null}
                 onBehaviour={() => openSheet(s)}
@@ -626,6 +629,7 @@ function LessonAttendance({ lesson, quarter, date, isToday = true, reasons, canM
           {sheetStudent && behaviourReasons.data && (
             <BehaviourSheet
               student={sheetStudent}
+              ownerId={classId}
               reasons={behaviourReasons.data}
               onClose={closeSheet}
               onChanged={behaviourScores.reload}
@@ -704,7 +708,7 @@ const GRADES = [1, 2, 3, 4, 5]
  * (joriy ball va bugungi ballar); null bo'lsa tugma yo'q.
  */
 function StudentRow({
-  index, student, reasonId, reasons, canMark = true, nurseMark, showGrades, behaviour, onBehaviour,
+  index, student, source, reasonId, reasons, canMark = true, nurseMark, showGrades, behaviour, onBehaviour,
   grade, homework, showHomework, onToggle, onReason, onGrade, onHomework,
 }) {
   // Sabab bor = kelmagan. Sabablar ro'yxati bo'sh bo'lganda bu ekranga umuman
@@ -740,7 +744,10 @@ function StudentRow({
         <div className="flex items-center gap-2">
           <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left">
             <span className="w-5 shrink-0 text-[12px] font-bold text-slate-300">{index}</span>
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{student.fullName}</span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+              {student.fullName}
+              {source && <span className="font-normal text-slate-400"> · {source}</span>}
+            </span>
             <span
               className={
                 'shrink-0 rounded-full px-3 py-1.5 text-[13px] font-bold ' +
@@ -755,7 +762,10 @@ function StudentRow({
       ) : (
         <div className="flex items-center gap-2">
           <span className="w-5 shrink-0 text-[12px] font-bold text-slate-300">{index}</span>
-          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{student.fullName}</span>
+          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+              {student.fullName}
+              {source && <span className="font-normal text-slate-400"> · {source}</span>}
+            </span>
           {nurseMark && (
             <span
               title={nurseMark.name}

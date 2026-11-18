@@ -26,7 +26,8 @@ export function signedPoints(p) {
   return '0'
 }
 
-export function BehaviourSheet({ student, reasons, onClose, onChanged }) {
+// ownerId — darsning egasi (blok guruhida ball blok guruhi va manba sinfiga yoziladi, docs/modules/blocks.md).
+export function BehaviourSheet({ student, ownerId, reasons, onClose, onChanged }) {
   const q = useAsync(() => teacherApi.disciplinePoints(student.id), [student.id])
   // Most entries teachers make are violations — the sheet opens on "Salbiy".
   const [type, setType] = useState('negative')
@@ -55,7 +56,7 @@ export function BehaviourSheet({ student, reasons, onClose, onChanged }) {
     setSaving(true)
     setError(null)
     try {
-      await teacherApi.addDisciplinePoint({ studentId: student.id, reasonId: selected.id, note: note.trim() || null })
+      await teacherApi.addDisciplinePoint({ studentId: student.id, reasonId: selected.id, note: note.trim() || null, ownerId: ownerId ?? null })
       hapticNotify('success')
       onChanged?.()
       onClose()

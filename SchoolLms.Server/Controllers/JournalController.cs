@@ -172,10 +172,12 @@ public class JournalController(AppDbContext db) : ControllerBase
             return new List<StudentDto>();
 
         var students = await LessonRoster.ForLessonAsync(db, owner, subGroup, ct: ct);
+        // Blok guruhida o'quvchi yonida manba sinfi (TZ 6.4) — ClassName o'rnida.
+        var sources = await BlockJournal.SourceNamesAsync(db, classId, ct: ct);
         // Jurnal ro'yxatida pul KO'RSATILMAYDI — `Balance` null (P1-21).
         return students.Select(s => new StudentDto(
             s.Id, s.FullName, s.BirthDate, s.Address, s.Gender,
-            s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, null,
+            s.ParentFullName, s.ParentPhone, sources.GetValueOrDefault(s.Id, s.ClassName), s.EnrollmentDate, null,
             s.SubGroup,
             s.LastName, s.FirstName, s.MiddleName, s.BirthCertificateUrl,
             s.ParentLastName, s.ParentFirstName, s.ParentMiddleName, s.ParentPassportUrl,
@@ -348,7 +350,7 @@ public class JournalController(AppDbContext db) : ControllerBase
     [HttpPut("quarter-grades")]
     public async Task<IActionResult> SetQuarterGrade(SetQuarterGradeRequest req)
     {
-        await JournalService.SetQuarterGradeAsync(db, req);
+        if (await JournalService.SetQuarterGradeAsync(db, req) is { } error) return BadRequest(new { message = error });
         return NoContent();
     }
 }

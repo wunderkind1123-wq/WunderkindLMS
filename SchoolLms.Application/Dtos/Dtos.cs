@@ -686,7 +686,7 @@ public record DisciplineScoreRowDto(
     string StudentId, string FullName, string ClassName, int Plus, int Minus, int Remaining,
     string? TrackName = null);
 /// <summary>O'quvchiga ball kiritish so'rovi (sabab bo'yicha).</summary>
-public record AddDisciplinePointRequest(string StudentId, string ReasonId, string? Note);
+public record AddDisciplinePointRequest(string StudentId, string ReasonId, string? Note, string? OwnerId = null);
 /// <summary>
 /// Butun sinfga bitta intizomiy ball kiritish (C-6, students-parity.md §2.2.3): sinfning HAR
 /// BIR faol o'quvchisiga bir xil sabab bilan alohida yozuv qo'shiladi — EduSchool'dagi
@@ -1090,7 +1090,9 @@ public record TeacherGroupDto(
 public record TeacherLessonDto(
     int Day, int Period, string? StartTime, string? EndTime,
     string ClassId, string ClassName, string SubjectId, string SubjectName, int SubGroup = 0,
-    string OwnerKind = "class", string? SubstituteFor = null, string? SubstitutedBy = null);
+    string OwnerKind = "class", string? SubstituteFor = null, string? SubstitutedBy = null,
+    // Yo'nalishli blok darsi: jurnal bahosi yo'q, oraliq test (docs/modules/blocks.md). Davomat — bor.
+    bool NoGrades = false);
 
 /* ---------- Student portal (ilova) ---------- */
 /// <summary>O'quvchining o'z profili (ilovada ko'rsatish uchun).</summary>

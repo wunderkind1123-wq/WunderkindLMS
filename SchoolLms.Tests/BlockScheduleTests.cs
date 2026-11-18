@@ -38,9 +38,9 @@ public class BlockScheduleTests(ApiFixture fixture) : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    private static DateOnly Today => AppClock.Today;
+    internal static DateOnly Today => AppClock.Today;
 
-    private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    internal static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /* =====================================================================
      *  Qoidalar
@@ -336,7 +336,7 @@ public class BlockScheduleTests(ApiFixture fixture) : IAsyncLifetime
      *  Yordamchilar
      * ================================================================== */
 
-    private sealed record World(
+    internal sealed record World(
         string UserId, string English, string Math, string TeacherA, string TeacherB, string TeacherC, string TeacherD,
         string Fil, string Ijt, string Aniq, string Iqt1, string Iqt2, string OtherClass,
         string Fil1, string Fil2, string Ijt1, string Ijt2, DateOnly QuarterStart, DateOnly QuarterEnd);
@@ -352,7 +352,7 @@ public class BlockScheduleTests(ApiFixture fixture) : IAsyncLifetime
     /// Bugunni o'z ichiga olgan chorak; beshta yo'nalish (Filologiya va Ijtimoiyda 2 tadan o'quvchi);
     /// Filologiyaning asosiy shablonida Dushanba 1-dars — Matematika; 5-A da Chorshanba 3-dars — Ustoz A.
     /// </summary>
-    private static async Task<World> SeedAsync(AppDbContext db)
+    internal static async Task<World> SeedAsync(AppDbContext db)
     {
         var user = new AppUser { FullName = "Admin", Role = Roles.Admin, Email = $"blocks.{Guid.NewGuid():N}" };
         user.SetInitialPassword("Test-" + Guid.NewGuid().ToString("N")[..10]);
@@ -408,7 +408,7 @@ public class BlockScheduleTests(ApiFixture fixture) : IAsyncLifetime
             tracks[4].Id.ToString(), other.Id, pupils[0].Id, pupils[1].Id, pupils[2].Id, pupils[3].Id, from, to);
     }
 
-    private static async Task<Block> BlockAsync(
+    internal static async Task<Block> BlockAsync(
         AppDbContext db, World w, string name, string subjectId, string pattern, string[] trackSources,
         (string, string)? teachers = null, Guid? room = null, bool activate = true)
     {
@@ -424,20 +424,20 @@ public class BlockScheduleTests(ApiFixture fixture) : IAsyncLifetime
         return block;
     }
 
-    private static async Task PlaceAsync(AppDbContext db, Block block, params BlockSlot[] slots)
+    internal static async Task PlaceAsync(AppDbContext db, Block block, params BlockSlot[] slots)
     {
         var service = new BlockScheduleService(db);
         Assert.Null(await service.ValidateAsync(block, slots));
         Assert.Null(await service.ApplyAsync(block, slots, [], "test"));
     }
 
-    private static async Task<(BlockGroup, BlockGroup)> GroupsAsync(AppDbContext db, Block block)
+    internal static async Task<(BlockGroup, BlockGroup)> GroupsAsync(AppDbContext db, Block block)
     {
         var g = await db.BlockGroups.Where(x => x.BlockId == block.Id).OrderBy(x => x.SortOrder).ToListAsync();
         return (g[0], g[1]);
     }
 
-    private static async Task AssignAsync(AppDbContext db, Block block, BlockGroup group, params string[] students)
+    internal static async Task AssignAsync(AppDbContext db, Block block, BlockGroup group, params string[] students)
     {
         var block2 = await db.Blocks.AsNoTracking().SingleAsync(b => b.Id == block.Id);
         Assert.Null(await new BlockService(db).AssignAsync(block2, students, group.Id, Today.AddDays(-5), (await db.Users.FirstAsync()).Id));

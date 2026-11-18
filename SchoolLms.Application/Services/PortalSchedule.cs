@@ -137,6 +137,17 @@ public static class PortalSchedule
                     s.OwnerKind, SubstituteFor: teacherNames.GetValueOrDefault(s.AbsentTeacherId, "")));
             }
         }
+        // Blok darsi: "Ingliz tili, Katta (Fil+Ijt Ingliz)"; yo'nalishli blokda baho yo'q (docs/modules/blocks.md).
+        var labels = await BlockJournal.LabelsAsync(db);
+        if (labels.Count > 0)
+        {
+            var noGrades = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var id in result.Select(r => r.ClassId).Where(labels.ContainsKey).Distinct())
+                noGrades[id] = !await BlockJournal.GradesAllowedAsync(db, id);
+            result = [.. result.Select(r => labels.TryGetValue(r.ClassId, out var label)
+                ? r with { ClassName = label, NoGrades = noGrades[r.ClassId] }
+                : r)];
+        }
         return [.. result.OrderBy(r => r.Day).ThenBy(r => r.Period)];
     }
 

@@ -429,6 +429,10 @@ export function TeacherJournalPage() {
                           <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50/40">
                             <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-slate-800">
                               {s.fullName}
+                              {/* Guruh darsida manba sinfi ("Ali V. · Filologiya", docs/modules/blocks.md). */}
+                              {selectedClass?.ownerKind === 'group' && s.className && (
+                                <span className="font-normal text-slate-400"> · {s.className}</span>
+                              )}
                             </td>
                             {columns.map((c) => {
                               const entry = entryFor(s.id, c.date, c.period)

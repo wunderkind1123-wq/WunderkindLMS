@@ -340,6 +340,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         foreach (var g in PendingMcpRevocations(ids => McpGrants.Where(g => ids.Contains(g.UserId) && g.RevokedAt == null).ToList()))
             Revoke(g);
+        BlockStamping.ApplyAsync(this, CancellationToken.None).GetAwaiter().GetResult();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -349,6 +350,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         if (ids.Count > 0)
             foreach (var g in await McpGrants.Where(g => ids.Contains(g.UserId) && g.RevokedAt == null).ToListAsync(cancellationToken))
                 Revoke(g);
+        // Blok darsi qatorlari blok guruhi va manba sinfini oladi (BlockStamping.cs izohi).
+        await BlockStamping.ApplyAsync(this, cancellationToken);
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 

@@ -353,7 +353,10 @@ public class TeacherPortalController(
             .Select(c => c with { Grade = classGrades.GetValueOrDefault(c.ClassId) })
             .OrderBy(c => c.Grade).ThenBy(c => c.ClassName).ToList();
 
-        classes.AddRange(Map(owners.Where(o => o.Owner.IsGroup)));
+        // Blok guruhi — "Ingliz tili, Katta (Fil+Ijt Ingliz)" (TZ 6.4).
+        var labels = await BlockJournal.LabelsAsync(db);
+        classes.AddRange(Map(owners.Where(o => o.Owner.IsGroup))
+            .Select(c => labels.TryGetValue(c.ClassId, out var label) ? c with { ClassName = label } : c));
         return classes;
     }
 
@@ -387,6 +390,7 @@ public class TeacherPortalController(
         var groupsById = (await db.StudyGroups.AsNoTracking()
             .Where(g => groupIds.Contains(g.Id)).ToListAsync()).ToDictionary(g => g.Id);
         var subjectNames = await db.Subjects.AsNoTracking().ToDictionaryAsync(s => s.Id, s => s.Name);
+        var labels = await BlockJournal.LabelsAsync(db);
 
         var classRows = await db.StudyGroupClasses.AsNoTracking()
             .Where(c => groupIds.Contains(c.GroupId))
@@ -403,7 +407,7 @@ public class TeacherPortalController(
         {
             var id = Guid.Parse(o.Owner.Id);
             return new TeacherGroupDto(
-                id, o.Owner.Name, o.Owner.SubjectId ?? "",
+                id, labels.GetValueOrDefault(o.Owner.Id, o.Owner.Name), o.Owner.SubjectId ?? "",
                 subjectNames.GetValueOrDefault(o.Owner.SubjectId ?? "", ""),
                 groupsById.GetValueOrDefault(id)?.Gender,
                 [.. classRows.Where(c => c.GroupId == id).OrderBy(c => c.Grade).ThenBy(c => c.Name)
@@ -589,12 +593,14 @@ public class TeacherPortalController(
         var owner = await LessonRoster.OwnerAsync(db, classId);
         if (owner is null) return NotFound();
         var students = await LessonRoster.ForLessonAsync(db, owner);
+        // Blok guruhida o'quvchi yonida manba sinfi ("Ali V. · Filologiya", TZ 6.4) — ClassName o'rnida.
+        var sources = await BlockJournal.SourceNamesAsync(db, classId);
 
         // O'qituvchi jurnalida pul KO'RSATILMAYDI: `Balance` null qoladi
         // (P1-21, SPEC §4.3 — o'quvchining qarzi o'qituvchining ishi emas).
         return students.Select(s => new StudentDto(
                 s.Id, s.FullName, s.BirthDate, s.Address, s.Gender,
-                s.ParentFullName, s.ParentPhone, s.ClassName, s.EnrollmentDate, null,
+                s.ParentFullName, s.ParentPhone, sources.GetValueOrDefault(s.Id, s.ClassName), s.EnrollmentDate, null,
                 s.SubGroup,
                 s.LastName, s.FirstName, s.MiddleName, s.BirthCertificateUrl,
                 s.ParentLastName, s.ParentFirstName, s.ParentMiddleName, s.ParentPassportUrl,
@@ -769,7 +775,7 @@ public class TeacherPortalController(
         var q = await db.Quarters.FirstOrDefaultAsync(x => x.Quarter == req.Quarter);
         if (q is null || !q.GradesOpen)
             return StatusCode(403, new { message = "Bu chorak uchun baho kiritish yopiq — administrator ochishi kerak." });
-        await JournalService.SetQuarterGradeAsync(db, req);
+        if (await JournalService.SetQuarterGradeAsync(db, req) is { } error) return BadRequest(new { message = error });
         return NoContent();
     }
 

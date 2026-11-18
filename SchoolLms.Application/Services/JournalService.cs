@@ -141,6 +141,9 @@ public static class JournalService
         // O'chirgich o'chiq ekan guruh jurnaliga yozib bo'lmaydi (§4.3).
         if (owner is not null && !await LessonRoster.LessonsLiveAsync(db, owner))
             return GroupLessonsOffMessage;
+        // Yo'nalishli blokda baho yo'q — oraliq test (docs/modules/blocks.md, mijoz qarori 2).
+        if (req.Grade.HasValue && owner?.IsBlock == true && !await BlockJournal.GradesAllowedAsync(db, req.ClassId))
+            return BlockJournal.NoGradesMessage;
         var ownerKind = owner?.Kind ?? LessonOwnerKind.Class;
 
         var entry = await db.JournalEntries.FirstOrDefaultAsync(e =>
@@ -311,9 +314,14 @@ public static class JournalService
             .ToList();
     }
 
-    /// <summary>Chorak bahosini belgilash (upsert). Grade null bo'lsa — mavjud baho o'chiriladi.</summary>
-    public static async Task SetQuarterGradeAsync(IAppDbContext db, SetQuarterGradeRequest req)
+    /// <summary>
+    /// Chorak bahosini belgilash (upsert). Grade null bo'lsa — mavjud baho o'chiriladi. Yo'nalishli
+    /// blokda baho qo'yilmaydi — xato matni qaytadi (<see cref="BlockJournal.NoGradesMessage"/>).
+    /// </summary>
+    public static async Task<string?> SetQuarterGradeAsync(IAppDbContext db, SetQuarterGradeRequest req)
     {
+        if (req.Grade is not null && !await BlockJournal.GradesAllowedAsync(db, req.ClassId))
+            return BlockJournal.NoGradesMessage;
         var ownerKind = await OwnerKindAsync(db, req.ClassId) ?? LessonOwnerKind.Class;
         var existing = await db.QuarterGrades.FirstOrDefaultAsync(g =>
             g.ClassId == req.ClassId && g.SubjectId == req.SubjectId &&
@@ -341,6 +349,7 @@ public static class JournalService
             existing.Grade = req.Grade.Value;
         }
         await db.SaveChangesAsync();
+        return null;
     }
 
     public static async Task<List<JournalTopicDto>> GetNotesAsync(
