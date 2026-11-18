@@ -56,6 +56,39 @@ yozilmaydi. `Down()` yangi jadval va ustunlarni olib tashlaydi, eski qatorlar jo
 
 Testlar: `Migrations/BlocksMigrationTests`.
 
+## Backend (2-bosqich) — `BlockService`, `BlocksController` (`api/admin/blocks`, ruxsat `classes`)
+
+| Amal | Endpoint | Qoida |
+|---|---|---|
+| Ro'yxat, kartochka | `GET /`, `GET /{id}` | manbalar, guruhlar, joriy ustoz, o'quvchilar va taqsimlanmaganlar soni |
+| Yaratish / tahrir | `POST /`, `PUT /{id}` | 6, 7-qoidalar; fan va tur o'zgarmaydi; manba bir fandan bitta blokda |
+| Faollashtirish | `POST /{id}/activate` | 2- va 6-qoida; to'siq bo'lsa 422 + xatolar ro'yxati |
+| Ogohlantirish | `GET /warnings` | faol bloklarda taqsimlanmaganlar (kunlik ogohlantirish uchun) |
+| Taqsimlash ekrani | `GET /{id}/roster?date=` | ikki guruh + "Taqsimlanmagan", har o'quvchi manbasi bilan |
+| Taqsimlash | `POST /{id}/assign` | 1- va 8-qoida |
+| Ko'chirish | `POST /{id}/move` (sana, sabab) | eski a'zolik D-1 da yopiladi, yangisi D dan |
+| Chiqarish | `POST /{id}/unassign` | D dan boshlab guruhda emas |
+| Avto-taqsimlash | `POST /{id}/auto-assign` | manba sinf bo'yicha blok; yaratish va faollashtirishda o'zi ham ishlaydi |
+| Ustoz almashtirish | `POST /groups/{gid}/teacher`, `GET /groups/{gid}/teachers` | eski ustoz D-1 gacha, yangisi D dan |
+| Shu sanadagi guruh | `GET /{id}/students/{sid}/group?date=` | TZ 5.3; guruhda bo'lmasa 204 |
+| Guruhlar tarixi | `GET /students/{sid}/history` | qachon, qaysi guruh, sabab, kim |
+| Ko'chirishlar hisoboti | `GET /moves?from=&to=` | davrda bir guruhdan ikkinchisiga o'tganlar |
+
+Sana qoidalari:
+- A'zolik va ustoz chegaralari ikkala tomondan ham kiradi, shuning uchun bir kunda ikki guruh yo'q.
+- Qo'shilgan kunning o'zida ko'chirish — xatoni tuzatish: qator joyida yangilanadi, tarixda ortiqcha qator qolmaydi.
+- Eski guruhda D dan keyin baho yoki davomat bo'lsa, D dan ko'chirish (yoki ustoz almashtirish) rad etiladi.
+
+Blokning o'quv guruhini oddiy "Guruhlar" ekranidan o'zgartirib bo'lmaydi (o'qish ochiq). Blok o'chirish faqat faol
+bo'lmagan va hech qanday dars, baho yoki davomat yozilmagan blok uchun ishlaydi.
+
+4-bosqichga qoldirilganlar:
+- Blok guruhi darslarining `group_lessons_enabled` ga qaramasdan "tirik" bo'lishi.
+- 3, 4, 5 va 9-qoidalar (4-qoida ustoz almashtirilganda ham tekshiriladi).
+- Excel import 3-bosqichda (UI bilan) qilinadi.
+
+Testlar: `BlockTests` (19 ta).
+
 ## Bosqichlar
-1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) — 3. Admin UI —
+1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI —
 4. Jadval — 5. Ustoz ekranlari — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).

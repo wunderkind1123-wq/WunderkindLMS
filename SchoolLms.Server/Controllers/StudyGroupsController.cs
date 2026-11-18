@@ -287,6 +287,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
     {
         var group = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group is null) return NotFound();
+        if (await IsBlockGroupAsync(group.Id, ct)) return BlockGroupLocked();
 
         var error = await Service.ValidateAsync(req, excludeGroupId: id, ct);
         if (error is not null) return BadRequest(new { message = error });
@@ -327,6 +328,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
     {
         var group = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group is null) return NotFound();
+        if (await IsBlockGroupAsync(group.Id, ct)) return BlockGroupLocked();
         if (group.IsArchived) return BadRequest(new { message = "Guruh allaqachon arxivda" });
 
         await Service.ArchiveAsync(group, ct);
@@ -340,6 +342,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
     {
         var group = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group is null) return NotFound();
+        if (await IsBlockGroupAsync(group.Id, ct)) return BlockGroupLocked();
         if (!group.IsArchived) return BadRequest(new { message = "Guruh arxivda emas" });
 
         var error = await Service.UnarchiveAsync(group, ct);
@@ -369,6 +372,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
     {
         var source = await db.StudyGroups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == id, ct);
         if (source is null) return NotFound();
+        if (await IsBlockGroupAsync(source.Id, ct)) return BlockGroupLocked();
 
         var classIds = await db.StudyGroupClasses.Where(c => c.GroupId == id)
             .Select(c => c.ClassId).ToListAsync(ct);
@@ -405,6 +409,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
     {
         var group = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group is null) return NotFound();
+        if (await IsBlockGroupAsync(group.Id, ct)) return BlockGroupLocked();
 
         var error = await Service.AddMembersAsync(group, req.StudentIds ?? [], UserId, ct);
         if (error is not null) return BadRequest(new { message = error });
@@ -427,6 +432,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
         var member = await db.StudyGroupMembers
             .FirstOrDefaultAsync(m => m.Id == memberId && m.GroupId == id, ct);
         if (member is null) return NotFound();
+        if (await IsBlockGroupAsync(id, ct)) return BlockGroupLocked();
         if (member.LeftOn is not null)
             return BadRequest(new { message = "Bu a'zolik allaqachon yopilgan" });
 
@@ -459,6 +465,7 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
         var from = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == member.GroupId, ct);
         var to = await db.StudyGroups.FirstOrDefaultAsync(g => g.Id == req.ToGroupId, ct);
         if (from is null || to is null) return NotFound();
+        if (await IsBlockGroupAsync(from.Id, ct) || await IsBlockGroupAsync(to.Id, ct)) return BlockGroupLocked();
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         string? error;
@@ -504,6 +511,17 @@ public class StudyGroupsController(AppDbContext db, AuditService audit) : Contro
 
         return await Service.AddMembersAsync(group, wanted, UserId, ct);
     }
+
+    /// <summary>
+    /// Blok guruhining o'quv guruhi (docs/modules/blocks.md) — u bu yerdan o'zgartirilmaydi:
+    /// ro'yxat sanali (ko'chirish, 1- va 8-qoidalar), ustozi sanali, nomi blokdan keladi.
+    /// Hammasi <see cref="BlocksController"/> orqali. O'qish ochiq qoladi.
+    /// </summary>
+    private Task<bool> IsBlockGroupAsync(Guid studyGroupId, CancellationToken ct) =>
+        db.BlockGroups.AnyAsync(g => g.StudyGroupId == studyGroupId, ct);
+
+    private BadRequestObjectResult BlockGroupLocked() =>
+        BadRequest(new { message = "Bu guruh blokka tegishli — uni «Bloklar» bo'limidan boshqaring" });
 
     /// <summary>
     /// Saqlaydi va baza kafolatlarini o'zbekcha xabarga o'giradi — foydalanuvchi

@@ -66,6 +66,9 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
     /// <summary>O'quv guruhi (§2.1) — yaratish, tahrir, arxiv, ro'yxat o'zgarishi.</summary>
     public const string EntityStudyGroup = "StudyGroup";
 
+    /// <summary>Blok (docs/modules/blocks.md) — yaratish, taqsimlash, ko'chirish, ustoz almashtirish.</summary>
+    public const string EntityBlock = "Block";
+
     /// <summary>Hisob-faktura (§2.10) — hozircha faqat bekor qilish yoziladi.</summary>
     public const string EntityInvoice = "Invoice";
 
