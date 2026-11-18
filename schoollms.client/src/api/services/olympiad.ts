@@ -306,6 +306,7 @@ export interface OlympiadTemplate {
   text: string
   defaultText: string
   customized: boolean
+  attachments: OlympiadAttachment[]
 }
 
 export interface CheckinEvent {
@@ -595,8 +596,8 @@ export async function deleteChannel(id: string): Promise<void> {
 export async function getTemplates(): Promise<OlympiadTemplate[]> {
   return (await api.get<OlympiadTemplate[]>(`${B}/settings/templates`)).data
 }
-export async function saveTemplate(key: string, text: string): Promise<void> {
-  await api.put(`${B}/settings/templates/${key}`, { text })
+export async function saveTemplate(key: string, text: string, attachments: OlympiadAttachment[] = []): Promise<void> {
+  await api.put(`${B}/settings/templates/${key}`, { text, attachments })
 }
 /** Matnni joriy xodimning Telegramiga sinov uchun. */
 export async function testMessage(text: string, attachments: OlympiadAttachment[] = [], buttons: OlympiadButton[] = []): Promise<void> {

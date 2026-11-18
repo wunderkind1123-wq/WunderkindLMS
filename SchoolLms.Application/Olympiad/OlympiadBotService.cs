@@ -109,6 +109,10 @@ public sealed class BotState
     public Guid? EventId { get; set; }
     public int RulesVersion { get; set; }
     public DateTime? RulesAcceptedAt { get; set; }
+    /// <summary>Nizom kiritilmagan — tasdiq so'ralmadi, keyingi qadamga o'tildi.</summary>
+    public bool RulesSkipped { get; set; }
+    /// <summary>"Boshqa o'quvchi uchun" — bola tanlash o'tkazib yuboriladi, darhol yangi bola anketasi.</summary>
+    public bool NewKid { get; set; }
     /// <summary>Tahrirlanayotgan bola.</summary>
     public Guid? ParticipantId { get; set; }
     public string Name { get; set; } = "";
@@ -125,6 +129,9 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     private OlympiadBotUser _user = null!;
     private BotState _state = new();
     private long _chat;
+    private bool _hasGeneralRules;
+    /// <summary>Akkauntdan kamida bitta bola yozilgan — menyuda "Boshqa o'quvchi uchun" tugmasi.</summary>
+    private bool _hasRegistrations;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -170,6 +177,13 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         _user.LastSeenAt = now;
         try { _state = JsonSerializer.Deserialize<BotState>(_user.State.Length > 0 ? _user.State : "{}", Json) ?? new(); }
         catch (JsonException) { _state = new(); }
+        // Umumiy nizom kiritilmagan bo'lsa, menyuda "Nizom" tugmasi ko'rinmaydi.
+        var s = await db.OlympiadSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        _hasGeneralRules = s is not null && RulesOf(s.RulesText, s.RulesFileUrl, s.RulesDisplay).Any;
+        _hasRegistrations = !isNew && await (from r in db.OlympiadRegistrations.AsNoTracking()
+                                             join p in db.OlympiadParticipants.AsNoTracking() on r.ParticipantId equals p.Id
+                                             where p.BotUserId == _user.Id && r.Status != OlympiadRegStatus.Cancelled
+                                             select r.Id).AnyAsync(ct);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
         {
@@ -196,15 +210,35 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
 
     private Task<TgResult> SayAsync(string html, object? markup, CancellationToken ct) => tg.SendTextAsync(_chat, html, markup, ct);
 
+    /// <summary>Shablon xabari — shablonga rasm/video biriktirilgan bo'lsa, ular bilan birga.</summary>
+    private async Task<TgResult> SayTemplateAsync(string key, Dictionary<string, string?> values, object? markup, CancellationToken ct)
+    {
+        var (text, attachments) = await OlympiadText.TemplateWithMediaAsync(db, key, ct);
+        var html = OlympiadText.Render(text, values);
+        return attachments.Count == 0
+            ? await SayAsync(html, markup, ct)
+            : await messenger.SendAsync(_chat, html, attachments, [], ct, replyMarkup: markup);
+    }
+
+    /// <summary>Nizom ko'rsatiladigan qismlari. <c>Any</c> = false — nizom kiritilmagan, bosqich o'tkazib yuboriladi.</summary>
+    private static (bool ShowText, bool ShowFile, bool Any) RulesOf(string text, string fileUrl, string display)
+    {
+        var showText = (display != OlympiadRulesDisplay.Pdf || fileUrl.Length == 0) && text.Trim().Length > 0;
+        var showFile = display != OlympiadRulesDisplay.Text && fileUrl.Length > 0;
+        return (showText, showFile, showText || showFile);
+    }
+
     // ======================= Klaviaturalar =======================
 
-    private static object MainMenu => new
+    private object MainMenu => new
     {
         keyboard = new[]
         {
-            new[] { new { text = OlympiadText.BtnRegister } },
+            new[] { new { text = _hasRegistrations ? OlympiadText.BtnRegisterAnother : OlympiadText.BtnRegister } },
             new[] { new { text = OlympiadText.BtnMyRegs }, new { text = OlympiadText.BtnKids } },
-            new[] { new { text = OlympiadText.BtnAsk }, new { text = OlympiadText.BtnRules } },
+            _hasGeneralRules
+                ? new[] { new { text = OlympiadText.BtnAsk }, new { text = OlympiadText.BtnRules } }
+                : new[] { new { text = OlympiadText.BtnAsk } },
         },
         resize_keyboard = true,
         is_persistent = true,
@@ -260,7 +294,8 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         // Menyu tugmalari istalgan qadamda ishlaydi (anketani to'xtatadi).
         switch (text)
         {
-            case OlympiadText.BtnRegister: await ResetAsync(ct); await ShowEventsAsync(ct); return;
+            case OlympiadText.BtnRegister: await ResetAsync(ct); await JoinAsync(ct); return;
+            case OlympiadText.BtnRegisterAnother: await RegisterAnotherAsync(ct); return;
             case OlympiadText.BtnMyRegs: await ResetAsync(ct); await ShowMyRegsAsync(ct); return;
             case OlympiadText.BtnKids: await ResetAsync(ct); await ShowKidsAsync(ct); return;
             case OlympiadText.BtnAsk: await ResetAsync(ct); await AskAdminAsync(ct); return;
@@ -292,7 +327,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
             case "phone" or "edit_phone":
                 if (text == OlympiadText.BtnBack) { await BackFromAsync(ct); return; }
                 var phone = contactPhone ?? OlympiadText.NormalizePhone(text);
-                if (phone is null) { await SayAsync("Raqam noto'g'ri. Masalan: <b>+998 90 123 45 67</b>\nQayta kiriting yoki tugmani bosing:", PhoneKeys, ct); return; }
+                if (phone is null) { await SayAsync("Raqam noto'g'ri. Masalan: <b>+998901234567</b>\nQayta kiriting yoki tugmani bosing:", PhoneKeys, ct); return; }
                 _state.Phone = phone;
                 if (_state.Step == "edit_phone") { await SaveEditAsync(ct); return; }
                 await AskGradeAsync(ct);
@@ -326,7 +361,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         {
             if (await EnsureSubscribedAsync(ct, force: true))
             {
-                await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "subscribe_ok", ct), new Dictionary<string, string?>()), MainMenu, ct);
+                await SayTemplateAsync("subscribe_ok", new Dictionary<string, string?>(), MainMenu, ct);
                 await WelcomeAndResumeAsync(ct);
             }
             return;
@@ -337,6 +372,8 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         Guid.TryParseExact(arg, "N", out var id);
         switch (cmd)
         {
+            case "join": await JoinAsync(ct); break;
+            case "another": await RegisterAnotherAsync(ct); break;
             case "ev": await StartEventAsync(id, ct); break;
             case "rules": await AcceptRulesAsync(id, ct); break;
             case "kid": await PickKidAsync(id, ct); break;
@@ -375,9 +412,10 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     /// <summary>Salomlashish; deep link bilan kelgan bo'lsa — darhol shu tadbirga yozilish.</summary>
     private async Task WelcomeAndResumeAsync(CancellationToken ct)
     {
-        var welcome = OlympiadText.Render(await OlympiadText.TemplateAsync(db, "welcome", ct),
-            new Dictionary<string, string?> { ["ism"] = _user.FirstName });
-        await SayAsync(welcome, MainMenu, ct);
+        // Salomlashish ostida "Qatnashish" tugmasi. Inline tugma bilan bitta xabarga reply-menyu sig'maydi —
+        // menyu keyingi xabarlar bilan (tadbir tanlangach, ro'yxatdan o'tgach) chiqadi.
+        await SayTemplateAsync("welcome", new Dictionary<string, string?> { ["ism"] = _user.FirstName },
+            Inline([Btn(OlympiadText.BtnJoin, "join")]), ct);
         if (_state.PendingEventCode is { } code)
         {
             _state.PendingEventCode = null;
@@ -423,23 +461,44 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         await SaveAsync(ct);
         var rows = missing.Select(c => new[] { UrlBtn("➕ " + c.Title, c.InviteLink.Length > 0 ? c.InviteLink : "https://t.me/" + c.ChatRef.TrimStart('@')) })
             .Append([Btn("✅ Tekshirish", "chk")]).ToArray();
-        await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "subscribe_required", ct), new Dictionary<string, string?>()),
+        await SayTemplateAsync("subscribe_required", new Dictionary<string, string?>(),
             Inline(rows), ct);
         return false;
     }
 
     // ======================= Ro'yxatdan o'tish =======================
 
-    private async Task ShowEventsAsync(CancellationToken ct)
+    private async Task<List<OlympiadEvent>> OpenEventsAsync(CancellationToken ct)
     {
         var now = AppClock.Now;
-        var events = (await db.OlympiadEvents.AsNoTracking()
+        return (await db.OlympiadEvents.AsNoTracking()
                 .Where(e => e.Status == OlympiadEventStatus.Published && e.StartsAt > now)
                 .OrderBy(e => e.StartsAt).ToListAsync(ct))
             .Where(e => OlympiadRegistrar.IsOpen(e, now)).ToList();
+    }
+
+    /// <summary>"Qatnashish" tugmasi: bitta ochiq tadbir bo'lsa — darhol unga, bir nechta bo'lsa — ro'yxat.</summary>
+    private async Task JoinAsync(CancellationToken ct)
+    {
+        var events = await OpenEventsAsync(ct);
+        if (events.Count == 1) { await StartEventAsync(events[0].Id, ct); return; }
+        await ShowEventsAsync(ct, events);
+    }
+
+    /// <summary>"Boshqa o'quvchi uchun ro'yxatdan o'tish": tadbir (va nizom) → darhol yangi bola anketasi.</summary>
+    private async Task RegisterAnotherAsync(CancellationToken ct)
+    {
+        _state = new BotState { NewKid = true };
+        await SaveAsync(ct);
+        await JoinAsync(ct);
+    }
+
+    private async Task ShowEventsAsync(CancellationToken ct, List<OlympiadEvent>? preloaded = null)
+    {
+        var events = preloaded ?? await OpenEventsAsync(ct);
         if (events.Count == 0)
         {
-            await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "no_events", ct), new Dictionary<string, string?>()), MainMenu, ct);
+            await SayTemplateAsync("no_events", new(), MainMenu, ct);
             return;
         }
         foreach (var e in events)
@@ -467,7 +526,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     {
         var (ev, err) = await OpenEventAsync(eventId, ct);
         if (ev is null) { await SayAsync(err!, MainMenu, ct); return; }
-        _state = new BotState { EventId = ev.Id };
+        _state = new BotState { EventId = ev.Id, NewKid = _state.NewKid };
         await SaveAsync(ct);
         await ShowRulesAsync(ev, ct);
     }
@@ -483,28 +542,38 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         var display = own ? ev!.RulesDisplay : s.RulesDisplay;
         var version = own ? ev!.RulesVersion : s.RulesVersion;
 
-        var showText = display != OlympiadRulesDisplay.Pdf || fileUrl.Length == 0;
-        var showFile = display != OlympiadRulesDisplay.Text && fileUrl.Length > 0;
+        var (showText, showFile, any) = RulesOf(text, fileUrl, display);
         var attachments = showFile ? new List<OlympiadAttachment> { new("document", fileUrl, fileName) } : [];
 
         if (ev is null)
         {
-            var body = showText && text.Length > 0 ? TelegramHtml.FromMarkup(text) : showFile ? "📜 Nizom" : "Nizom hali e'lon qilinmagan.";
+            // Nizom kiritilmagan — u haqida hech narsa demaymiz, menyuni yangilaymiz (eski tugma yo'qoladi).
+            if (!any) { await SayAsync("Menyudan tanlang 👇", MainMenu, ct); return; }
+            var body = showText ? TelegramHtml.FromMarkup(text) : "📜 Nizom";
             await messenger.SendAsync(_chat, body, attachments, [], ct, replyMarkup: MainMenu);
+            return;
+        }
+
+        if (!any)
+        {
+            // Nizom yo'q — tasdiq so'ramasdan keyingi qadamga.
+            _state.RulesSkipped = true;
+            _state.RulesVersion = 0;
+            await SaveAsync(ct);
+            await ShowKidPickerAsync(ct);
             return;
         }
 
         _state.RulesVersion = version;
         await SaveAsync(ct);
-        var prompt = OlympiadText.Render(await OlympiadText.TemplateAsync(db, "rules_prompt", ct), new Dictionary<string, string?> { ["tadbir"] = ev.Title });
         var accept = Inline([Btn("✅ Nizom bilan tanishib chiqdim", "rules:" + ev.Id.ToString("N"))]);
-        if (showText && text.Length > 0)
+        if (showText)
         {
             foreach (var part in OlympiadMessenger.Split(TelegramHtml.FromMarkup(text)))
                 await SayAsync(part, null, ct);
         }
         if (showFile) await messenger.SendAsync(_chat, "", attachments, [], ct);
-        await SayAsync(prompt, accept, ct);
+        await SayTemplateAsync("rules_prompt", new Dictionary<string, string?> { ["tadbir"] = ev.Title }, accept, ct);
     }
 
     private async Task AcceptRulesAsync(Guid eventId, CancellationToken ct)
@@ -520,7 +589,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
 
     private async Task ShowKidPickerAsync(CancellationToken ct)
     {
-        var kids = await KidsAsync(ct);
+        List<OlympiadParticipant> kids = _state.NewKid ? [] : await KidsAsync(ct);
         if (kids.Count == 0) { await AskNameAsync(ct); return; }
         var rows = kids.Select(k => new[] { Btn($"👤 {k.FullName} ({k.Grade}-sinf)", "kid:" + k.Id.ToString("N")) })
             .Append([Btn("➕ Yangi bola", "kidnew")]).ToArray();
@@ -529,7 +598,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
 
     private async Task PickKidAsync(Guid participantId, CancellationToken ct)
     {
-        if (_state.EventId is not { } eventId || _state.RulesAcceptedAt is null) { await SayAsync("Avval tadbirni tanlang.", MainMenu, ct); return; }
+        if (_state.EventId is not { } eventId || (_state.RulesAcceptedAt is null && !_state.RulesSkipped)) { await SayAsync("Avval tadbirni tanlang.", MainMenu, ct); return; }
         var kid = await db.OlympiadParticipants.FirstOrDefaultAsync(p => p.Id == participantId && p.BotUserId == _user.Id, ct);
         if (kid is null) return;
         await FinishRegistrationAsync(eventId, kid, ct);
@@ -549,7 +618,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     {
         _state.Step = "phone";
         await SaveAsync(ct);
-        await SayAsync("📱 Telefon raqamini yuboring — tugmani bosing yoki yozing.\nMasalan: <b>+998 90 123 45 67</b>", PhoneKeys, ct);
+        await SayAsync("📱 Telefon raqamini yuboring — tugmani bosing yoki yozing.\nMasalan: <b>+998901234567</b>", PhoneKeys, ct);
     }
 
     private async Task AskGradeAsync(CancellationToken ct, string? hint = null)
@@ -600,7 +669,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
 
     private async Task ShowKidPickerOrMenuAsync(CancellationToken ct)
     {
-        if ((await KidsAsync(ct)).Count > 0) { _state.Step = ""; await SaveAsync(ct); await ShowKidPickerAsync(ct); }
+        if (!_state.NewKid && (await KidsAsync(ct)).Count > 0) { _state.Step = ""; await SaveAsync(ct); await ShowKidPickerAsync(ct); }
         else { await ResetAsync(ct); await SayAsync("Bekor qilindi.", MainMenu, ct); }
     }
 
@@ -627,32 +696,41 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     {
         var (ev, err) = await OpenEventAsync(eventId, ct);
         if (ev is null) { await ResetAsync(ct); await SayAsync(err!, MainMenu, ct); return; }
-        var outcome = await OlympiadRegistrar.RegisterAsync(db, eventId, kid.Id, _state.RulesVersion, _state.RulesAcceptedAt ?? AppClock.Now, "bot", false, ct);
+        var outcome = await OlympiadRegistrar.RegisterAsync(db, eventId, kid.Id, _state.RulesVersion,
+            _state.RulesSkipped ? null : _state.RulesAcceptedAt ?? AppClock.Now, "bot", false, ct);
         await ResetAsync(ct);
+        if (outcome.Kind is RegisterKind.Registered or RegisterKind.Waitlisted) _hasRegistrations = true;
         switch (outcome.Kind)
         {
             case RegisterKind.Registered:
                 await OlympiadRegistrar.SendTicketAsync(db, messenger, outcome.Registration!.Id, "registered", ct, MainMenu);
+                await OfferAnotherAsync(ct);
                 break;
             case RegisterKind.Waitlisted:
-                await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "waitlisted", ct), new Dictionary<string, string?>
+                await SayTemplateAsync("waitlisted", new Dictionary<string, string?>
                 {
                     ["bola"] = kid.FullName, ["tadbir"] = ev.Title, ["navbat"] = outcome.WaitlistPosition.ToString(CultureInfo.InvariantCulture),
-                }), MainMenu, ct);
+                }, MainMenu, ct);
+                await OfferAnotherAsync(ct);
                 break;
             case RegisterKind.Full:
-                await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "event_full", ct),
-                    new Dictionary<string, string?> { ["tadbir"] = ev.Title }), MainMenu, ct);
+                await SayTemplateAsync("event_full",
+                    new Dictionary<string, string?> { ["tadbir"] = ev.Title }, MainMenu, ct);
                 break;
             case RegisterKind.Duplicate:
                 await SayAsync($"ℹ️ <b>{TelegramHtml.Escape(kid.FullName)}</b> bu tadbirga allaqachon yozilgan. «{OlympiadText.BtnMyRegs}» bo'limida ko'rasiz.", MainMenu, ct);
                 break;
             default:
-                await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "registration_closed", ct),
-                    new Dictionary<string, string?> { ["tadbir"] = ev.Title }), MainMenu, ct);
+                await SayTemplateAsync("registration_closed",
+                    new Dictionary<string, string?> { ["tadbir"] = ev.Title }, MainMenu, ct);
                 break;
         }
     }
+
+    /// <summary>Muvaffaqiyatli yozilgandan keyin — boshqa o'quvchini ham yozishni taklif qiladi.</summary>
+    private Task<TgResult> OfferAnotherAsync(CancellationToken ct) =>
+        SayAsync("👨‍👩‍👧‍👦 Boshqa o'quvchi uchun ham ro'yxatdan o'tishni davom ettirasizmi?",
+            Inline([Btn("✅ Ha, davom etish", "another"), Btn("Yo'q, rahmat", "noop")]), ct);
 
     // ======================= Mening yozuvlarim =======================
 
@@ -715,8 +793,8 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         var kid = await db.OlympiadParticipants.AsNoTracking().FirstAsync(p => p.Id == reg.ParticipantId, ct);
         var (cancelled, promoted) = await OlympiadRegistrar.CancelAsync(db, reg.Id, ct, onlyActive: true);
         if (cancelled is null) return;
-        await SayAsync(OlympiadText.Render(await OlympiadText.TemplateAsync(db, "cancelled", ct),
-            new Dictionary<string, string?> { ["bola"] = kid.FullName, ["tadbir"] = ev.Title }), MainMenu, ct);
+        await SayTemplateAsync("cancelled",
+            new Dictionary<string, string?> { ["bola"] = kid.FullName, ["tadbir"] = ev.Title }, MainMenu, ct);
         foreach (var p in promoted)
             await OlympiadRegistrar.SendTicketAsync(db, messenger, p.Id, "promoted_from_waitlist", ct);
     }
@@ -819,7 +897,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     {
         var s = await db.OlympiadSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         var link = s?.AdminLink ?? "";
-        var html = OlympiadText.Render(await OlympiadText.TemplateAsync(db, "ask_admin", ct), new Dictionary<string, string?> { ["admin_link"] = link });
-        await SayAsync(html, link.StartsWith("http", StringComparison.Ordinal) ? Inline([UrlBtn("✉️ Administratorga yozish", link)]) : MainMenu, ct);
+        await SayTemplateAsync("ask_admin", new Dictionary<string, string?> { ["admin_link"] = link },
+            link.StartsWith("http", StringComparison.Ordinal) ? Inline([UrlBtn("✉️ Administratorga yozish", link)]) : MainMenu, ct);
     }
 }

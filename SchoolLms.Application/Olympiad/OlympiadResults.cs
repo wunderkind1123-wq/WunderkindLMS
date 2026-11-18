@@ -113,7 +113,7 @@ public static class OlympiadResults
     }
 
     /// <summary>Natija xabari — faqat yoqilgan qismlar (ball/o'rin qatori o'chiriladi), sertifikat, taklif tugmasi.</summary>
-    public static async Task<(string Html, List<OlympiadButton> Buttons, bool WithCertificate)?> ComposeAsync(
+    public static async Task<(string Html, List<OlympiadButton> Buttons, bool WithCertificate, List<OlympiadAttachment> Attachments)?> ComposeAsync(
         IAppDbContext db, Guid registrationId, CancellationToken ct, Dictionary<Guid, int>? ranks = null)
     {
         var row = await (from r in db.OlympiadRegistrations.AsNoTracking()
@@ -133,11 +133,12 @@ public static class OlympiadResults
         var drop = new List<string>();
         if (!row.e.ShowScore) drop.AddRange(["ball", "max", "foiz"]);
         if (!row.e.ShowRank) drop.AddRange(["orin", "jami"]);
-        var html = OlympiadText.Render(await OlympiadText.TemplateAsync(db, "result", ct), values, drop);
+        var (template, attachments) = await OlympiadText.TemplateWithMediaAsync(db, "result", ct);
+        var html = OlympiadText.Render(template, values, drop);
         var buttons = new List<OlympiadButton>();
         if (row.e.ShowInvite && s.InviteUrl.StartsWith("http", StringComparison.Ordinal))
             buttons.Add(new OlympiadButton(s.InviteText.Length > 0 ? s.InviteText : "Maktabimizga qabul", s.InviteUrl));
-        return (html, buttons, row.e.ShowCertificate);
+        return (html, buttons, row.e.ShowCertificate, attachments);
     }
 
     /// <summary>Bitta ishtirokchiga natija (navbatdan yoki "Natija va sertifikat" tugmasidan).</summary>
@@ -152,10 +153,10 @@ public static class OlympiadResults
         if (chat is null) return null;
         var msg = await ComposeAsync(db, registrationId, ct, ranks);
         if (msg is null) return null;
-        var (html, buttons, withCert) = msg.Value;
+        var (html, buttons, withCert, attachments) = msg.Value;
         var files = new List<(string, TgFile)>();
         if (withCert && await CertificateAsync(db, registrationId, ct, ranks) is { } cert)
             files.Add((cert.Png ? "photo" : "document", new TgFile(cert.FileName, cert.Bytes, null)));
-        return await messenger.SendAsync(chat.Value, html, [], buttons, ct, files);
+        return await messenger.SendAsync(chat.Value, html, attachments, buttons, ct, files);
     }
 }

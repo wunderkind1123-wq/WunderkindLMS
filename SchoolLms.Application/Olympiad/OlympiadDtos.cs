@@ -83,9 +83,10 @@ public sealed record OlympiadChannelInput(string Title, string ChatRef, string? 
 
 public sealed record OlympiadChannelDto(Guid Id, string Title, string ChatRef, string InviteLink, int SortOrder, bool IsActive, string LastError);
 
-public sealed record OlympiadTemplateDto(string Key, string Title, string Tokens, string Text, string DefaultText, bool Customized);
+public sealed record OlympiadTemplateDto(string Key, string Title, string Tokens, string Text, string DefaultText, bool Customized,
+    List<OlympiadAttachment> Attachments);
 
-public sealed record TemplateInput(string? Text);
+public sealed record TemplateInput(string? Text, List<OlympiadAttachment>? Attachments = null);
 
 public sealed record ConvertLeadsInput(List<Guid> ParticipantIds);
 

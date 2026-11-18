@@ -238,12 +238,13 @@ public static class OlympiadRegistrar
                          where r.Id == registrationId
                          select new { r, p, e, u }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
-        var html = OlympiadText.Render(await OlympiadText.TemplateAsync(db, templateKey, ct), OlympiadText.RegValues(row.e, row.p, row.r));
+        var (template, attachments) = await OlympiadText.TemplateWithMediaAsync(db, templateKey, ct);
+        var html = OlympiadText.Render(template, OlympiadText.RegValues(row.e, row.p, row.r));
         if (row.r.Status is not (OlympiadRegStatus.Registered or OlympiadRegStatus.Attended))
-            return await messenger.SendAsync(row.u.TelegramUserId, html, [], [], ct, replyMarkup: replyMarkup);
+            return await messenger.SendAsync(row.u.TelegramUserId, html, attachments, [], ct, replyMarkup: replyMarkup);
         var number = OlympiadText.Number(row.e.Code, row.r.Number);
         var card = OlympiadDocuments.QrCard(row.r.QrToken, row.p.FullName, number, row.e.Title);
-        var res = await messenger.SendAsync(row.u.TelegramUserId, html, [], [], ct,
+        var res = await messenger.SendAsync(row.u.TelegramUserId, html, attachments, [], ct,
             [("photo", new TgFile($"QR-{number}.png", card, null))], replyMarkup);
         if (res.Blocked) await MarkBlockedAsync(db, row.u.Id, ct);
         return res;

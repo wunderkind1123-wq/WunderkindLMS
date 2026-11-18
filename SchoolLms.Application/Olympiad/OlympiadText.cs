@@ -19,6 +19,8 @@ public static partial class OlympiadText
 {
     // ---------------- Menyu tugmalari (reply keyboard) ----------------
     public const string BtnRegister = "📝 Ro'yxatdan o'tish";
+    /// <summary>Kamida bitta bola yozilgandan keyin menyuda <see cref="BtnRegister"/> o'rniga — qayta yozilib qo'ymaslik uchun.</summary>
+    public const string BtnRegisterAnother = "➕ Boshqa o'quvchi uchun ro'yxatdan o'tish";
     public const string BtnMyRegs = "📋 Mening yozuvlarim";
     public const string BtnKids = "👶 Farzandlarim";
     public const string BtnAsk = "❓ Adminga savol";
@@ -26,6 +28,8 @@ public static partial class OlympiadText
     public const string BtnBack = "⬅️ Orqaga";
     public const string BtnCancel = "❌ Bekor qilish";
     public const string BtnSendPhone = "📱 Raqamni yuborish";
+    /// <summary>Salomlashish ostidagi inline tugma — ro'yxatdan o'tishni boshlaydi.</summary>
+    public const string BtnJoin = "✍️ Qatnashish";
 
     private const string RegTokens = "{bola}, {tadbir}, {sana}, {vaqt}, {manzil}, {raqam}";
 
@@ -33,7 +37,7 @@ public static partial class OlympiadText
     public static readonly IReadOnlyList<OlympiadTemplateDef> Templates =
     [
         new("welcome", "/start — salomlashish", "{ism}",
-            "Assalomu alaykum, **{ism}**! 👋\n\nBu — **Wunderkind Xalqaro Maktabi**ning bepul olimpiada boti.\nBu yerda farzandingizni olimpiadaga ro'yxatdan o'tkazasiz, eslatma, QR kod, natija va sertifikat olasiz.\n\nPastdagi menyudan tanlang 👇"),
+            "Assalomu alaykum, **{ism}**! 👋\n\nBu — **Wunderkind Xalqaro Maktabi**ning bepul olimpiada boti.\nBu yerda farzandingizni olimpiadaga ro'yxatdan o'tkazasiz, eslatma, QR kod, natija va sertifikat olasiz.\n\nQatnashish uchun pastdagi tugmani bosing 👇"),
         new("subscribe_required", "Obuna bo'lmagan", "",
             "Botdan foydalanish uchun quyidagi kanallarga obuna bo'ling, so'ng **✅ Tekshirish** tugmasini bosing."),
         new("subscribe_ok", "Obuna tasdiqlandi", "", "✅ Rahmat! Obuna tasdiqlandi."),
@@ -69,6 +73,15 @@ public static partial class OlympiadText
     {
         var row = await db.OlympiadTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Key == key, ct);
         return row is { Text.Length: > 0 } ? row.Text : Def(key)?.Default ?? "";
+    }
+
+    /// <summary>Matn va shablonga biriktirilgan rasm/video/fayllar.</summary>
+    public static async Task<(string Text, List<OlympiadAttachment> Attachments)> TemplateWithMediaAsync(
+        IAppDbContext db, string key, CancellationToken ct)
+    {
+        var row = await db.OlympiadTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Key == key, ct);
+        var text = row is { Text.Length: > 0 } ? row.Text : Def(key)?.Default ?? "";
+        return (text, OlympiadMessenger.ParseAttachments(row?.AttachmentsJson));
     }
 
     /// <summary>
@@ -139,7 +152,7 @@ public static partial class OlympiadText
     // ---------------- Tekshiruvlar ----------------
 
     /// <summary>
-    /// Telefonni <c>+998XXXXXXXXX</c> ga keltiradi. Qabul qiladi: +998 90 123 45 67, 998901234567,
+    /// Telefonni <c>+998XXXXXXXXX</c> ga keltiradi. Qabul qiladi: +998901234567, 998901234567,
     /// 901234567, (90) 123-45-67. Noto'g'ri bo'lsa — null.
     /// </summary>
     public static string? NormalizePhone(string? input)

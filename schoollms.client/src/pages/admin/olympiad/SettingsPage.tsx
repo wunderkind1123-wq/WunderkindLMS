@@ -14,6 +14,7 @@ import {
   uploadMedia,
   type BotCheck,
   type ChannelInput,
+  type OlympiadAttachment,
   type OlympiadChannel,
   type OlympiadSettings,
   type OlympiadTemplate,
@@ -22,12 +23,13 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
+import { cn } from '@/lib/utils'
 import { Loader } from '@/components/ui/Loader'
 import { Modal } from '@/components/ui/Modal'
 import { RichText } from '@/components/ui/RichText'
 import { RichTextField } from '@/components/ui/RichTextField'
 import { Toast } from '@/components/ui/Toast'
-import { Badge, Confirm, ErrorBox, SectionTitle, Switch, TestSendButton } from './components/common'
+import { AttachmentsEditor, Badge, Confirm, ErrorBox, SectionTitle, Switch, TestSendButton } from './components/common'
 import { errText } from './components/lib'
 
 function toInput(s: OlympiadSettings): SettingsInput {
@@ -299,6 +301,7 @@ function TemplatesSection({ toast }: { toast: (m: string) => void }) {
   const [list, setList] = useState<OlympiadTemplate[] | null>(null)
   const [editing, setEditing] = useState<OlympiadTemplate | null>(null)
   const [text, setText] = useState('')
+  const [attachments, setAttachments] = useState<OlympiadAttachment[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const load = useCallback(() => {
@@ -311,12 +314,12 @@ function TemplatesSection({ toast }: { toast: (m: string) => void }) {
   }, [])
   useEffect(load, [load])
 
-  const save = async (value: string, msg: string) => {
+  const save = async (value: string, media: OlympiadAttachment[], msg: string) => {
     if (!editing) return
     setBusy(true)
     setError('')
     try {
-      await saveTemplate(editing.key, value)
+      await saveTemplate(editing.key, value, media)
       setEditing(null)
       toast(msg)
       load()
@@ -342,12 +345,14 @@ function TemplatesSection({ toast }: { toast: (m: string) => void }) {
                   {t.title} {t.customized && <Badge className="ml-1 bg-brand-50 text-brand-700">tahrirlangan</Badge>}
                 </p>
                 <RichText markup={t.text} className="mt-1 line-clamp-2 text-xs text-slate-500" />
+                {t.attachments.length > 0 && <p className="mt-1 text-xs text-slate-400">📎 Biriktirmalar: {t.attachments.length}</p>}
               </div>
               <Button
                 variant="secondary"
                 onClick={() => {
                   setEditing(t)
                   setText(t.text)
+                  setAttachments(t.attachments)
                 }}
               >
                 <Pencil className="h-4 w-4" />
@@ -364,13 +369,13 @@ function TemplatesSection({ toast }: { toast: (m: string) => void }) {
           size="lg"
           footer={
             <>
-              <TestSendButton text={text} onDone={toast} onError={setError} />
+              <TestSendButton text={text} attachments={attachments} onDone={toast} onError={setError} />
               {editing.customized && (
-                <Button variant="secondary" disabled={busy} onClick={() => save('', 'Standartga qaytarildi')}>
+                <Button variant="secondary" disabled={busy} onClick={() => save('', [], 'Standartga qaytarildi')}>
                   <RotateCcw className="h-4 w-4" /> Standartga qaytarish
                 </Button>
               )}
-              <Button disabled={busy || !text.trim()} onClick={() => save(text, 'Saqlandi')}>
+              <Button disabled={busy || !text.trim()} onClick={() => save(text, attachments, 'Saqlandi')}>
                 Saqlash
               </Button>
             </>
@@ -380,6 +385,7 @@ function TemplatesSection({ toast }: { toast: (m: string) => void }) {
             <ErrorBox message={error} />
             <RichTextField value={text} onChange={setText} rows={8} />
             {editing.tokens && <p className="text-xs text-slate-400">Tokenlar: {editing.tokens}</p>}
+            <AttachmentsEditor value={attachments} onChange={setAttachments} />
             {editing.key === 'result' && (
               <p className="text-xs text-slate-400">
                 Tadbirda o'chirilgan qism (ball yoki o'rin) bo'lsa, shu token turgan qator butunlay olib tashlanadi.
@@ -521,19 +527,23 @@ export default function SettingsPage() {
             const enabledKey = n === 1 ? 'reminder1Enabled' : 'reminder2Enabled'
             const minutesKey = n === 1 ? 'reminder1Minutes' : 'reminder2Minutes'
             return (
-              <div key={n} className="flex flex-wrap items-end gap-3">
-                <div className="w-56">
+              <div key={n} className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div className="w-44">
                   <Switch label={`${n}-eslatma`} checked={f[enabledKey]} onChange={(v) => set(enabledKey, v)} />
                 </div>
-                <Input
-                  label="Necha soat oldin"
-                  type="number"
-                  min={0.25}
-                  step={0.25}
-                  value={f[minutesKey] / 60}
-                  onChange={(e) => set(minutesKey, Math.max(1, Math.round(Number(e.target.value) * 60)))}
-                  className="w-32"
-                />
+                <div className={cn('flex items-center gap-2', !f[enabledKey] && 'opacity-50')}>
+                  <Input
+                    aria-label={`${n}-eslatma: necha soat oldin`}
+                    type="number"
+                    min={0.25}
+                    step={0.25}
+                    disabled={!f[enabledKey]}
+                    value={f[minutesKey] / 60}
+                    onChange={(e) => set(minutesKey, Math.max(1, Math.round(Number(e.target.value) * 60)))}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-slate-500">soat oldin</span>
+                </div>
               </div>
             )
           })}

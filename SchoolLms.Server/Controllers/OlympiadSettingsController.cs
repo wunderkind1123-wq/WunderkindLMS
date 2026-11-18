@@ -238,20 +238,29 @@ public sealed class OlympiadSettingsController(AppDbContext db, AuditService aud
         var rows = await db.OlympiadTemplates.AsNoTracking().ToDictionaryAsync(t => t.Key, ct);
         return OlympiadText.Templates.Select(d =>
         {
-            var custom = rows.TryGetValue(d.Key, out var r) && r.Text.Length > 0;
-            return new OlympiadTemplateDto(d.Key, d.Title, d.Tokens, custom ? r!.Text : d.Default, d.Default, custom);
+            var r = rows.GetValueOrDefault(d.Key);
+            var customText = r is { Text.Length: > 0 };
+            var attachments = OlympiadMessenger.ParseAttachments(r?.AttachmentsJson);
+            return new OlympiadTemplateDto(d.Key, d.Title, d.Tokens, customText ? r!.Text : d.Default, d.Default,
+                customText || attachments.Count > 0, attachments);
         }).ToList();
     }
 
-    /// <summary>Shablonni saqlash. Bo'sh matn — standartga qaytarish.</summary>
+    /// <summary>Shablonni saqlash (matn + rasm/video/fayl). Bo'sh matn va biriktirmasiz — standartga qaytarish.</summary>
     [HttpPut("templates/{key}")]
     public async Task<IActionResult> SaveTemplate(string key, TemplateInput input, CancellationToken ct)
     {
         if (OlympiadText.Def(key) is null) return NotFound(new { message = "Bunday shablon yo'q" });
         var text = input.Text ?? "";
         if (text.Length > 4000) return BadRequest(new { message = "Matn 4000 belgidan oshmasin" });
+        var atts = input.Attachments ?? [];
+        if (atts.Count > 10) return BadRequest(new { message = "Ko'pi bilan 10 ta biriktirma" });
+        if (atts.Any(a => !a.Url.StartsWith("/uploads/olympiad/", StringComparison.Ordinal) || a.Url.Contains("..", StringComparison.Ordinal)
+                          || a.Kind is not ("photo" or "video" or "document" or "video_note")))
+            return BadRequest(new { message = "Biriktirma noto'g'ri" });
         var row = await db.OlympiadTemplates.FirstOrDefaultAsync(t => t.Key == key, ct);
         if (row is null) db.OlympiadTemplates.Add(row = new OlympiadTemplate { Key = key });
+        row.AttachmentsJson = OlympiadMessenger.ToJson(atts);
         row.Text = text.Trim() == OlympiadText.Def(key)!.Default.Trim() ? "" : text;
         row.UpdatedAt = AppClock.Now;
         audit.Record("olympiad_settings", key, "template", $"Olimpiada bot shabloni: {key}");

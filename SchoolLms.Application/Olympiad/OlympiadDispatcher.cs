@@ -276,13 +276,20 @@ public sealed class OlympiadDispatcher(IAppDbContext db, OlympiadTelegram tg, Ol
         // Bekor qilinganlarga eslatma bormaydi (navbatga qo'yilgandan keyin bekor qilgan bo'lsa ham).
         if (reg is null || reg.Status == OlympiadRegStatus.Cancelled) return null;
         var kid = await db.OlympiadParticipants.AsNoTracking().FirstAsync(p => p.Id == reg.ParticipantId, ct);
-        var text = x.R.Text.Length > 0 || x.R.Kind == OlympiadReminderKind.Custom ? x.R.Text
-            : await OlympiadText.TemplateAsync(db, x.R.Kind == OlympiadReminderKind.Standard2 ? "reminder_default_3h" : "reminder_default_1d", ct);
+        var attachments = OlympiadMessenger.ParseAttachments(x.R.AttachmentsJson);
+        var text = x.R.Text;
+        if (text.Length == 0 && x.R.Kind != OlympiadReminderKind.Custom)
+        {
+            // Standart eslatma shablondan; eslatmaning o'zida biriktirma bo'lmasa — shablonnikini olamiz.
+            var (template, templateMedia) = await OlympiadText.TemplateWithMediaAsync(db,
+                x.R.Kind == OlympiadReminderKind.Standard2 ? "reminder_default_3h" : "reminder_default_1d", ct);
+            text = template;
+            if (attachments.Count == 0) attachments = templateMedia;
+        }
         var values = OlympiadText.RegValues(x.E, kid, reg);
         values["ism"] = user.FirstName;
         values["navbat"] = (await OlympiadRegistrar.WaitlistPositionAsync(db, reg, ct)).ToString(CultureInfo.InvariantCulture);
-        return await messenger.SendAsync(user.TelegramUserId, OlympiadText.Render(text, values),
-            OlympiadMessenger.ParseAttachments(x.R.AttachmentsJson), [], ct);
+        return await messenger.SendAsync(user.TelegramUserId, OlympiadText.Render(text, values), attachments, [], ct);
     }
 
     /// <summary>Tadbir o'rinlari — bitta yurishda bir marta (har natija uchun qayta hisoblanmasin).</summary>
