@@ -210,6 +210,8 @@ export const navByRole: Record<Role, NavItem[]> = {
         // bolasi qolmagan bo'limni butunlay yashiradi.
         { label: 'Sinflar', to: '/admin/classes', end: true, perm: 'classes', group: "O'QUV JARAYONI" },
         { label: 'Guruhlar', to: '/admin/groups', perm: 'classes', group: "O'QUV JARAYONI" },
+        // Bloklar — ingliz tili va matematikada birlashgan Katta/Kichik guruhlar (docs/modules/blocks.md).
+        { label: 'Bloklar', to: '/admin/blocks', perm: 'classes', group: "O'QUV JARAYONI" },
         { label: 'Fanlar', to: '/admin/subjects', perm: 'students', group: "O'QUV JARAYONI" },
         { label: 'Xonalar', to: '/admin/rooms', perm: 'students', group: "O'QUV JARAYONI" },
         { label: "O'quvchilar", to: '/admin/students', end: true, perm: 'students', group: "O'QUVCHILAR" },

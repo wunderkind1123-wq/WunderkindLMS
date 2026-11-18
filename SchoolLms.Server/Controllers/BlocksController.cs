@@ -298,7 +298,119 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
     }
 
     /* ===================================================================
-     *  5. O'quvchi: shu sanadagi guruh, tarix, ko'chirishlar hisoboti
+     *  5. Excel: ro'yxatni yuklab olish va import (TZ 6.2)
+     * ================================================================ */
+
+    private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    /// <summary>Import ustunlari: o'quvchi ID, blok, guruh (TZ 6.2). F.I.SH va manba — faqat
+    /// o'qish uchun, import ularni e'tiborga olmaydi.</summary>
+    public static readonly string[] ImportHeaders = ["O'quvchi ID", "Blok", "Guruh", "F.I.SH", "Manba"];
+
+    /// <summary>Blok ro'yxati AYNAN import shaklida: "Guruh" ustunini to'ldirib qayta yuklash mumkin.</summary>
+    [HttpGet("{id:guid}/export")]
+    public async Task<IActionResult> Export(Guid id, [FromQuery] DateOnly? date = null, CancellationToken ct = default)
+    {
+        var block = await db.Blocks.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
+        if (block is null) return NotFound();
+        var roster = await Service.RosterAsync(block, date ?? AppClock.Today, ct);
+        var rows = roster.Groups
+            .SelectMany(g => g.Members.Select(m => (m, g.Name)))
+            .Concat(roster.Unassigned.Select(m => (m, "")))
+            .OrderBy(x => x.m.SourceName, StringComparer.Ordinal).ThenBy(x => x.m.FullName, StringComparer.Ordinal)
+            .Select(x => (IReadOnlyList<string>)[x.m.StudentId, block.Name, x.Item2, x.m.FullName, x.m.SourceName]);
+        var bytes = ExcelExport.Build("Taqsimlash", ImportHeaders, rows);
+        return File(bytes, XlsxMime, $"blok_{AppClock.Now:yyyy-MM-dd}.xlsx");
+    }
+
+    /// <summary>
+    /// Excel'dan taqsimlash. Har qator: o'quvchi taqsimlanmagan bo'lsa — guruhga qo'shiladi,
+    /// boshqa guruhda bo'lsa — <paramref name="date"/> dan ko'chiriladi, "Guruh" bo'sh bo'lsa —
+    /// tegilmaydi. HAMMASI YOKI HECH NARSA: birorta qatorda xato bo'lsa, hech narsa saqlanmaydi
+    /// va xatolar qator raqami bilan qaytadi.
+    /// </summary>
+    [HttpPost("import")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> Import(
+        IFormFile? file, [FromQuery] DateOnly? date = null, CancellationToken ct = default)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { message = "Fayl tanlanmagan" });
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Faqat .xlsx (Excel) fayl qabul qilinadi" });
+
+        List<string[]> rows;
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            rows = ExcelImport.ReadRows(stream, ImportHeaders.Length);
+        }
+        catch
+        {
+            return BadRequest(new { message = "Faylni o'qib bo'lmadi — buzilmagan .xlsx ekanini tekshiring" });
+        }
+
+        var on = date ?? AppClock.Today;
+        var year = BlockService.AcademicYearOf(on);
+        var blocks = (await db.Blocks.AsNoTracking().Where(b => b.AcademicYear == year).ToListAsync(ct))
+            .ToDictionary(b => b.Name.Trim(), StringComparer.OrdinalIgnoreCase);
+        var errors = new List<object>();
+        int assigned = 0, moved = 0, unchanged = 0;
+        var seen = new HashSet<(Guid, string)>();
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // 0-qator — sarlavha; Excel'dagi qator raqami = indeks + 1.
+        for (var i = 1; i < rows.Count; i++)
+        {
+            var (studentId, blockName, groupName) = (rows[i][0].Trim(), rows[i][1].Trim(), rows[i][2].Trim());
+            if (studentId == "" && blockName == "" && groupName == "") continue;
+            var rowNo = i + 1;
+            if (groupName == "") { unchanged++; continue; }
+            if (!blocks.TryGetValue(blockName, out var block))
+            {
+                errors.Add(new { row = rowNo, message = $"«{blockName}» bloki topilmadi" });
+                continue;
+            }
+            if (!seen.Add((block.Id, studentId)))
+            {
+                errors.Add(new { row = rowNo, message = "O'quvchi shu blokda takrorlangan" });
+                continue;
+            }
+            var groups = await Service.GroupsAsync(block.Id, ct);
+            var target = groups.FirstOrDefault(g => string.Equals(g.Name, groupName, StringComparison.OrdinalIgnoreCase));
+            if (target is null)
+            {
+                errors.Add(new { row = rowNo, message = $"«{block.Name}» blokida «{groupName}» guruhi yo'q" });
+                continue;
+            }
+
+            var current = await Service.GroupOnAsync(block.Id, studentId, on, ct);
+            string? error;
+            if (current?.Id == target.Id) { unchanged++; continue; }
+            if (current is null)
+            {
+                error = await Service.AssignAsync(block, [studentId], target.Id, on, UserId, ct);
+                if (error is null) { await db.SaveChangesAsync(ct); assigned++; }
+            }
+            else
+            {
+                error = await Service.MoveAsync(block, [studentId], target.Id, on, "Excel import", UserId, ct);
+                if (error is null) moved++;
+            }
+            if (error is not null) errors.Add(new { row = rowNo, message = error });
+        }
+
+        if (errors.Count > 0)
+            return BadRequest(new { message = "Faylda xatolar bor — hech narsa saqlanmadi", errors });
+
+        audit.Record(AuditService.EntityBlock, "import", "update",
+            $"Bloklar Excel'dan taqsimlandi: {assigned} qo'shildi, {moved} ko'chirildi");
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return Ok(new { assigned, moved, unchanged });
+    }
+
+    /* ===================================================================
+     *  6. O'quvchi: shu sanadagi guruh, tarix, ko'chirishlar hisoboti
      * ================================================================ */
 
     /// <summary>O'quvchining shu sanadagi blok guruhi (TZ 5.3). Guruhda bo'lmasa — 204.</summary>
@@ -328,7 +440,7 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
             .OrderByDescending(x => x.m.JoinedOn).ToListAsync(ct);
         var names = await UserNamesAsync(rows.Select(r => r.m.CreatedBy), ct);
         return rows.Select(r => new BlockHistoryItemDto(
-            r.b.Id, r.b.Name, r.SubjectName, r.g.Id, r.g.Name, r.m.JoinedOn, r.m.LeftOn,
+            r.b.Id, r.b.Name, r.SubjectName, r.g.Id, r.g.StudyGroupId, r.g.Name, r.m.JoinedOn, r.m.LeftOn,
             r.m.JoinReason, r.m.LeaveReason, names.GetValueOrDefault(r.m.CreatedBy))).ToList();
     }
 

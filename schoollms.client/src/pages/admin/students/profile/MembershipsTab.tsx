@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { GraduationCap, School, Trash2 } from 'lucide-react'
+import { GraduationCap, Layers, School, Trash2 } from 'lucide-react'
 import type { StudentMemberships } from '@/api/services/classMemberships'
 import { getStudentMemberships } from '@/api/services/classMemberships'
+import type { BlockHistoryItem } from '@/api/services/blocks'
+import { getStudentBlockHistory } from '@/api/services/blocks'
 import { removeGroupMember } from '@/api/services/groups'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
@@ -27,12 +29,17 @@ interface Props {
  */
 export function MembershipsTab({ studentId }: Props) {
   const [data, setData] = useState<StudentMemberships | null>(null)
+  const [blocks, setBlocks] = useState<BlockHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(() => {
     setLoading(true)
-    getStudentMemberships(studentId)
-      .then(setData)
+    // Bloklar tarixi ixtiyoriy: ruxsat yoki tarmoq xatosi asosiy kartochkani yopmasin.
+    Promise.all([getStudentMemberships(studentId), getStudentBlockHistory(studentId).catch(() => [])])
+      .then(([m, b]) => {
+        setData(m)
+        setBlocks(b)
+      })
       .finally(() => setLoading(false))
   }, [studentId])
 
@@ -58,6 +65,9 @@ export function MembershipsTab({ studentId }: Props) {
   if (!data) return null
 
   const activeClass = data.classes.find((c) => !c.leftOn)
+  // Blok guruhlari o'z kartasida (sanali ko'chirish, "Bloklar" bo'limidan boshqariladi).
+  const blockGroupIds = new Set(blocks.map((b) => b.studyGroupId))
+  const groups = data.groups.filter((g) => !blockGroupIds.has(g.groupId))
 
   return (
     <div className="space-y-6">
@@ -102,11 +112,11 @@ export function MembershipsTab({ studentId }: Props) {
           <GraduationCap className="h-4 w-4 text-brand-600" /> O'quv guruhlari
         </h3>
 
-        {data.groups.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="text-sm text-slate-400">O'quvchi hech qaysi guruhda emas</p>
         ) : (
           <div className="space-y-1.5">
-            {data.groups.map((g) => (
+            {groups.map((g) => (
               <Row
                 key={g.id}
                 active={!g.leftOn}
@@ -125,6 +135,28 @@ export function MembershipsTab({ studentId }: Props) {
           </div>
         )}
       </Card>
+
+      {/* ---------- Bloklar (TZ 6.2 "Guruhlar tarixi") ---------- */}
+      {blocks.length > 0 && (
+        <Card className="space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Layers className="h-4 w-4 text-brand-600" /> Blok guruhlari tarixi
+          </h3>
+          <div className="space-y-1.5">
+            {blocks.map((b) => (
+              <Row
+                key={`${b.groupId}-${b.joinedOn}`}
+                active={!b.leftOn}
+                title={`${b.groupName} · ${b.blockName}`}
+                subtitle={b.subjectName + (b.movedBy ? ` · ${b.movedBy}` : '')}
+                period={`${b.joinedOn} — ${b.leftOn ?? 'hozirgacha'}`}
+                reason={b.leftOn ? b.leaveReason : b.joinReason}
+                link={`/admin/blocks/${b.blockId}/taqsimlash`}
+              />
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

@@ -71,7 +71,7 @@ public record BlockStudentGroupDto(Guid BlockId, Guid GroupId, string GroupName,
 
 /// <summary>O'quvchi profilidagi "Guruhlar tarixi" qatori (TZ 6.2).</summary>
 public record BlockHistoryItemDto(
-    Guid BlockId, string BlockName, string SubjectName, Guid GroupId, string GroupName,
+    Guid BlockId, string BlockName, string SubjectName, Guid GroupId, Guid StudyGroupId, string GroupName,
     DateOnly JoinedOn, DateOnly? LeftOn, string? JoinReason, string? LeaveReason, string? MovedBy);
 
 /// <summary>"Ko'chirishlar" hisobotining qatori: qaysi guruhdan qaysi guruhga, qachon, kim.</summary>

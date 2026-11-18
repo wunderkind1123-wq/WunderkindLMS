@@ -85,10 +85,26 @@ bo'lmagan va hech qanday dars, baho yoki davomat yozilmagan blok uchun ishlaydi.
 4-bosqichga qoldirilganlar:
 - Blok guruhi darslarining `group_lessons_enabled` ga qaramasdan "tirik" bo'lishi.
 - 3, 4, 5 va 9-qoidalar (4-qoida ustoz almashtirilganda ham tekshiriladi).
-- Excel import 3-bosqichda (UI bilan) qilinadi.
+- Excel import — 3-bosqichda qilindi.
 
-Testlar: `BlockTests` (19 ta).
+Testlar: `BlockTests` (21 ta).
+
+## Admin UI (3-bosqich) — `schoollms.client/src/pages/admin/blocks`
+
+Menyu: O'quv bo'limi → **Bloklar** (ruxsat `classes`).
+
+| Ekran | Manzil | Nima qiladi |
+|---|---|---|
+| Ro'yxat | `/admin/blocks` | nomi, fan, sinflar, guruhlar va ustozlar, o'quvchilar soni, holat; faollashtirish, o'chirish |
+| Forma | `/admin/blocks/new`, `/admin/blocks/:id` | fan → manbalar → tur → 2 guruh (nom, ustoz, sinf, xona); fan va tur tahrirda qulf |
+| Taqsimlash | `/admin/blocks/:id/taqsimlash` | ikki ustun + "Taqsimlanmagan", sudrab o'tkazish va belgilab yuborish, ko'chirish oynasi |
+| Ko'chirishlar | `/admin/blocks/kochirishlar` | davrda guruhdan guruhga o'tganlar (standart — oxirgi 7 kun) |
+| O'quvchi profili | "Sinf va guruhlar" tab'i | "Blok guruhlari tarixi" kartasi; blok guruhlari oddiy guruhlar ro'yxatidan ajratilgan |
+
+Ustoz almashtirish oynasi: yangi ustoz + sana + tarix. Excel import (`POST /api/admin/blocks/import`) —
+ustunlar `O'quvchi ID, Blok, Guruh`. Hammasi yoki hech narsa: xato qator bo'lsa, hech narsa saqlanmaydi va
+xatolar qator raqami bilan qaytadi. Shablon — blokning "Excel" tugmasi (`GET /{id}/export`).
 
 ## Bosqichlar
-1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI —
+1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI ✅ —
 4. Jadval — 5. Ustoz ekranlari — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).

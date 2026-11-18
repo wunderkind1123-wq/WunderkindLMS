@@ -454,7 +454,76 @@ public class BlockTests(ApiFixture fixture)
     }
 
     /* =====================================================================
-     *  9. Regressiya: oddiy darslar o'zgarmaydi
+     *  9. Excel: eksport va import (TZ 6.2)
+     * ================================================================== */
+
+    /// <summary>
+    /// Import: taqsimlanmagan o'quvchi guruhga qo'shiladi, boshqa guruhdagisi ko'chiriladi, "Guruh"
+    /// bo'sh qator tegilmaydi. Eksport shu shaklda: uni to'ldirib qayta yuklash mumkin.
+    /// </summary>
+    [Fact]
+    public async Task Excel_import_qoshadi_va_kochiradi()
+    {
+        var w = await SeedAsync();
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+        var name = "Excel " + w.Tag;
+        var block = await CreateAsync(admin, LevelPayload(w, name));
+        var (katta, kichik) = Groups(block);
+        var id = block.GetProperty("id").GetGuid();
+        await AssignAsync(admin, id, kichik, [w.Ijt1], Today.AddDays(-10));
+
+        var export = await admin.GetAsync($"{Blocks}/{id}/export");
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+        var exported = ExcelImport.ReadRows(await export.Content.ReadAsStreamAsync(), 5);
+        Assert.Equal(5, exported.Count);
+        Assert.Equal("Kichik", exported.Single(r => r[0] == w.Ijt1)[2]);
+
+        var res = await ImportAsync(admin,
+            [w.Fil1, name, "Katta"], [w.Fil2, name, "kichik"], [w.Ijt1, name, "Katta"], [w.Ijt2, name, ""]);
+
+        var body = await res.Content.ReadAsStringAsync();
+        Assert.True(res.StatusCode == HttpStatusCode.OK, body);
+        var result = JsonDocument.Parse(body).RootElement;
+        Assert.Equal(2, result.GetProperty("assigned").GetInt32());
+        Assert.Equal(1, result.GetProperty("moved").GetInt32());
+        Assert.Equal(katta, await GroupOnAsync(admin, id, w.Fil1, Today));
+        Assert.Equal(kichik, await GroupOnAsync(admin, id, w.Fil2, Today));
+        Assert.Equal(katta, await GroupOnAsync(admin, id, w.Ijt1, Today));
+        Assert.Equal(kichik, await GroupOnAsync(admin, id, w.Ijt1, Today.AddDays(-1)));
+        Assert.Null(await GroupOnAsync(admin, id, w.Ijt2, Today));
+    }
+
+    /// <summary>Hammasi yoki hech narsa: bitta xato qator bo'lsa, to'g'ri qatorlar ham saqlanmaydi.</summary>
+    [Fact]
+    public async Task Excel_importda_xato_bolsa_hech_narsa_saqlanmaydi()
+    {
+        var w = await SeedAsync();
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+        var name = "Xato Excel " + w.Tag;
+        var block = await CreateAsync(admin, LevelPayload(w, name));
+        var id = block.GetProperty("id").GetGuid();
+
+        var res = await ImportAsync(admin, [w.Fil1, name, "Katta"], [w.Fil2, name, "O'rta"], [w.Class5A1, name, "Katta"]);
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        var errors = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement.GetProperty("errors")
+            .EnumerateArray().Select(e => (e.GetProperty("row").GetInt32(), e.GetProperty("message").GetString()!)).ToList();
+        Assert.Equal([3, 4], errors.Select(e => e.Item1));
+        Assert.Contains("«O'rta» guruhi yo'q", errors[0].Item2);
+        Assert.Contains(BlockService.NotInBlockMessage, errors[1].Item2);
+        Assert.Null(await GroupOnAsync(admin, id, w.Fil1, Today));
+    }
+
+    private static async Task<HttpResponseMessage> ImportAsync(HttpClient admin, params string[][] rows)
+    {
+        var bytes = ExcelExport.Build("Taqsimlash", ["O'quvchi ID", "Blok", "Guruh"], rows);
+        using var content = new MultipartFormDataContent();
+        content.Add(new ByteArrayContent(bytes), "file", "bloklar.xlsx");
+        return await admin.PostAsync($"{Blocks}/import", content);
+    }
+
+    /* =====================================================================
+     *  10. Regressiya: oddiy darslar o'zgarmaydi
      * ================================================================== */
 
     /// <summary>
