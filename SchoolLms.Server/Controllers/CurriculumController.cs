@@ -76,75 +76,35 @@ public class CurriculumController(AppDbContext db, AuditService audit) : Control
         [FromForm] string? title, [FromForm] string? originalUrl, [FromForm] string? originalName,
         [FromForm] string? teacherId, [FromQuery] bool dryRun = false, CancellationToken ct = default)
     {
-        if (file is null || file.Length == 0) return BadRequest(new { message = "Excel yoki Word fayl kerak" });
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Ish reja .xlsx (Excel) yoki .docx (Word) formatida bo'lsin. Namunani yuklab oling." });
-        var subject = string.IsNullOrWhiteSpace(subjectId) ? null : await db.Subjects.AsNoTracking().FirstOrDefaultAsync(s => s.Id == subjectId, ct);
-        if (subject is null) return BadRequest(new { message = "Fanni tanlang" });
-        if ((grade is null) == (groupId is null)) return BadRequest(new { message = "Sinf darajasini yoki yo'nalishni tanlang" });
-        if (grade is < 0 or > 11) return BadRequest(new { message = "Sinf darajasi 0–11" });
-        StudyGroup? track = null;
-        if (groupId is { } gid)
-        {
-            track = await db.StudyGroups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == gid && g.IsTrack, ct);
-            if (track is null) return BadRequest(new { message = "Yo'nalish guruhi topilmadi" });
-        }
         if (originalUrl is { Length: > 0 } && !originalUrl.StartsWith("/uploads/", StringComparison.Ordinal))
             return BadRequest(new { message = "Asl hujjat manzili noto'g'ri" });
-        teacherId = string.IsNullOrWhiteSpace(teacherId) ? null : teacherId;
-        Teacher? teacher = null;
-        if (teacherId is not null)
-        {
-            teacher = await db.Teachers.AsNoTracking().FirstOrDefaultAsync(t => t.Id == teacherId, ct);
-            if (teacher is null) return BadRequest(new { message = "Ustoz topilmadi" });
-            if (!await CurriculumService.TeacherTeachesKeyAsync(db, teacher.Id, subject.Id, grade, groupId, ct))
-                return BadRequest(new
-                {
-                    message = $"{teacher.FullName} dars jadvalida {(track is not null ? track.Name : $"{grade}-sinflar")}da {subject.Name} fanidan dars bermaydi",
-                });
-        }
-
-        await using var stream = file.OpenReadStream();
-        var (parsed, errors) = CurriculumService.Parse(stream, file.FileName);
-        var (topics, dateErrors, warnings) = await CurriculumService.ResolveDatesAsync(db, parsed, ct);
-        errors.AddRange(dateErrors);
-        var preview = topics.Select(t => new CurriculumPreviewTopicDto(
-            t.Order, t.Quarter, t.Week, t.Section, t.Title, t.Hours, t.PlannedOn?.ToString("yyyy-MM-dd"))).ToList();
-        if (errors.Count > 0)
-            return BadRequest(new CurriculumImportResultDto(null, topics.Count, topics.Sum(t => t.Hours), errors, preview, warnings));
-        var fit = await CurriculumService.PreviewFitAsync(db, subject.Id, grade, groupId, teacherId, topics, ct);
-        if (dryRun)
-            return new CurriculumImportResultDto(null, topics.Count, topics.Sum(t => t.Hours), [], preview, warnings, fit);
-
-        var plan = await db.CurriculumPlans.FirstOrDefaultAsync(p => p.SubjectId == subject.Id
-            && (grade != null ? p.Grade == grade : p.GroupId == groupId) && p.TeacherId == teacherId, ct);
-        var now = DateTimeOffset.UtcNow;
-        var isNew = plan is null;
-        if (plan is null)
-        {
-            plan = new CurriculumPlan
-            {
-                SubjectId = subject.Id, Grade = grade, GroupId = groupId, TeacherId = teacherId, CreatedBy = Uid, CreatedAt = now,
-            };
-            db.CurriculumPlans.Add(plan);
-        }
-        var defaultTitle = track is not null ? $"{track.Name} — {subject.Name}" : $"{grade}-sinf {subject.Name}";
-        if (teacher is not null) defaultTitle += $" — {teacher.FullName}";
-        plan.Title = string.IsNullOrWhiteSpace(title)
-            ? defaultTitle[..Math.Min(defaultTitle.Length, 200)]
-            : title.Trim()[..Math.Min(title.Trim().Length, 200)];
-        if (originalUrl is { Length: > 0 })
-        {
-            plan.FileUrl = originalUrl;
-            plan.FileName = string.IsNullOrWhiteSpace(originalName) ? null : originalName[..Math.Min(originalName.Length, 255)];
-        }
-        plan.UpdatedAt = now;
-        await CurriculumService.ReplaceTopicsAsync(db, plan, topics, ct);
-        audit.Record("curriculum_plan", plan.Id.ToString(), isNew ? "create" : "update",
-            $"Ish reja {(isNew ? "yuklandi" : "qayta yuklandi")}: {plan.Title} ({topics.Count} mavzu)");
-        await db.SaveChangesAsync(ct);
-        return new CurriculumImportResultDto(plan.Id, topics.Count, topics.Sum(t => t.Hours), [], preview, warnings, fit);
+        return await CurriculumImport.RunAsync(this, db, audit, Uid,
+            new CurriculumImport.Args(file, subjectId, grade, groupId, title, teacherId, Strict: false),
+            originalUrl is { Length: > 0 } ? () => Task.FromResult<(string Url, string? Name)?>((originalUrl, originalName)) : null,
+            dryRun, ct);
     }
+
+    /// <summary>Mavzuni qo'shish (<c>id</c> yo'q) — <see cref="CurriculumTopicSaveRequest.AfterOrder"/> dan keyin.</summary>
+    [HttpPost("plans/{planId:guid}/topics")]
+    public async Task<IActionResult> AddTopic(Guid planId, CurriculumTopicSaveRequest req, CancellationToken ct = default) =>
+        await CurriculumImport.SaveTopicAsync(this, db, audit, planId, null, req, ct);
+
+    [HttpPut("topics/{id:guid}")]
+    public async Task<IActionResult> SaveTopic(Guid id, CurriculumTopicSaveRequest req, CancellationToken ct = default)
+    {
+        var topic = await db.CurriculumTopics.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (topic is null) return NotFound();
+        return await CurriculumImport.SaveTopicAsync(this, db, audit, topic.PlanId, id, req, ct);
+    }
+
+    [HttpDelete("topics/{id:guid}")]
+    public async Task<IActionResult> DeleteTopic(Guid id, CancellationToken ct = default) =>
+        await CurriculumImport.DeleteTopicAsync(this, db, audit, id, ct);
+
+    /// <summary>"Dars bo'lmadi" — shu mavzudan boshlab hammasi bir darsga suriladi.</summary>
+    [HttpPost("shift")]
+    public async Task<ActionResult<CurriculumShiftResultDto>> Shift(CurriculumShiftRequest req, CancellationToken ct = default) =>
+        await CurriculumImport.ShiftAsync(this, db, audit, req.FromTopicId, ct);
 
     /// <summary>Bitta mavzuning aniq reja sanasini qo'lda o'zgartirish (null — tozalash).</summary>
     [HttpPut("topics/{id:guid}/planned-on")]
@@ -184,11 +144,13 @@ public class CurriculumController(AppDbContext db, AuditService audit) : Control
 /// <summary>
 /// O'qituvchining ish rejalari (veb panel va Telegram Mini App — bitta token): faqat o'zi dars
 /// beradigan sinf/guruh × fan juftliklari. Belgi qo'yish shu juftlik bilan cheklangan.
+/// Ustoz o'z rejasini o'zi yuklaydi va tahrirlaydi (2026-11-18): fayl to'liq bo'lishi shart (chorak,
+/// hafta, mavzu, sana); umumiy reja va boshqa ustozning rejasi — faqat o'qish.
 /// </summary>
 [ApiController]
 [Authorize(Roles = Roles.Teacher)]
 [Route("api/teacher/curriculum")]
-public class TeacherCurriculumController(AppDbContext db) : ControllerBase
+public class TeacherCurriculumController(AppDbContext db, AuditService audit, IWebHostEnvironment env) : ControllerBase
 {
     private string Uid => User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
 
@@ -232,6 +194,93 @@ public class TeacherCurriculumController(AppDbContext db) : ControllerBase
         if (plan is null || (plan.TeacherId is not null && plan.TeacherId != me.Id)) return null;
         var pairs = await TeacherOwnerAccess.PairsAsync(db, me.Id, ct);
         return pairs.Where(p => p.SubjectId == plan.SubjectId).Select(p => (p.OwnerKind, p.OwnerId)).ToHashSet();
+    }
+
+    // ------------------------------------------------------------ o'z rejasini yuklash va tahrirlash
+
+    /// <summary>Yuklash formasi: ustoz jadvalda dars beradigan (fan, daraja/yo'nalish) juftliklari.</summary>
+    [HttpGet("options")]
+    public async Task<ActionResult<IEnumerable<TeacherCurriculumKeyDto>>> Options(CancellationToken ct = default)
+    {
+        if (await MeAsync(ct) is not { } me) return Forbid();
+        return await CurriculumService.TeacherKeysAsync(db, me.Id, ct);
+    }
+
+    [HttpGet("template")]
+    public IActionResult Template() => File(CurriculumService.Template(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ish-reja-namuna.xlsx");
+
+    /// <summary>
+    /// O'z rejasini yuklash (multipart): <c>file</c>, <c>subjectId</c>, <c>grade</c> yoki <c>groupId</c>,
+    /// ixtiyoriy <c>title</c>. Har mavzuda chorak, hafta, mavzu va sana shart. Yuklangan fayl asl hujjat
+    /// sifatida saqlanadi. <c>dryRun=true</c> — faqat tekshiradi.
+    /// </summary>
+    [HttpPost("import")]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<ActionResult<CurriculumImportResultDto>> Import(
+        IFormFile? file, [FromForm] string? subjectId, [FromForm] int? grade, [FromForm] Guid? groupId,
+        [FromForm] string? title, [FromQuery] bool dryRun = false, CancellationToken ct = default)
+    {
+        if (await MeAsync(ct) is not { } me) return Forbid();
+        return await CurriculumImport.RunAsync(this, db, audit, Uid,
+            new CurriculumImport.Args(file, subjectId, grade, groupId, title, me.Id, Strict: true),
+            () => SaveOriginalAsync(file!), dryRun, ct);
+    }
+
+    /// <summary>Ustoz yuklagan faylning o'zi — rejaning asl hujjati.</summary>
+    private async Task<(string Url, string? Name)?> SaveOriginalAsync(IFormFile file)
+    {
+        if (UploadGuard.Validate(file) is not null) return null;
+        var dir = Path.Combine(env.ContentRootPath, "uploads");
+        Directory.CreateDirectory(dir);
+        var stored = UploadGuard.SafeName(file);
+        await using (var fs = System.IO.File.Create(Path.Combine(dir, stored)))
+            await file.CopyToAsync(fs);
+        return ($"/uploads/{stored}", file.FileName);
+    }
+
+    [HttpPost("{planId:guid}/topics")]
+    public async Task<IActionResult> AddTopic(Guid planId, CurriculumTopicSaveRequest req, CancellationToken ct = default) =>
+        await OwnPlanAsync(planId, ct) is { } denied ? denied
+            : await CurriculumImport.SaveTopicAsync(this, db, audit, planId, null, req, ct);
+
+    [HttpPut("topics/{id:guid}")]
+    public async Task<IActionResult> SaveTopic(Guid id, CurriculumTopicSaveRequest req, CancellationToken ct = default)
+    {
+        var topic = await db.CurriculumTopics.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (topic is null) return NotFound();
+        return await OwnPlanAsync(topic.PlanId, ct) is { } denied ? denied
+            : await CurriculumImport.SaveTopicAsync(this, db, audit, topic.PlanId, id, req, ct);
+    }
+
+    [HttpDelete("topics/{id:guid}")]
+    public async Task<IActionResult> DeleteTopic(Guid id, CancellationToken ct = default)
+    {
+        var topic = await db.CurriculumTopics.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (topic is null) return NotFound();
+        return await OwnPlanAsync(topic.PlanId, ct) is { } denied ? denied
+            : await CurriculumImport.DeleteTopicAsync(this, db, audit, id, ct);
+    }
+
+    /// <summary>"Dars bo'lmadi" — shu mavzudan boshlab hammasi bir darsga suriladi.</summary>
+    [HttpPost("shift")]
+    public async Task<ActionResult<CurriculumShiftResultDto>> Shift(CurriculumShiftRequest req, CancellationToken ct = default)
+    {
+        var topic = await db.CurriculumTopics.AsNoTracking().FirstOrDefaultAsync(t => t.Id == req.FromTopicId, ct);
+        if (topic is null) return NotFound();
+        if (await OwnPlanAsync(topic.PlanId, ct) is { } denied) return denied;
+        return await CurriculumImport.ShiftAsync(this, db, audit, req.FromTopicId, ct);
+    }
+
+    /// <summary>Tahrir faqat ustozning o'z rejasida; null — ruxsat bor.</summary>
+    private async Task<ActionResult?> OwnPlanAsync(Guid planId, CancellationToken ct)
+    {
+        if (await MeAsync(ct) is not { } me) return Forbid();
+        var owner = await db.CurriculumPlans.AsNoTracking().Where(p => p.Id == planId)
+            .Select(p => new { p.TeacherId }).FirstOrDefaultAsync(ct);
+        if (owner is null) return NotFound();
+        return owner.TeacherId == me.Id ? null
+            : StatusCode(StatusCodes.Status403Forbidden, new { message = "Faqat o'z ish rejangizni tahrirlay olasiz — umumiy rejani o'quv bo'limi o'zgartiradi" });
     }
 
     [HttpPut("progress")]

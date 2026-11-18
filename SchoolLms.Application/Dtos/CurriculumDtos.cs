@@ -10,7 +10,11 @@ public record CurriculumPlanListItemDto(
     int TopicCount, int TotalHours, string? FileUrl, string? FileName, DateTimeOffset UpdatedAt,
     List<string> Owners, decimal AveragePercent, string? TeacherId = null, string? TeacherName = null);
 
-public record CurriculumOwnerDto(string Kind, string Id, string Name);
+/// <param name="Expected">Bugungacha o'tilishi kerak bo'lgan mavzular; null — reja sanalari yo'q.</param>
+/// <param name="Delta">O'tilgan − kutilgan: musbat — oldinda, manfiy — orqada (hisobot bilan bir xil).</param>
+public record CurriculumOwnerDto(
+    string Kind, string Id, string Name,
+    int? Expected = null, int? Delta = null, string? ForecastFinish = null, bool LateWarning = false);
 
 public record CurriculumMarkDto(string OwnerKind, string OwnerId, string PassedOn);
 
@@ -90,3 +94,27 @@ public record CurriculumFitDto(
 public record CurriculumTeacherOptionDto(string Id, string Name, List<CurriculumTeacherKeyDto> Keys);
 
 public record CurriculumTeacherKeyDto(string SubjectId, int? Grade, Guid? GroupId);
+
+// ---------------------------------------------------------------------------
+//  Ustoz rejasini o'zi tahrirlaydi (mijoz, 2026-11-18): mavzu qo'shish/o'zgartirish/o'chirish va
+//  "dars bo'lmadi" — keyingi mavzularni keyingi darslarga surish.
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Mavzuni saqlash. <paramref name="PlannedOn"/> ("yyyy-MM-dd") majburiy: chorak va hafta undan
+/// hisoblanadi (choraklar kiritilmagan bo'lsa — <paramref name="Quarter"/>/<paramref name="Week"/> majburiy).
+/// <paramref name="AfterOrder"/> — faqat yangi mavzu: shu raqamdan keyin qo'yiladi (0 — boshiga; null — oxiriga).
+/// </summary>
+public record CurriculumTopicSaveRequest(
+    string Title, string? Section, string? PlannedOn, int? Quarter, int? Week, int Hours,
+    string? Goal, string? Homework, int? AfterOrder = null);
+
+/// <summary>"Dars bo'lmadi": shu mavzudan boshlab hammasi bir darsga suriladi.</summary>
+public record CurriculumShiftRequest(Guid FromTopicId);
+
+/// <summary>Surish natijasi: nechta mavzu surildi va oxirgisining yangi sanasi.</summary>
+public record CurriculumShiftResultDto(int Moved, string LastDate);
+
+/// <summary>Ustozning yuklash formasi: u jadvalda dars beradigan (fan, daraja/yo'nalish) juftliklari.</summary>
+/// <param name="PlanId">Shu juftlik bo'yicha ustozning o'z rejasi bor bo'lsa — qayta yuklash.</param>
+public record TeacherCurriculumKeyDto(string SubjectId, string SubjectName, int? Grade, Guid? GroupId, string Label, Guid? PlanId);

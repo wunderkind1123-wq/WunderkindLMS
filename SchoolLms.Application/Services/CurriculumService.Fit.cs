@@ -57,18 +57,7 @@ public static partial class CurriculumService
         var cal = await CalendarAsync(db, ct);
         var holidays = await HolidaysAsync(db, ct);
         var planned = PlannedDates(topics, cal);
-
-        var ownerIds = owners.Select(o => o.Id).ToList();
-        var assigned = (await db.WeekAssignments.AsNoTracking()
-                .Where(a => a.TemplateId != null && ownerIds.Contains(a.ClassId))
-                .Select(a => new { a.OwnerKind, a.ClassId, a.Quarter, a.Week, a.TemplateId }).ToListAsync(ct))
-            .GroupBy(a => (a.OwnerKind, a.ClassId, a.Quarter, a.Week))
-            .ToDictionary(g => g.Key, g => g.First().TemplateId!);
-        var templateIds = assigned.Values.Distinct().ToList();
-        var templates = await db.ScheduleTemplates.AsNoTracking().Include(t => t.Lessons)
-            .Where(t => templateIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, ct);
-        var main = (await TeacherLessons.MainTemplatesAsync(db, ct))
-            .ToDictionary(x => (x.Owner.Kind, x.Owner.Id), x => x.Template);
+        var lessonsOf = await LessonsAsync(db, plan, owners, cal, holidays, ct);
 
         // the plan's hours per quarter
         int? QuarterOf(CurriculumTopic t)
@@ -82,6 +71,59 @@ public static partial class CurriculumService
         }
         var hoursByQuarter = topics.GroupBy(QuarterOf).ToDictionary(g => g.Key ?? 0, g => g.Sum(t => t.Hours));
 
+        var result = new List<CurriculumFitDto>();
+        foreach (var o in owners)
+        {
+            var ol = lessonsOf[(o.Kind, o.Id)];
+            var quarters = ol.Quarters
+                .Select(q => new CurriculumFitQuarterDto(q.Quarter, hoursByQuarter.GetValueOrDefault(q.Quarter), q.Lessons, q.Estimated))
+                .ToList();
+
+            var issues = new List<CurriculumFitDateDto>();
+            foreach (var t in topics.Where(t => t.PlannedOn is not null).OrderBy(t => t.Order))
+            {
+                var d = t.PlannedOn!.Value;
+                if (ol.Dates.Contains(d) || !cal.Quarters.Any(q => d >= q.Start && d <= q.End)) continue;
+                var reason = holidays.TryGetValue(d, out var h) ? (string.IsNullOrWhiteSpace(h) ? "dam olish kuni" : $"dam olish kuni ({h})")
+                    : d.DayOfWeek == DayOfWeek.Sunday ? "yakshanba"
+                    : plan.TeacherId is not null ? $"bu kuni ustozning {o.Name} da darsi yo'q"
+                    : $"bu kuni {o.Name} da shu fandan dars yo'q";
+                issues.Add(new CurriculumFitDateDto(t.Order, t.Title, Iso(d), reason));
+            }
+
+            result.Add(new CurriculumFitDto(
+                o.Kind, o.Id, o.Name, ol.WeeklyLessons,
+                topics.Sum(t => t.Hours), quarters.Sum(q => q.Lessons), hoursByQuarter.GetValueOrDefault(0),
+                quarters, issues));
+        }
+        return result;
+    }
+
+    /// <param name="WeeklyLessons">Asosiy jadvalda haftasiga necha dars.</param>
+    /// <param name="Dates">Yil bo'yicha shu fandan dars kunlari (yakshanba va bayramsiz).</param>
+    private sealed record OwnerLessons(
+        int WeeklyLessons, List<(int Quarter, int Lessons, int Estimated)> Quarters, HashSet<DateOnly> Dates);
+
+    /// <summary>
+    /// Har ega uchun rejaning darslari choraklar bo'yicha: haftaga biriktirilgan jadval, bo'lmasa —
+    /// asosiy jadval (taxminiy hafta). Rejaning fani (ustoz rejasida — faqat shu ustozniki).
+    /// </summary>
+    private static async Task<Dictionary<(string Kind, string Id), OwnerLessons>> LessonsAsync(
+        IAppDbContext db, CurriculumPlan plan, List<Owner> owners, Calendar cal,
+        IReadOnlyDictionary<DateOnly, string> holidays, CancellationToken ct)
+    {
+        var ownerIds = owners.Select(o => o.Id).ToList();
+        var assigned = (await db.WeekAssignments.AsNoTracking()
+                .Where(a => a.TemplateId != null && ownerIds.Contains(a.ClassId))
+                .Select(a => new { a.OwnerKind, a.ClassId, a.Quarter, a.Week, a.TemplateId }).ToListAsync(ct))
+            .GroupBy(a => (a.OwnerKind, a.ClassId, a.Quarter, a.Week))
+            .ToDictionary(g => g.Key, g => g.First().TemplateId!);
+        var templateIds = assigned.Values.Distinct().ToList();
+        var templates = await db.ScheduleTemplates.AsNoTracking().Include(t => t.Lessons)
+            .Where(t => templateIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, ct);
+        var main = (await TeacherLessons.MainTemplatesAsync(db, ct))
+            .ToDictionary(x => (x.Owner.Kind, x.Owner.Id), x => x.Template);
+
         // the plan's lessons in a template: same subject (and teacher); split halves at one time = one lesson
         List<(int Day, int Period)> Slots(ScheduleTemplate tpl) =>
         [
@@ -90,12 +132,12 @@ public static partial class CurriculumService
                 .Select(l => (l.Day, l.Period)).Distinct(),
         ];
 
-        var result = new List<CurriculumFitDto>();
+        var result = new Dictionary<(string, string), OwnerLessons>();
         foreach (var o in owners)
         {
             var mainTpl = main.GetValueOrDefault((o.Kind, o.Id));
-            var lessonDates = new HashSet<DateOnly>();
-            var quarters = new List<CurriculumFitQuarterDto>();
+            var dates = new HashSet<DateOnly>();
+            var quarters = new List<(int, int, int)>();
             foreach (var q in cal.Quarters.OrderBy(x => x.Quarter))
             {
                 int lessons = 0, estimated = 0;
@@ -115,28 +157,12 @@ public static partial class CurriculumService
                         var date = monday.AddDays(day);
                         if (date < from || date > to || date.DayOfWeek == DayOfWeek.Sunday || holidays.ContainsKey(date)) continue;
                         lessons++;
-                        lessonDates.Add(date);
+                        dates.Add(date);
                     }
                 }
-                quarters.Add(new CurriculumFitQuarterDto(q.Quarter, hoursByQuarter.GetValueOrDefault(q.Quarter), lessons, estimated));
+                quarters.Add((q.Quarter, lessons, estimated));
             }
-
-            var issues = new List<CurriculumFitDateDto>();
-            foreach (var t in topics.Where(t => t.PlannedOn is not null).OrderBy(t => t.Order))
-            {
-                var d = t.PlannedOn!.Value;
-                if (lessonDates.Contains(d) || !cal.Quarters.Any(q => d >= q.Start && d <= q.End)) continue;
-                var reason = holidays.TryGetValue(d, out var h) ? (string.IsNullOrWhiteSpace(h) ? "dam olish kuni" : $"dam olish kuni ({h})")
-                    : d.DayOfWeek == DayOfWeek.Sunday ? "yakshanba"
-                    : plan.TeacherId is not null ? $"bu kuni ustozning {o.Name} da darsi yo'q"
-                    : $"bu kuni {o.Name} da shu fandan dars yo'q";
-                issues.Add(new CurriculumFitDateDto(t.Order, t.Title, Iso(d), reason));
-            }
-
-            result.Add(new CurriculumFitDto(
-                o.Kind, o.Id, o.Name, mainTpl is null ? 0 : Slots(mainTpl).Count,
-                topics.Sum(t => t.Hours), quarters.Sum(q => q.Lessons), hoursByQuarter.GetValueOrDefault(0),
-                quarters, issues));
+            result[(o.Kind, o.Id)] = new OwnerLessons(mainTpl is null ? 0 : Slots(mainTpl).Count, quarters, dates);
         }
         return result;
 

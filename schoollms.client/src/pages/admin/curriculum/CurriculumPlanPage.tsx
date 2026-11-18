@@ -1,24 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Paperclip, Pencil, X } from 'lucide-react'
+import { ArrowLeft, Check, CalendarX, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react'
 import {
   curriculumError,
+  deleteCurriculumTopic,
   getCurriculumFit,
   getCurriculumPlan,
   markCurriculumTopic,
   setCurriculumTopicDate,
+  shiftCurriculum,
   type CurriculumFit,
   type CurriculumPlanDetail,
   type CurriculumTopic,
 } from '@/api/services/curriculum'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
 import { cn, formatDate } from '@/lib/utils'
+import { DeltaBadge } from '@/pages/teacher/curriculum/TeacherCurriculumPage'
 import { CurriculumFitTable } from './CurriculumFitTable'
+import { CurriculumTopicModal } from './CurriculumTopicModal'
 
 /**
  * Bitta ish reja: mavzular × sinf/guruh. Katakni bosish — "o'tildi" (bugungi sana bilan) yoki
  * belgini olib tashlash. `teacher` — o'qituvchi rejimi: faqat o'zi dars beradigan sinf/guruhlar.
+ * Tahrir (mavzu qo'shish/o'zgartirish/o'chirish, "dars bo'lmadi" — surish): o'quv bo'limi — har
+ * rejada, ustoz — faqat o'z rejasida.
  */
 export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
   const { id = '' } = useParams()
@@ -65,8 +72,42 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
     }
   }
 
+  // the topic modal: an existing topic, or a new one after `after`
+  const [editing, setEditing] = useState<{ topic: CurriculumTopic | null; after: number | null } | null>(null)
+
+  async function shift(topic: CurriculumTopic): Promise<void> {
+    if (!confirm(`«${topic.title}» darsi bo'lmadimi? Shu mavzu va undan keyingi barcha mavzular bitta darsga suriladi.`)) return
+    setBusy(`shift|${topic.id}`)
+    try {
+      const r = await shiftCurriculum(topic.id, teacher)
+      load()
+      alert(`${r.moved} ta mavzu surildi. Oxirgi mavzu endi ${formatDate(r.lastDate)} da.`)
+    } catch (e) {
+      alert(curriculumError(e, "Surib bo'lmadi"))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function remove(topic: CurriculumTopic): Promise<void> {
+    if (!confirm(`${topic.order}-mavzu «${topic.title}» va uning «o'tildi» belgilari o'chirilsinmi?`)) return
+    setBusy(`del|${topic.id}`)
+    try {
+      await deleteCurriculumTopic(topic.id, teacher)
+      load()
+    } catch (e) {
+      alert(curriculumError(e, "O'chirib bo'lmadi"))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (error) return <p className="text-sm text-red-600">{error}</p>
   if (!plan) return <Loader label="Yuklanmoqda..." />
+
+  // a teacher edits only their own plan; the shared one belongs to o'quv bo'limi
+  const editable = !teacher || !!plan.teacherId
+  const lastOrder = plan.topics.length ? plan.topics[plan.topics.length - 1].order : 0
 
   const passedCount = (ownerId: string) => plan.topics.filter((t) => t.marks.some((m) => m.ownerId === ownerId)).length
   // a section header row before the first topic of each section
@@ -94,7 +135,18 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
             )}
           </p>
         </div>
+        {editable && (
+          <Button variant="secondary" className="ml-auto shrink-0" onClick={() => setEditing({ topic: null, after: lastOrder })}>
+            <Plus className="h-4 w-4" /> Mavzu qo'shish
+          </Button>
+        )}
       </div>
+
+      {!editable && (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+          Bu — o'quv bo'limining umumiy ish rejasi. O'zgartirish kerak bo'lsa, «Ish reja» sahifasida o'z ish rejangizni yuklang.
+        </p>
+      )}
 
       {plan.owners.length === 0 ? (
         <Card className="p-6 text-sm text-slate-500">
@@ -110,6 +162,11 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
                 <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
                   <span className="font-medium text-slate-700">{o.name}</span>
                   <span className="ml-2 tabular-nums text-slate-500">{n}/{plan.topics.length} · {pct}%</span>
+                  {o.delta != null && (
+                    <span className="ml-2 text-xs" title={o.expected != null ? `Reja bo'yicha bugungacha ${o.expected} ta mavzu` : undefined}>
+                      <DeltaBadge delta={o.delta} />
+                    </span>
+                  )}
                 </div>
               )
             })}
@@ -125,6 +182,7 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
             «Reja» — ish rejadagi aniq dars sanasi; sana yozilmagan mavzuda chorak va haftadan taxmin («~» bilan).
             Reja sanasi o'tib ketgan, lekin belgilanmagan mavzu qizil.
             {!teacher && ' Sanani o‘zgartirish uchun uni bosing.'}
+            {editable && ' Dars bo‘lmasa — qatordagi «Dars bo‘lmadi» belgisini bosing: shu mavzu va keyingilari bitta darsga suriladi.'}
           </p>
           <Card className="p-0">
             <div className="overflow-x-auto">
@@ -139,13 +197,14 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
                     {plan.owners.map((o) => (
                       <th key={o.id} className="px-3 py-3 text-center normal-case">{o.name}</th>
                     ))}
+                    {editable && <th className="px-3 py-3" aria-label="Amallar" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {plan.topics.map((t) => {
                     const sectionRow = sectionStarts.has(t.id)
                     return (
-                      <FragmentRows key={t.id} section={sectionRow ? t.section : null} colSpan={5 + plan.owners.length}>
+                      <FragmentRows key={t.id} section={sectionRow ? t.section : null} colSpan={5 + plan.owners.length + (editable ? 1 : 0)}>
                         <tr className="hover:bg-slate-50/60">
                           <td className="px-3 py-2 tabular-nums text-slate-400">{t.order}</td>
                           <td className="px-3 py-2">
@@ -191,6 +250,22 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
                               </td>
                             )
                           })}
+                          {editable && (
+                            <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                              <RowAction label="Dars bo'lmadi — shu va keyingi mavzularni bir darsga surish" busy={busy === `shift|${t.id}`} onClick={() => void shift(t)}>
+                                <CalendarX className="h-4 w-4" />
+                              </RowAction>
+                              <RowAction label="O'zgartirish" onClick={() => setEditing({ topic: t, after: null })}>
+                                <Pencil className="h-4 w-4" />
+                              </RowAction>
+                              <RowAction label="Keyiniga mavzu qo'shish" onClick={() => setEditing({ topic: null, after: t.order })}>
+                                <Plus className="h-4 w-4" />
+                              </RowAction>
+                              <RowAction label="O'chirish" danger busy={busy === `del|${t.id}`} onClick={() => void remove(t)}>
+                                <Trash2 className="h-4 w-4" />
+                              </RowAction>
+                            </td>
+                          )}
                         </tr>
                       </FragmentRows>
                     )
@@ -201,7 +276,50 @@ export function CurriculumPlanPage({ teacher = false }: { teacher?: boolean }) {
           </Card>
         </>
       )}
+      {editing && (
+        <CurriculumTopicModal
+          planId={plan.id}
+          topic={editing.topic}
+          afterOrder={editing.after}
+          teacher={teacher}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            load()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function RowAction({
+  label,
+  danger = false,
+  busy = false,
+  onClick,
+  children,
+}: {
+  label: string
+  danger?: boolean
+  busy?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={busy}
+      onClick={onClick}
+      className={cn(
+        'rounded-md p-1.5 text-slate-400 transition-colors disabled:opacity-40',
+        danger ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-slate-100 hover:text-slate-700',
+      )}
+    >
+      {children}
+    </button>
   )
 }
 
