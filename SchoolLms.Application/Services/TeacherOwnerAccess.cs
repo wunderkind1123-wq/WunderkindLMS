@@ -158,13 +158,15 @@ public static class TeacherOwnerAccess
         }
 
         // Oddiy guruh — o'chirgich yoqilgandagina; yo'nalish guruhi — har doim.
+        // Faol blok guruhi ham o'chirgichga qaramaydi (docs/modules/blocks.md).
         var groupsOn = await LessonRoster.GroupLessonsEnabledAsync(db, ct);
+        var liveBlocks = await LessonRoster.LiveBlockGroupIdsAsync(db, ct);
 
         var myGroupIds = (await db.StudyGroupTeachers.AsNoTracking()
             .Where(g => g.TeacherId == teacher.Id).Select(g => g.GroupId).ToListAsync(ct)).ToHashSet();
 
         var groups = await db.StudyGroups.AsNoTracking()
-            .Where(g => !g.IsArchived && (groupsOn || g.IsTrack))
+            .Where(g => !g.IsArchived && (groupsOn || g.IsTrack || liveBlocks.Contains(g.Id)))
             .OrderBy(g => g.IsTrack ? 0 : 1).ThenBy(g => g.Name).ToListAsync(ct);
         foreach (var grp in groups)
         {

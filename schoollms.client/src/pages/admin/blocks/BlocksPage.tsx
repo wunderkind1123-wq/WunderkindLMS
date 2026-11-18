@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Pencil, Plus, Power, Trash2, Upload, Users } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, CalendarRange, CheckCircle2, Pencil, Plus, Power, Trash2, Upload, Users } from 'lucide-react'
 import type { Block } from '@/api/services/blocks'
 import {
   DAY_PATTERN_LABELS,
@@ -157,6 +157,7 @@ export function BlocksPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
                       <IconBtn icon={Users} title="Taqsimlash" onClick={() => navigate(`/admin/blocks/${b.id}/taqsimlash`)} />
+                      <IconBtn icon={CalendarRange} title="Jadval" onClick={() => navigate(`/admin/blocks/${b.id}/jadval`)} />
                       <IconBtn icon={Pencil} title="Tahrirlash" onClick={() => navigate(`/admin/blocks/${b.id}`)} />
                       {b.isActive ? (
                         <IconBtn icon={Power} title="Faolsizlantirish" onClick={() => handleDeactivate(b)} />

@@ -265,3 +265,44 @@ export async function importBlocks(
   const body = res.data as { message?: string; errors?: BlockImportError[] }
   return { ok: false, message: body.message ?? "Import qilib bo'lmadi", errors: body.errors ?? [] }
 }
+
+/* ---------------------------------------------------------------------------
+ *  Jadval (TZ 6.3): blok kataklari ikkala guruhda bir xil, manba sinf qatorlarida ko'rinadi.
+ * ------------------------------------------------------------------------ */
+
+/** Blok katagi: 0 = Dushanba ... 5 = Shanba; dars raqami 1 dan. */
+export interface BlockSlot {
+  day: number
+  period: number
+}
+
+/** Manba sinf (yoki yo'nalish) qatorida ko'rinadigan blok katagi. */
+export interface BlockOverlayItem extends BlockSlot {
+  ownerId: string
+  blockId: string
+  blockName: string
+  subjectName: string
+  groups: { name: string; teacherName: string | null }[]
+}
+
+export async function getBlockSchedule(id: string): Promise<BlockSlot[]> {
+  const { data } = await api.get<BlockSlot[]>(`${base}/${id}/schedule`)
+  return data
+}
+
+/** Qo'shish va olib tashlash bitta tranzaksiyada. Band bo'lsa server 409 va sababni qaytaradi. */
+export async function setBlockSchedule(id: string, add: BlockSlot[], remove: BlockSlot[]): Promise<BlockSlot[]> {
+  const { data } = await api.put<BlockSlot[]>(`${base}/${id}/schedule`, { add, remove })
+  return data
+}
+
+/** Bitta soatni toq yoki juft kunlarga qo'llash. */
+export async function applyBlockPattern(id: string, period: number, pattern: 'odd' | 'even'): Promise<BlockSlot[]> {
+  const { data } = await api.post<BlockSlot[]>(`${base}/${id}/schedule/pattern`, { period, pattern })
+  return data
+}
+
+export async function getBlockOverlay(): Promise<BlockOverlayItem[]> {
+  const { data } = await api.get<BlockOverlayItem[]>(`${base}/schedule-overlay`)
+  return data
+}

@@ -185,6 +185,7 @@ public sealed class ClassAttainment
         // Oddiy guruh — o'chirgich yoqilgandagina; yo'nalish guruhi — har doim
         // (docs/modules/track-groups-as-classes.md).
         var groupsOn = await LessonRoster.GroupLessonsEnabledAsync(db, ct);
+        var liveBlocks = await LessonRoster.LiveBlockGroupIdsAsync(db, ct);
         {
             // ARXIVLANGAN GURUH HAM KIRADI — 5-band. Guruhni arxivlash
             // (`StudyGroupService.ArchiveAsync`) faol a'zoliklarni YOPADI, ya'ni
@@ -193,7 +194,7 @@ public sealed class ClassAttainment
             // olgan baholaridan ayrilardi (o'quv yilini yakunlash HAR guruhni
             // arxivlaydi — `AcademicYearController.Rollover`).
             var byId = (await db.StudyGroups.AsNoTracking()
-                    .Where(g => groupsOn || g.IsTrack)
+                    .Where(g => groupsOn || g.IsTrack || liveBlocks.Contains(g.Id))
                     .Select(g => new { g.Id, g.Name, g.SubjectId, g.IsTrack }).ToListAsync(ct))
                 .ToDictionary(
                     g => g.Id,
@@ -230,6 +231,7 @@ public sealed class ClassAttainment
         var groupWindows = new Dictionary<string, Dictionary<string, Window>>(StringComparer.Ordinal);
 
         var groupsOn = await LessonRoster.GroupLessonsEnabledAsync(db, ct);
+        var liveBlocks = await LessonRoster.LiveBlockGroupIdsAsync(db, ct);
         {
             var members = await db.StudyGroupMembers.AsNoTracking()
                 .Where(m => m.StudentId == student.Id)
@@ -238,7 +240,7 @@ public sealed class ClassAttainment
             {
                 var ids = members.Select(m => m.GroupId).Distinct().ToList();
                 var byId = (await db.StudyGroups.AsNoTracking()
-                        .Where(g => ids.Contains(g.Id) && (groupsOn || g.IsTrack))
+                        .Where(g => ids.Contains(g.Id) && (groupsOn || g.IsTrack || liveBlocks.Contains(g.Id)))
                         .Select(g => new { g.Id, g.Name, g.SubjectId, g.IsTrack }).ToListAsync(ct))
                     .ToDictionary(
                         g => g.Id,

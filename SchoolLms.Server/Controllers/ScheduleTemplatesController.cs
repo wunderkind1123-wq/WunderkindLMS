@@ -71,6 +71,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
     {
         var owner = await OwnerAsync(classId, ct);
         if (owner is null) return NotFound();
+        if (await BlockClashAsync(owner, [], ct) is { } blockClash) return Conflict(new { message = blockClash });
 
         var tpl = new ScheduleTemplate { ClassId = classId, Name = req.Name, OwnerKind = owner.Kind };
         db.ScheduleTemplates.Add(tpl);
@@ -102,6 +103,8 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
     {
         var tpl = await FindAsync(classId, templateId, ct);
         if (tpl is null) return NotFound();
+        if (await OwnerAsync(classId, ct) is { } owner && await BlockClashAsync(owner, [], ct) is { } blockClash)
+            return Conflict(new { message = blockClash });
         // 2026-10-11: o'tgan haftalarda ishlatilgan jadval (jumladan avtomatik saqlangan eski versiya
         // "… gacha") bazadan o'chirilsa, o'sha haftalarning darslari — jurnal, davomat, maosh tarixi —
         // yo'qolardi. 2026-11-06 (mijoz: eski jadvallarni o'chirib, yangisini qo'shish imkoni bo'lsin):
@@ -140,6 +143,8 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var tpl = await FindAsync(classId, templateId, ct);
         if (tpl is null) return NotFound();
 
+        if (await BlockClashAsync(owner, [(day, period)], ct) is { } blockClash)
+            return Conflict(new { message = blockClash });
         var clash = await ScheduleConflicts.ForTemplateAsync(
             db, owner, tpl.Id, [(day, period, lesson.SubGroup)], ct);
         if (clash.Count > 0) return Conflict(new { message = ScheduleConflicts.Message(clash) });
@@ -168,6 +173,8 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
     {
         var tpl = await FindAsync(classId, templateId, ct);
         if (tpl is null) return NotFound();
+        if (await OwnerAsync(classId, ct) is { } owner && await BlockClashAsync(owner, [], ct) is { } blockClash)
+            return Conflict(new { message = blockClash });
 
         var existing = tpl.Lessons.Where(l => l.Day == day && l.Period == period).ToList();
         await RecordCellsAsync(await OwnerNameAsync(classId, ct), tpl, existing, [], [(day, period)], ct);
@@ -200,6 +207,8 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var lessons = req.Lessons ?? new();
         if (CellError(owner, req) is { } invalid) return BadRequest(new { message = invalid });
 
+        if (await BlockClashAsync(owner, lessons.Count > 0 ? [(req.Day, req.Period)] : [], ct) is { } blockClash)
+            return Conflict(new { message = blockClash });
         if (lessons.Count > 0)
         {
             var clash = await ScheduleConflicts.ForTemplateAsync(
@@ -253,6 +262,9 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
             return BadRequest(new { message = "Bitta katak ikki marta berildi" });
         foreach (var cell in cells)
             if (CellError(owner, cell) is { } invalid) return BadRequest(new { message = invalid });
+        if (await BlockClashAsync(owner,
+                [.. cells.Where(c => (c.Lessons ?? []).Count > 0).Select(c => (c.Day, c.Period))], ct) is { } blockClash)
+            return Conflict(new { message = blockClash });
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // Bir vaqtda kelgan ikki tahrir (umumiy jadval + sinf sahifasi) ikkalasi ham nusxa olmasin:
@@ -291,6 +303,14 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         await tx.CommitAsync(ct);
         return new LiveCellResultDto(ToDto(edited), target.Archived?.Id, target.Archived?.Name);
     }
+
+    /// <summary>
+    /// Bloklar (docs/modules/blocks.md, 3-qoida): manba sinfga blok soatida dars qo'yilmaydi; blok
+    /// guruhining jadvali esa faqat bloklar bo'limidan o'zgaradi. Blok bo'lmasa — har doim null.
+    /// </summary>
+    private Task<string?> BlockClashAsync(
+        LessonOwner owner, IReadOnlyCollection<(int Day, int Period)> cells, CancellationToken ct) =>
+        new BlockScheduleService(db).ClashForOwnerAsync(owner.Id, owner.Name, cells, ct);
 
     /// <summary>Katak so'rovining tuzilish xatosi (yoki null) — <see cref="SetCell"/> va <see cref="SetLiveCell"/> uchun.</summary>
     private static string? CellError(LessonOwner owner, SetCellRequest req)

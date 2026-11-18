@@ -199,7 +199,7 @@ public class JournalController(AppDbContext db) : ControllerBase
         // Oddiy guruh — o'chirgich yoqilgandagina; yo'nalish guruhi — har doim.
         var scope = await LessonRoster.GroupScopeAsync(db);
         var groupsOn = scope.AllGroups;
-        var trackIds = scope.TrackIdList;
+        var trackIds = scope.LiveGroupIdList;
         // O'tildi YOKI davomat belgilangan (HeldLessons qoidasi).
         var fromNotes = (await HeldLessons.ListAsync(db, null, date, date))
             .Where(n => scope.Allows(n.OwnerKind, n.ClassId))

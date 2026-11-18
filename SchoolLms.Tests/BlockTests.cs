@@ -257,7 +257,14 @@ public class BlockTests(ApiFixture fixture)
             new { studentIds = new[] { w.Fil1 }, groupId = katta, date = Iso(gradeDay.AddDays(1)) });
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         await fixture.Api.WithDbAsync(async db =>
-            Assert.Equal(kichik, (await db.JournalEntries.SingleAsync(j => j.StudentId == w.Fil1)).BlockGroupId));
+        {
+            var entry = await db.JournalEntries.SingleAsync(j => j.StudentId == w.Fil1);
+            Assert.Equal(kichik, entry.BlockGroupId);
+            // Umumiy bazada guruh jurnal qatori qolmasin: StudyGroupTests.Guruh_yaratish_darslarga_tegmaydi
+            // butun bazada guruh qatori yo'qligini (aniq 0) tekshiradi.
+            db.JournalEntries.Remove(entry);
+            await db.SaveChangesAsync();
+        });
     }
 
     /// <summary>Qo'shilgan kunning o'zida ko'chirish — xatoni tuzatish: tarixda ortiqcha qator qolmaydi.</summary>

@@ -10,7 +10,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Download, Lock, Pencil, UserCog, UserMinus } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CalendarRange, CheckCircle2, Download, Lock, Pencil, UserCog, UserMinus } from 'lucide-react'
 import type { Teacher } from '@/types'
 import type { Block, BlockGroup, BlockMember, BlockRoster } from '@/api/services/blocks'
 import {
@@ -212,6 +212,9 @@ export function BlockRosterPage() {
           <DatePicker value={date} onChange={(v) => v && setDate(v)} ariaLabel="Sana" title="Qaysi sanadagi holat" />
           <Button variant="secondary" onClick={() => downloadBlockRoster(id, date).catch(() => alert("Yuklab bo'lmadi"))}>
             <Download className="h-4 w-4" /> Excel
+          </Button>
+          <Button variant="secondary" onClick={() => navigate(`/admin/blocks/${id}/jadval`)}>
+            <CalendarRange className="h-4 w-4" /> Jadval
           </Button>
           <Button variant="secondary" onClick={() => navigate(`/admin/blocks/${id}`)}>
             <Pencil className="h-4 w-4" /> Tahrirlash

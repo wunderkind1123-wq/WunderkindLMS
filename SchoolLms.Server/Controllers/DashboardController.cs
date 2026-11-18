@@ -63,7 +63,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
         // O'chirgich o'chiq — ODDIY guruh qatorlari YO'Q deb qaraladi (§4.3); yo'nalish
         // guruhi o'chirgichga qaramaydi (LessonRoster.GroupScopeAsync).
         var scope = await LessonRoster.GroupScopeAsync(db);
-        var trackIds = scope.TrackIdList;
+        var trackIds = scope.LiveGroupIdList;
         var groupsOn = scope.AllGroups;
         var entriesQ = db.JournalEntries
             .Where(e => groupsOn || e.OwnerKind != LessonOwnerKind.Group || trackIds.Contains(e.ClassId));

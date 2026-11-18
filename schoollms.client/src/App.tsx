@@ -126,6 +126,7 @@ import { BlocksPage } from '@/pages/admin/blocks/BlocksPage'
 import { BlockFormPage } from '@/pages/admin/blocks/BlockFormPage'
 import { BlockRosterPage } from '@/pages/admin/blocks/BlockRosterPage'
 import { BlockMovesPage } from '@/pages/admin/blocks/BlockMovesPage'
+import { BlockSchedulePage } from '@/pages/admin/blocks/BlockSchedulePage'
 import { ClassRosterPage } from '@/pages/admin/classes/ClassRosterPage'
 import { CertificateTypesPage } from '@/pages/admin/certificates/CertificateTypesPage'
 import { HarakatlarPage } from '@/pages/admin/discipline/HarakatlarPage'
@@ -251,6 +252,7 @@ export default function App() {
           <Route path="blocks/kochirishlar" element={<RequirePerm perm="classes"><BlockMovesPage /></RequirePerm>} />
           <Route path="blocks/:id" element={<RequirePerm perm="classes"><BlockFormPage /></RequirePerm>} />
           <Route path="blocks/:id/taqsimlash" element={<RequirePerm perm="classes"><BlockRosterPage /></RequirePerm>} />
+          <Route path="blocks/:id/jadval" element={<RequirePerm perm="classes"><BlockSchedulePage /></RequirePerm>} />
           <Route path="schedule" element={<RequirePerm perm="schedule"><ClassScheduleViewPage /></RequirePerm>} />
           <Route path="schedule/teachers" element={<RequirePerm perm="schedule"><TeacherSchedulePage /></RequirePerm>} />
           <Route path="schedule/manage" element={<RequirePerm perm="schedule"><SchedulePage /></RequirePerm>} />

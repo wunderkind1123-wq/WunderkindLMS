@@ -116,7 +116,7 @@ public static class AttendanceDisciplineReport
         // yo'nalish guruhlari (ular o'chirgichga qaramaydi).
         var scope = await LessonRoster.GroupScopeAsync(db);
         var groupsOn = scope.AllGroups;
-        var trackIds = scope.TrackIdList;
+        var trackIds = scope.LiveGroupIdList;
         var groupsByStudent = await GroupIdsByStudentAsync(db);
         var groupIdsInScope = students
             .SelectMany(s => groupsByStudent.GetValueOrDefault(s.Id) ?? [])

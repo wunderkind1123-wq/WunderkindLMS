@@ -77,6 +77,16 @@ public class WeekAssignmentsController(AppDbContext db, AuditService audit) : Co
             });
 
         var wanted = req.Assignments ?? [];
+
+        // Bloklar (3-qoida): biriktirilayotgan shablon blok soatiga dars qo'ymasin; blok guruhining
+        // haftalari esa bloklar bo'limida avtomatik yuritiladi.
+        var templateIds = wanted.Where(a => a.TemplateId != null).Select(a => a.TemplateId!).Distinct().ToList();
+        var cells = await db.ScheduleTemplates.AsNoTracking().Where(t => templateIds.Contains(t.Id))
+            .SelectMany(t => t.Lessons).Select(l => new { l.Day, l.Period }).Distinct().ToListAsync(ct);
+        var blockClash = await new BlockScheduleService(db).ClashForOwnerAsync(
+            owner.Id, owner.Name, [.. cells.Select(c => (c.Day, c.Period))], ct);
+        if (blockClash is not null) return Conflict(new { message = blockClash });
+
         var clash = await ScheduleConflicts.ForAssignmentsAsync(
             db, owner, req.Quarter, [.. wanted.Select(a => (a.Week, a.TemplateId))], ct);
         if (clash.Count > 0) return Conflict(new { message = ScheduleConflicts.Message(clash) });

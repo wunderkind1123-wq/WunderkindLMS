@@ -450,9 +450,10 @@ public static class AttendanceAnalytics
         if (classIdByStudent.Count == 0) return result;
         // Yo'nalish guruhi o'chirgichga qaramaydi; oddiy guruh — faqat yoqilganda.
         var groupsOn = await LessonRoster.GroupLessonsEnabledAsync(db);
+        var liveBlocks = await LessonRoster.LiveBlockGroupIdsAsync(db);
 
         var groupIds = (await db.StudyGroups.AsNoTracking()
-            .Where(g => !g.IsArchived && (groupsOn || g.IsTrack)).Select(g => g.Id).ToListAsync()).ToHashSet();
+            .Where(g => !g.IsArchived && (groupsOn || g.IsTrack || liveBlocks.Contains(g.Id))).Select(g => g.Id).ToListAsync()).ToHashSet();
         if (groupIds.Count == 0) return result;
 
         var members = await db.StudyGroupMembers.AsNoTracking()

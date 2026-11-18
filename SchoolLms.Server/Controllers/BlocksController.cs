@@ -29,6 +29,8 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
 {
     private BlockService Service => new(db);
 
+    private BlockScheduleService Schedule => new(db);
+
     private string UserId =>
         User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value ?? "";
 
@@ -187,9 +189,17 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
         if (group is null) return NotFound();
         var from = req.Date ?? AppClock.Today;
 
+        // 4-qoida "ustoz biriktirish" da ham: yangi ustoz blok soatlarida boshqa joyda bo'lmasin.
+        var block = await db.Blocks.AsNoTracking().FirstAsync(b => b.Id == group.BlockId, ct);
+        var slots = await Schedule.SlotsAsync(block.Id, ct);
+        var busy = await Schedule.ValidateAsync(block, slots, (group.Id, req.TeacherId), ct);
+        if (busy is not null) return Conflict(new { message = busy });
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var error = await Service.ChangeTeacherAsync(group, req.TeacherId, from, UserId, ct);
         if (error is not null) return BadRequest(new { message = error });
+        var syncError = await Schedule.SyncTeacherAsync(group, req.TeacherId, ct);
+        if (syncError is not null) return Conflict(new { message = syncError });
         audit.Record(AuditService.EntityBlock, group.BlockId.ToString(), "update",
             $"Blok guruhi ustozi almashtirildi: {group.Name}", after: new { req.TeacherId, From = from },
             teacherId: req.TeacherId);
@@ -295,6 +305,86 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
         var saveError = await SaveAsync(ct);
         if (saveError is not null) return Conflict(new { message = saveError });
         return Ok(new { added });
+    }
+
+    /* ===================================================================
+     *  4a. Jadval (TZ 6.3; 3, 4, 5, 9-qoidalar)
+     * ================================================================ */
+
+    /// <summary>Blokning jadvaldagi kataklari.</summary>
+    [HttpGet("{id:guid}/schedule")]
+    public async Task<ActionResult<IEnumerable<BlockSlot>>> GetSchedule(Guid id, CancellationToken ct = default)
+    {
+        if (!await db.Blocks.AnyAsync(b => b.Id == id, ct)) return NotFound();
+        return await Schedule.SlotsAsync(id, ct);
+    }
+
+    /// <summary>
+    /// Kataklarni qo'shish va olib tashlash — bitta tranzaksiyada, ikkala guruhda bir xil.
+    /// Naqshga zid kun (9-qoida) — 400; sinf, ustoz yoki xona bandligi (3–5) — 409.
+    /// </summary>
+    [HttpPut("{id:guid}/schedule")]
+    public async Task<ActionResult<IEnumerable<BlockSlot>>> SetSchedule(
+        Guid id, SetBlockScheduleRequest req, CancellationToken ct = default)
+    {
+        var block = await db.Blocks.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
+        if (block is null) return NotFound();
+        var add = (req.Add ?? []).Distinct().ToList();
+        var remove = (req.Remove ?? []).Distinct().ToList();
+        if (add.Concat(remove).Any(s => s.Day is < 0 or > 5 || s.Period is < 1 or > 12))
+            return BadRequest(new { message = "Kun yoki dars raqami noto'g'ri" });
+
+        var current = await Schedule.SlotsAsync(id, ct);
+        var fresh = add.Where(s => !current.Contains(s)).ToList();
+        if (fresh.Any(s => !BlockDayPattern.Allows(block.DayPattern, s.Day)))
+            return BadRequest(new { message = BlockService.DayPatternMessage(block.DayPattern) });
+        var clash = await Schedule.ValidateAsync(block, fresh, ct: ct);
+        if (clash is not null) return Conflict(new { message = clash });
+
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var error = await Schedule.ApplyAsync(block, fresh, remove, UserId, ct);
+        if (error is not null) return Conflict(new { message = error });
+        if (fresh.Count > 0 || remove.Count > 0)
+        {
+            audit.Record(AuditService.EntityBlock, block.Id.ToString(), "update",
+                $"Blok jadvali o'zgardi: {block.Name}", after: new { Add = fresh, Remove = remove });
+            await db.SaveChangesAsync(ct);
+        }
+        await tx.CommitAsync(ct);
+        return await Schedule.SlotsAsync(id, ct);
+    }
+
+    /// <summary>
+    /// "Toq kunlarga qo'llash" / "Juft kunlarga qo'llash" (TZ 6.3): bitta soatni naqshning barcha
+    /// kunlariga qo'yadi. Hammasi yoki hech narsa.
+    /// </summary>
+    [HttpPost("{id:guid}/schedule/pattern")]
+    public async Task<ActionResult<IEnumerable<BlockSlot>>> ApplyPattern(
+        Guid id, ApplyBlockPatternRequest req, CancellationToken ct = default)
+    {
+        var block = await db.Blocks.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
+        if (block is null) return NotFound();
+        var pattern = req.Pattern ?? block.DayPattern;
+        if (pattern is not (BlockDayPattern.Odd or BlockDayPattern.Even))
+            return BadRequest(new { message = "Naqsh toq yoki juft bo'lishi kerak" });
+        var cells = BlockScheduleService.PatternDays(pattern).Select(d => new BlockSlot(d, req.Period)).ToList();
+        return await SetSchedule(id, new SetBlockScheduleRequest(cells, []), ct);
+    }
+
+    /// <summary>
+    /// Manba sinf qatorlarida ko'rinadigan blok kataklari (TZ 6.3): har manba uchun shu soatda
+    /// qaysi blok va guruhlari ("Katta · ustoz F.I."). Jadval ekranlari bularni sariq chegara
+    /// bilan chizadi; o'sha soatda manbaga boshqa dars qo'yilmaydi.
+    /// </summary>
+    [HttpGet("schedule-overlay")]
+    public async Task<IActionResult> Overlay(CancellationToken ct = default)
+    {
+        var items = await Schedule.OverlayAsync(ct);
+        return Ok(items.Select(i => new
+        {
+            i.OwnerId, i.BlockId, i.BlockName, i.SubjectName, i.Day, i.Period,
+            groups = i.Groups.Select(g => new { name = g.GroupName, teacherName = g.TeacherName }),
+        }));
     }
 
     /* ===================================================================

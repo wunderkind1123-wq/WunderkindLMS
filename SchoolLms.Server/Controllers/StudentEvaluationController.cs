@@ -125,7 +125,7 @@ public class StudentEvaluationController(AppDbContext db) : ControllerBase
         // guruhi o'chirgichga qaramaydi.
         var scope = await LessonRoster.GroupScopeAsync(db);
         var groupsOn = scope.AllGroups;
-        var trackIds = scope.TrackIdList;
+        var trackIds = scope.LiveGroupIdList;
 
         var students = await db.Students.Where(s => !s.IsArchived)
             .Select(s => new { s.Id, s.FullName, s.ClassName, s.SubGroup }).ToListAsync();

@@ -81,3 +81,11 @@ public record BlockMoveItemDto(
 
 /// <summary>Faollashtirish natijasi: bo'sh <see cref="Errors"/> — blok faollashdi.</summary>
 public record BlockActivationDto(bool IsActive, IReadOnlyList<string> Errors);
+
+/// <summary>Blok jadvalini o'zgartirish: qo'shiladigan va olib tashlanadigan kataklar.</summary>
+public record SetBlockScheduleRequest(
+    IReadOnlyList<SchoolLms.Application.Services.BlockSlot>? Add,
+    IReadOnlyList<SchoolLms.Application.Services.BlockSlot>? Remove);
+
+/// <summary>Bitta soatni toq yoki juft kunlarga qo'llash (standart — blokning o'z naqshi).</summary>
+public record ApplyBlockPatternRequest(int Period, string? Pattern = null);

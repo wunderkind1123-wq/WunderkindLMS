@@ -105,6 +105,41 @@ Ustoz almashtirish oynasi: yangi ustoz + sana + tarix. Excel import (`POST /api/
 ustunlar `O'quvchi ID, Blok, Guruh`. Hammasi yoki hech narsa: xato qator bo'lsa, hech narsa saqlanmaydi va
 xatolar qator raqami bilan qaytadi. Shablon — blokning "Excel" tugmasi (`GET /{id}/export`).
 
+## Jadval (4-bosqich) — `BlockScheduleService`
+
+**Blok darsi qayerda turadi (1-bosqichdagi rejadan o'zgardi).** Avval "katak har manba sinf shablonida"
+deb yozilgan edi. Lekin darslarni o'qiydigan ~45 joy (jurnal, davomat, maosh, hisobotlar) bunday katakni
+sinfning 1/2-yarmi deb tushunardi: ro'yxat `students.sub_group` dan chiqib, noto'g'ri bo'lardi, ustoz
+darsi esa har manba sinf uchun alohida sanalardi. Shuning uchun blok darsi **har blok guruhining o'quv
+guruhi shablonida** turadi (owner_kind = 'group', `block_id` to'ldirilgan, fani — blok fani,
+o'qituvchisi — guruh ustozi). Ikkala guruh shabloni bir xil kataklarga ega va ularni faqat
+`BlockScheduleService` yozadi. Natijada:
+- ro'yxat guruh a'zoligidan olinadi;
+- ustoz darsi bir marta sanaladi;
+- jurnal qatori guruhga yoziladi.
+
+Manba sinf qatorida blok faqat ko'rinadi: `GET /api/admin/blocks/schedule-overlay`, sariq chegara.
+
+| Narsa | Qanday |
+|---|---|
+| Tiriklik | Faol blokning guruhlari o'chirgichga qaramaydi: `LessonRoster.LiveBlockGroupIdsAsync`, `GroupLessonScope.LiveGroupIds` (avval `TrackIds`). Faol blok yo'q bo'lsa — bugungidek |
+| Haftalar | Blok guruhi shabloni joriy haftadan barcha haftalarga avtomatik biriktiriladi; o'zgarish `LiveScheduleEdit` bilan (o'tgan haftalar nusxada qoladi, `block_id` nusxaga ko'chadi) |
+| 9-qoida | Naqshga zid kun — 400, rad etish |
+| 3-qoida | Manba shu soatda boshqa darsda yoki boshqa blokda — 409. Teskari: oddiy muharrir manbaga blok soatida dars qo'ymaydi (`ClashForOwnerAsync`; `ScheduleTemplatesController`, `WeekAssignmentsController`) |
+| 4-qoida | Ustoz shu soatda boshqa joyda, yoki bitta ustoz ikkala guruhda — 409. Ustoz almashtirishda ham tekshiriladi |
+| 5-qoida | Guruh xonasi boshqa blok guruhida yoki shu xonali sinfda band — 409 |
+| Blok guruhi shabloni | Oddiy jadval muharriri uni o'zgartira olmaydi — "Bloklar" bo'limidan |
+| Ustoz almashtirish | Jadvaldagi o'qituvchi joriy haftadan yangilanadi; baho qaysi ustozniki ekanini sanali `block_group_teachers` hal qiladi |
+
+Faqat joriy va keyingi haftalarga biriktirilgan shablonlar "band" qiladi — `ScheduleConflicts` qoidasi
+bilan bir xil.
+
+API: `GET/PUT /{id}/schedule` (add/remove), `POST /{id}/schedule/pattern` (toq/juft kunlarga qo'llash),
+`GET /schedule-overlay`. UI: `/admin/blocks/:id/jadval`; jadval muharririda blok katagi sariq chegara
+bilan, bo'sh katak oynasida "Yoki fan o'rniga blok".
+
+Testlar: `BlockScheduleTests` (13 ta, har biri o'z bazasida).
+
 ## Bosqichlar
 1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI ✅ —
-4. Jadval — 5. Ustoz ekranlari — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).
+4. Jadval ✅ — 5. Ustoz ekranlari — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).

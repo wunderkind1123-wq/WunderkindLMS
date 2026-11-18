@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, Plus } from 'lucide-react'
 import type { ScheduleLesson, ScheduleTemplate, SchoolSettings, Subject, Teacher } from '@/types'
 import { getSubjects } from '@/api/services/subjects'
@@ -12,6 +13,7 @@ import {
   type OccupiedSlot,
   type PupilOverlaySlot,
 } from '@/api/services/scheduleTemplates'
+import { getBlockOverlay, getBlocks, setBlockSchedule, type BlockOverlayItem } from '@/api/services/blocks'
 import { weekDays, schedulePeriods } from '@/config/constants'
 import { Card } from '@/components/ui/Card'
 import { Loader } from '@/components/ui/Loader'
@@ -84,6 +86,21 @@ export function ScheduleBoard({ classId, template, isTrack = false, onTemplateRe
    * FAQAT KO'RSATISH. Guruh darslari o'chiq bo'lsa server bo'sh ro'yxat beradi.
    */
   const [overlay, setOverlay] = useState<PupilOverlaySlot[]>([])
+  /** Blok kataklari (docs/modules/blocks.md): shu ega manba bo'lgan bloklar — sariq chegara, faqat ko'rish. */
+  const [blockOverlay, setBlockOverlay] = useState<BlockOverlayItem[]>([])
+  /** Shu ega manba bo'lgan bloklar — bo'sh katakka fan o'rniga blok qo'yish uchun (TZ 6.3). */
+  const [ownerBlocks, setOwnerBlocks] = useState<{ id: string; name: string }[]>([])
+
+  const loadBlocks = () =>
+    Promise.all([getBlockOverlay(), getBlocks()])
+      .then(([ov, bl]) => {
+        setBlockOverlay(ov.filter((o) => o.ownerId === classId))
+        setOwnerBlocks(
+          bl.filter((b) => b.sources.some((src) => src.id === classId)).map((b) => ({ id: b.id, name: b.name })),
+        )
+      })
+      // Bloklar bo'limiga ruxsati yo'q xodim — jadval bloklarsiz ishlayveradi.
+      .catch(() => undefined)
 
   useEffect(() => {
     Promise.all([
@@ -101,6 +118,7 @@ export function ScheduleBoard({ classId, template, isTrack = false, onTemplateRe
         setOverlay(ov)
       })
       .finally(() => setLoading(false))
+    void loadBlocks()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- template.id mount vaqtida qat'iy
   }, [])
 
@@ -165,6 +183,9 @@ export function ScheduleBoard({ classId, template, isTrack = false, onTemplateRe
   /** Shu katakda o'quvchilarning boshqa egadagi darslari (faqat ko'rsatish). */
   const overlayAt = (day: number, period: number) =>
     overlay.filter((o) => o.day === day && o.period === period)
+  /** Shu katakdagi blok (manba sinf qatori uchun). */
+  const blockAt = (day: number, period: number) =>
+    blockOverlay.find((o) => o.day === day && o.period === period)
 
   const message = (e: unknown, fallback: string) =>
     (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback
@@ -184,6 +205,18 @@ export function ScheduleBoard({ classId, template, isTrack = false, onTemplateRe
     setSelected(null)
     setToast(`${weekDays[day]} · ${period}-dars saqlandi`)
     persist([{ day, period, lessons: next }], () => restoreCell(day, period, before), "Darsni saqlab bo'lmadi")
+  }
+
+  /** Bo'sh katakka blok qo'yish — ikkala guruhda va barcha manba sinflarda birdan (TZ 6.3). */
+  const handlePlaceBlock = (day: number, period: number, blockId: string) => {
+    setSaveError(null)
+    setSelected(null)
+    setBlockSchedule(blockId, [{ day, period }], [])
+      .then(() => {
+        setToast(`${weekDays[day]} · ${period}-dars — blok qo'yildi`)
+        return loadBlocks()
+      })
+      .catch((e) => setSaveError(message(e, "Blokni qo'yib bo'lmadi")))
   }
 
   const handleClear = (day: number, period: number) => {
@@ -243,6 +276,27 @@ export function ScheduleBoard({ classId, template, isTrack = false, onTemplateRe
                           ? subjectColor(slotLessons[0].subjectId)
                           : null
                       const soleTint = soleColor ? tint(soleColor, 0.14) : undefined
+                      const block = slotLessons.length === 0 ? blockAt(day, period) : undefined
+                      if (block)
+                        return (
+                          <td key={day} className="px-1 py-1 align-top">
+                            {/* Blok katagi: shu soat blokda band, bu yerga dars qo'yilmaydi (3-qoida). */}
+                            <Link
+                              to={`/admin/blocks/${block.blockId}/jadval`}
+                              title="Blok — jadvali bloklar bo'limida"
+                              className="flex min-h-[52px] w-full flex-col justify-center rounded-lg border-2 border-amber-400 bg-amber-50 p-2 text-left"
+                            >
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                Blok · {block.blockName}
+                              </span>
+                              {block.groups.map((g) => (
+                                <span key={g.name} className="truncate text-[11px] text-slate-700">
+                                  <b>{g.name}</b> · {block.subjectName} · {g.teacherName ?? '—'}
+                                </span>
+                              ))}
+                            </Link>
+                          </td>
+                        )
                       return (
                         <td key={day} className="px-1 py-1 align-top">
                           <button
@@ -353,6 +407,8 @@ export function ScheduleBoard({ classId, template, isTrack = false, onTemplateRe
         onClose={() => setSelected(null)}
         onSave={handleSave}
         onClear={handleClear}
+        blocks={ownerBlocks}
+        onPlaceBlock={handlePlaceBlock}
       />
 
       <Toast message={toast} onClose={() => setToast(null)} />

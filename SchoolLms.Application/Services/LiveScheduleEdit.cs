@@ -74,7 +74,7 @@ public static class LiveScheduleEdit
         copy.Lessons = [.. tpl.Lessons.Select(l => new ScheduleLesson
         {
             TemplateId = copy.Id, Day = l.Day, Period = l.Period, SubjectId = l.SubjectId,
-            TeacherId = l.TeacherId, SubGroup = l.SubGroup,
+            TeacherId = l.TeacherId, SubGroup = l.SubGroup, BlockId = l.BlockId,
         })];
         db.ScheduleTemplates.Add(copy);
         foreach (var a in uses.Except(past)) a.TemplateId = copy.Id;
@@ -187,7 +187,7 @@ public static class LiveScheduleEdit
         .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     /// <summary>(chorak, hafta) → haftaning boshlanish va tugash sanasi.</summary>
-    private static async Task<Dictionary<(int Quarter, int Week), (string Start, string End)>> WeeksAsync(
+    public static async Task<Dictionary<(int Quarter, int Week), (string Start, string End)>> WeeksAsync(
         IAppDbContext db, CancellationToken ct)
     {
         var result = new Dictionary<(int, int), (string, string)>();

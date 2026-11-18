@@ -77,6 +77,12 @@ interface Props {
   /** Yangi to'liq holatni saqlash: 1 ta = butun sinf, 2 ta (G1+G2) = bo'lingan. */
   onSave: (day: number, period: number, lessons: ScheduleLesson[]) => void
   onClear: (day: number, period: number) => void
+  /**
+   * Shu ega manba bo'lgan bloklar (docs/modules/blocks.md, TZ 6.3): bo'sh katakka fan o'rniga blok
+   * qo'yish mumkin — blok ikkala guruhda va barcha manba sinflarda birdan paydo bo'ladi.
+   */
+  blocks?: { id: string; name: string }[]
+  onPlaceBlock?: (day: number, period: number, blockId: string) => void
 }
 
 interface Row {
@@ -98,6 +104,8 @@ export function LessonSlotModal({
   onClose,
   onSave,
   onClear,
+  blocks = [],
+  onPlaceBlock,
 }: Props) {
   const [mode, setMode] = useState<'whole' | 'split'>('whole')
   const [whole, setWhole] = useState<Row>(emptyRow)
@@ -292,6 +300,27 @@ export function LessonSlotModal({
                 conflict={g2Conflict}
               />
             </div>
+          </div>
+        )}
+
+        {!hasLesson && slot && onPlaceBlock && blocks.length > 0 && (
+          <div className="rounded-lg border-2 border-amber-300 bg-amber-50/60 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Yoki fan o'rniga blok</p>
+            <div className="flex flex-wrap gap-1.5">
+              {blocks.map((b) => (
+                <Button
+                  key={b.id}
+                  variant="secondary"
+                  className="px-3 py-1.5"
+                  onClick={() => onPlaceBlock(slot.day, slot.period, b.id)}
+                >
+                  {b.name}
+                </Button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Blok barcha manba sinflarga bir vaqtda qo'yiladi, ikkala guruh o'z ustozi bilan.
+            </p>
           </div>
         )}
 
