@@ -56,6 +56,33 @@ export const teacherApi = {
   curriculum: () => api.get(`${BASE}/curriculum`),
   curriculumPlan: (id) => api.get(`${BASE}/curriculum/${id}`),
   markTopic: (body) => api.put(`${BASE}/curriculum/progress`, body),
+  /** O'z rejasini yuklash (2026-11-18): dars beradigan (fan, daraja/yo'nalish) juftliklari, `planId` — rejasi bor. */
+  curriculumKeys: () => api.get(`${BASE}/curriculum/options`),
+  /** Namuna Excel — o'z Telegram chatiga (Mini App ichida yuklab olish ishonchsiz). */
+  curriculumTemplateToTelegram: () => api.post(`${BASE}/curriculum/template/telegram`),
+  /**
+   * O'z rejasi (.xlsx/.docx): har mavzuda chorak, hafta, mavzu, sana shart. Xatoli fayl — 400 va
+   * `errors` (qator raqami bilan); bu yerda xato emas, natija sifatida qaytadi.
+   */
+  importCurriculum: async ({ file, subjectId, grade, groupId }, dryRun) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('subjectId', subjectId)
+    if (grade != null) form.append('grade', String(grade))
+    if (groupId) form.append('groupId', groupId)
+    try {
+      return await api.form(`${BASE}/curriculum/import${dryRun ? '?dryRun=true' : ''}`, form)
+    } catch (e) {
+      if (e?.body?.errors) return e.body
+      throw e
+    }
+  },
+  /** Mavzu: `topicId` yo'q — yangi (`afterOrder` dan keyin). Sana majburiy, chorak/hafta undan. */
+  saveTopic: (planId, topicId, body) =>
+    topicId ? api.put(`${BASE}/curriculum/topics/${topicId}`, body) : api.post(`${BASE}/curriculum/${planId}/topics`, body),
+  deleteTopic: (topicId) => api.del(`${BASE}/curriculum/topics/${topicId}`),
+  /** "Dars bo'lmadi" — shu mavzu va keyingilari bitta darsga suriladi: `{ moved, lastDate }`. */
+  shiftTopics: (fromTopicId) => api.post(`${BASE}/curriculum/shift`, { fromTopicId }),
   /** O'qituvchi bloklari va shu yo'nalish o'quvchilari. */
   blockExamEntry: (examId, ownerId) => api.get(`${BASE}/block-exams/${examId}/entry${qs({ ownerId })}`),
   /** Faqat o'zgargan qatorlar: `{ ownerId, rows }`. */

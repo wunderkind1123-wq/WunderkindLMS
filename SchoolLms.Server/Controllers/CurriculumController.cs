@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SchoolLms.Application.Dtos;
+using SchoolLms.Application.Hr;
 using SchoolLms.Application.Services;
 using SchoolLms.Domain;
 using SchoolLms.Infrastructure.Data;
@@ -209,6 +211,34 @@ public class TeacherCurriculumController(AppDbContext db, AuditService audit, IW
     [HttpGet("template")]
     public IActionResult Template() => File(CurriculumService.Template(),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ish-reja-namuna.xlsx");
+
+    /// <summary>
+    /// Namuna Excel — ustozning Telegram chatiga (Mini App ichida fayl yuklab olish ishonchsiz).
+    /// 409 — Telegram ulanmagan; 503 — bot sozlanmagan; 502 — Telegram faylni qabul qilmadi.
+    /// </summary>
+    [HttpPost("template/telegram")]
+    [EnableRateLimiting("telegram")]
+    public async Task<IActionResult> TemplateToTelegram([FromServices] TelegramService telegram, CancellationToken ct = default)
+    {
+        if (await MeAsync(ct) is not { } me) return Forbid();
+        var chats = await PenaltyNotifier.RecipientsAsync(db, EmployeeKind.Teacher, me.Id, ct);
+        if (chats.Count == 0)
+            return Conflict(new { code = "telegram_not_linked", message = "Telegram hisobingiz ulanmagan. Ilovani Telegram ichidan oching." });
+        if (!telegram.IsConfigured)
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { code = "telegram_not_configured", message = "Telegram bot sozlanmagan. Maktab ma'muriyatiga murojaat qiling." });
+
+        var bytes = CurriculumService.Template();
+        const string caption = "Ish reja namunasi — to'ldirib, «Ish reja» → «Ish rejamni yuklash» orqali yuklang. "
+            + "Har mavzuda Chorak, Hafta, Mavzu va Sana bo'lishi shart.";
+        var delivered = false;
+        foreach (var chat in chats)
+            delivered |= await telegram.SendDocumentAsync(chat, bytes, "ish-reja-namuna.xlsx", caption, ct);
+        return delivered
+            ? Ok(new { sent = true })
+            : StatusCode(StatusCodes.Status502BadGateway,
+                new { code = "telegram_send_failed", message = "Telegram faylni qabul qilmadi. Botga /start yozib, qayta urinib ko'ring." });
+    }
 
     /// <summary>
     /// O'z rejasini yuklash (multipart): <c>file</c>, <c>subjectId</c>, <c>grade</c> yoki <c>groupId</c>,
