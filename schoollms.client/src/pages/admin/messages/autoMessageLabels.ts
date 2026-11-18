@@ -21,6 +21,10 @@ export const TITLES: Record<BuiltInAutoMessageKey, { title: string; hint: string
     title: 'Haftalik hisobot (PDF)',
     hint: "Har yakshanba — o'tgan hafta (dushanba–shanba) bo'yicha har bir o'quvchining hisoboti PDF ko'rinishida ota-onasiga: baholar sinf o'rtachasi bilan, davomat, intizom va qisqa xulosa. Matn — PDF ostidagi izoh.",
   },
+  monthly_report: {
+    title: 'Oylik hisobot (PDF)',
+    hint: "Har oy belgilangan kuni — o'tgan kalendar oy (1-kundan oxirgi kungacha) bo'yicha har bir o'quvchining hisoboti PDF ko'rinishida ota-onasiga: baholar, haftalar kesimidagi dinamika (ota-onaga ketgan haftalik hisobotlar bilan bir xil), davomat, intizom va xulosa. Haftalik qoidadan mustaqil. Oyning kuni yakshanbaga to'g'ri kelsa — haftalik hisobotdan kamida 2 soat keyin ketadi.",
+  },
   invoice: {
     title: 'Yangi oylik hisob',
     hint: "Oy hisob-fakturasi chiqqach — shu oy summasi va jami to'lanmagan. Hisob hali chiqmagan bo'lsa, keyingi 2 kun ichida qayta urinadi.",

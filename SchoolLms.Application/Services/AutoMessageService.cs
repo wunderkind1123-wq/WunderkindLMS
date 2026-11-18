@@ -84,7 +84,15 @@ public sealed partial class AutoMessageService(
             "✅ **To'lov qabul qilindi**\n\nHurmatli ota-ona, farzandingiz {fish} ({sinf}) uchun {summa} so'm to'lov qabul qilindi.\nChek № {chek} · {sana} {vaqt}\nTo'lov usuli: {usul}\nQolgan qarzdorlik: {qarzdorlik} so'm",
         [AutoMessageKind.WeeklyReport] =
             "📊 **Haftalik hisobot**\n\nHurmatli ota-ona, farzandingiz {fish} ({sinf}) ning {hafta} kunlaridagi o'qishi bo'yicha haftalik hisobot ilova qilindi: baholar, davomat va intizom.\n\nHurmat bilan, maktab o'quv bo'limi.",
+        [AutoMessageKind.MonthlyReport] =
+            "📊 **Oylik hisobot**\n\nHurmatli ota-ona, farzandingiz {fish} ({sinf}) ning {oy} oyidagi o'qishi bo'yicha oylik hisobot ilova qilindi: baholar, haftalar kesimidagi dinamika, davomat va intizom.\n\nHurmat bilan, maktab o'quv bo'limi.",
     };
+
+    /// <summary>
+    /// Report rules' staff copy (TZ, 2026-11-17, "Ma'muriyat nusxasi"): accounts holding this key
+    /// (Boshqaruv → Rollar) get each class's PDFs as a ZIP in Telegram when the rule's box is ticked.
+    /// </summary>
+    public const string StaffCopyKey = "reportsCopy";
 
     /// <summary>A Telegram document caption may hold this many characters; a longer text follows the PDF.</summary>
     private const int MaxCaption = 1024;
@@ -126,7 +134,12 @@ public sealed partial class AutoMessageService(
         ],
         AutoMessageKind.WeeklyReport =>
         [
-            .. Common, new("{hafta}", "Hisobot haftasi (02–07 noyabr 2026)", "Hafta"), SendDay, SendClock,
+            .. Common, new("{hafta}", "Hisobot haftasi (02–07 noyabr 2026)", "Hafta"),
+            new("{hafta_raqami}", "Haftaning oydagi tartibi (Noyabr, 3-hafta)", "Hafta raqami"), SendDay, SendClock,
+        ],
+        AutoMessageKind.MonthlyReport =>
+        [
+            .. Common, new("{oy}", "Hisobot oyi (Oktabr)", "Oy"), SendDay, SendClock,
         ],
         // Templates staff create (2026-10-26) also take the announcement's money and phone tokens.
         _ when AutoMessageKind.IsCustom(key) =>
@@ -162,14 +175,18 @@ public sealed partial class AutoMessageService(
         {
             var rules = await db.AutoMessageRules.OrderBy(r => r.Key).ToListAsync(ct);
             await CloseStaleRunsAsync(rules, localNow, ct);
+            var weeklyTime = WeeklySendTime(rules);
 
             foreach (var rule in rules.Where(r => r.Enabled && !r.IsArchived && !AutoMessageKind.IsEventDriven(r.Key)))
             {
                 try
                 {
-                    await PlanRunAsync(rule, localNow, ct);
-                    var period = DuePeriod(rule, localNow);
+                    await PlanRunAsync(rule, localNow, ct, weeklyTime);
+                    var period = DuePeriod(rule, localNow, weeklyTime);
                     if (period is null) continue;
+                    // Never two PDFs at once (TZ, 2026-11-17): the monthly report waits while Sunday's weekly
+                    // report is still going out.
+                    if (rule.Key == AutoMessageKind.MonthlyReport && await WeeklyStillSendingAsync(localNow, ct)) continue;
                     var run = await RunOfAsync(rule.Key, period, ct);
                     // A period closed before runs existed (2026-10-13 build) stays closed.
                     if (run is null && rule.LastPeriod == period) continue;
@@ -211,16 +228,17 @@ public sealed partial class AutoMessageService(
     /// passed. Monthly rules: this month, from the send time on their day until two days later
     /// (a restart or a late source is caught up; a rule switched on later in the month waits).
     /// </summary>
-    public static string? DuePeriod(AutoMessageRule rule, DateTime localNow)
+    /// <param name="weeklySendTime">The weekly report's send time when that rule is on — see <see cref="SendTimeOn"/>.</param>
+    public static string? DuePeriod(AutoMessageRule rule, DateTime localNow, string? weeklySendTime = null)
     {
         if (AutoMessageKind.IsEventDriven(rule.Key)) return null;
         if (!TryTime(rule.SendTime, out var at)) return null;
         var today = DateOnly.FromDateTime(localNow);
-        var timeReached = TimeOnly.FromDateTime(localNow) >= at;
         if (!AutoMessageKind.IsMonthly(rule))
-            return timeReached && AutoMessageKind.RunsOn(rule, today) ? Iso(today) : null;
+            return TimeOnly.FromDateTime(localNow) >= at && AutoMessageKind.RunsOn(rule, today) ? Iso(today) : null;
 
         var due = DueDay(rule, today);
+        var timeReached = TimeOnly.FromDateTime(localNow) >= SendTimeOn(rule, due, at, weeklySendTime);
         var inWindow = (today == due && timeReached) || (today > due && today <= due.AddDays(2));
         return inWindow ? today.ToString("yyyy-MM", CultureInfo.InvariantCulture) : null;
     }
@@ -229,7 +247,7 @@ public sealed partial class AutoMessageService(
     /// The run a rule has today, planned or due: daily rules — today at the send time; monthly
     /// rules — from their day until two days later, planned for the send time on the day.
     /// </summary>
-    public static (string Period, DateTime PlannedLocal)? PlannedRun(AutoMessageRule rule, DateTime localNow)
+    public static (string Period, DateTime PlannedLocal)? PlannedRun(AutoMessageRule rule, DateTime localNow, string? weeklySendTime = null)
     {
         if (AutoMessageKind.IsEventDriven(rule.Key) || !TryTime(rule.SendTime, out var at)) return null;
         var today = DateOnly.FromDateTime(localNow);
@@ -237,7 +255,47 @@ public sealed partial class AutoMessageService(
             return AutoMessageKind.RunsOn(rule, today) ? (Iso(today), today.ToDateTime(at)) : null;
         var due = DueDay(rule, today);
         if (today < due || today > due.AddDays(2)) return null;
-        return (today.ToString("yyyy-MM", CultureInfo.InvariantCulture), due.ToDateTime(at));
+        return (today.ToString("yyyy-MM", CultureInfo.InvariantCulture), due.ToDateTime(SendTimeOn(rule, due, at, weeklySendTime)));
+    }
+
+    /// <summary>
+    /// When the rule goes on <paramref name="day"/>. Its own time, except the monthly report on a Sunday
+    /// while the weekly report is on (TZ, 2026-11-17: "avval haftalik, 2 soatdan keyin oylik"): no earlier
+    /// than two hours after the weekly one, so a parent never gets the two PDFs at once.
+    /// </summary>
+    public static TimeOnly SendTimeOn(AutoMessageRule rule, DateOnly day, TimeOnly at, string? weeklySendTime)
+    {
+        if (rule.Key != AutoMessageKind.MonthlyReport || day.DayOfWeek != DayOfWeek.Sunday
+            || !TryTime(weeklySendTime, out var weekly)) return at;
+        var after = weekly.AddHours(2);
+        if (after < weekly) after = new TimeOnly(23, 59);   // past midnight — the end of the day
+        return after > at ? after : at;
+    }
+
+    /// <summary>The weekly report's send time, when that rule is on; else null.</summary>
+    private static string? WeeklySendTime(IEnumerable<AutoMessageRule> rules) =>
+        rules.FirstOrDefault(r => r.Key == AutoMessageKind.WeeklyReport && r.Enabled && !r.IsArchived)?.SendTime;
+
+    /// <summary>Today's weekly report run is sending right now.</summary>
+    private Task<bool> WeeklyStillSendingAsync(DateTime localNow, CancellationToken ct)
+    {
+        var today = Iso(DateOnly.FromDateTime(localNow));
+        return db.AutoMessageRuns.AnyAsync(r => r.RuleKey == AutoMessageKind.WeeklyReport && r.Period == today
+            && r.Status == AutoMessageStatus.Sending, ct);
+    }
+
+    /// <summary>
+    /// The days a report run covers: the weekly report — the Monday–Saturday its Sunday closes; the monthly
+    /// report — the calendar month before the run's month ("2026-12" → 01.11–30.11.2026).
+    /// </summary>
+    public static (DateOnly From, DateOnly To) ReportRange(string ruleKey, string period)
+    {
+        if (ruleKey == AutoMessageKind.MonthlyReport)
+        {
+            var month = MonthOf(period);
+            return (month.AddMonths(-1), month.AddDays(-1));
+        }
+        return WeeklyReport.WeekOf(DayOf(period));
     }
 
     /// <summary>The period can no longer run: a past day, or a month past its two-day window.</summary>
@@ -254,9 +312,9 @@ public sealed partial class AutoMessageService(
     }
 
     /// <summary>Creates today's run as "Rejalashtirilgan" the first time a tick sees it.</summary>
-    private async Task PlanRunAsync(AutoMessageRule rule, DateTime localNow, CancellationToken ct)
+    private async Task PlanRunAsync(AutoMessageRule rule, DateTime localNow, CancellationToken ct, string? weeklySendTime = null)
     {
-        if (PlannedRun(rule, localNow) is not { } plan || rule.LastPeriod == plan.Period) return;
+        if (PlannedRun(rule, localNow, weeklySendTime) is not { } plan || rule.LastPeriod == plan.Period) return;
         if (await db.AutoMessageRuns.AnyAsync(r => r.RuleKey == rule.Key && r.Period == plan.Period, ct)) return;
         db.AutoMessageRuns.Add(new AutoMessageRun
         {
@@ -363,7 +421,8 @@ public sealed partial class AutoMessageService(
                 AutoMessageStatus.Sending, ct))
             return (0, 0);
 
-        var result = await SendRowsAsync(rule, run, AutoMessageStatus.WaitingRow, reasonOf, ct);
+        var built = WantsStaffCopy(rule, run) ? new Dictionary<string, ReportFile>(StringComparer.Ordinal) : null;
+        var result = await SendRowsAsync(rule, run, AutoMessageStatus.WaitingRow, reasonOf, ct, built);
         await MoveRunAsync(run, [AutoMessageStatus.Sending], AutoMessageStatus.Done, ct);
         if (run.Status == AutoMessageStatus.Done)
         {
@@ -372,7 +431,114 @@ public sealed partial class AutoMessageService(
             await db.SaveChangesAsync(ct);
         }
         await RefreshCountsAsync(run, ct);
+        if (run.Status == AutoMessageStatus.Done && built is not null)
+        {
+            try
+            {
+                await SendStaffCopyAsync(rule, run, built, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The parents have their PDFs; a failed copy is only logged (staff can download the class
+                // from the pupils' report page) — it never fails or repeats the parents' run.
+                log.LogError(ex, "Hisobot nusxasi ({Rule}, {Period}) ma'muriyatga yuborilmadi", rule.Key, run.Period);
+            }
+        }
         return result;
+    }
+
+    // =====================================================================
+    //  Report PDFs and the staff copy (TZ "O'quvchi hisoboti", 2026-11-17)
+    // =====================================================================
+
+    /// <summary>One pupil's report file, and their class (the staff copy groups by it).</summary>
+    public sealed record ReportFile(byte[] Bytes, string FileName, string ClassName);
+
+    /// <summary>The pupil's report PDF for a report run's period; null — no such pupil.</summary>
+    private async Task<ReportFile?> BuildReportAsync(string ruleKey, string period, string studentId, CancellationToken ct)
+    {
+        var (from, to) = ReportRange(ruleKey, period);
+        if (await WeeklyReport.BuildAsync(db, studentId, from, to, ct) is not { } model) return null;
+        return new ReportFile(new WeeklyReportDocument(model).Render(), WeeklyReportDocument.FileName(model), model.ClassName);
+    }
+
+    private static bool WantsStaffCopy(AutoMessageRule rule, AutoMessageRun run) =>
+        AutoMessageKind.IsReport(rule.Key) && rule.CopyToStaff && run.StaffCopyAt is null;
+
+    /// <summary>Telegram chats of every account holding <see cref="StaffCopyKey"/>.</summary>
+    public async Task<List<long>> StaffCopyChatsAsync(CancellationToken ct = default)
+    {
+        var holders = await db.Users.AsNoTracking()
+            .Where(u => u.Permissions.Contains(StaffCopyKey))
+            .Select(u => u.Id).ToListAsync(ct);
+        if (holders.Count == 0) return [];
+        return await db.TelegramAccounts.AsNoTracking()
+            .Where(a => holders.Contains(a.UserId) && a.TelegramUserId != 0)
+            .Select(a => a.TelegramUserId).Distinct().ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// "Ma'muriyat nusxasi" (TZ, 2026-11-17): every pupil of the run — with a parent in the bot or not,
+    /// except those staff took out — as one ZIP per class (files in a "&lt;sinf&gt;/" folder), sent to each
+    /// chat of the <see cref="StaffCopyKey"/> holders. PDFs already built for the parents are reused. Once
+    /// per run (<see cref="AutoMessageRun.StaffCopyAt"/>).
+    /// </summary>
+    private async Task SendStaffCopyAsync(AutoMessageRule rule, AutoMessageRun run, Dictionary<string, ReportFile> built, CancellationToken ct)
+    {
+        var chats = await StaffCopyChatsAsync(ct);
+        if (chats.Count == 0)
+        {
+            log.LogInformation("Hisobot nusxasi ({Rule}, {Period}): «{Key}» ruxsati bor va Telegram ulangan hisob yo'q",
+                rule.Key, run.Period, StaffCopyKey);
+            return;
+        }
+
+        var pupils = await db.AutoMessageLog.AsNoTracking()
+            .Where(l => l.RunId == run.Id && l.Status != AutoMessageStatus.Cancelled)
+            .Select(l => l.StudentId).Distinct().ToListAsync(ct);
+        var classOf = await db.Students.AsNoTracking().Where(s => pupils.Contains(s.Id))
+            .Select(s => new { s.Id, s.ClassName, s.FullName }).ToListAsync(ct);
+
+        var (from, to) = ReportRange(rule.Key, run.Period);
+        var monthly = rule.Key == AutoMessageKind.MonthlyReport;
+        var title = monthly ? "Oylik hisobot" : "Haftalik hisobot";
+        var periodLabel = monthly ? $"{MonthNames[from.Month - 1]} {from.Year}" : WeeklyReport.Label(from, to);
+        var sentClasses = 0;
+        foreach (var cls in classOf.GroupBy(s => string.IsNullOrWhiteSpace(s.ClassName) ? "Sinfsiz" : s.ClassName.Trim())
+                     .OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var folder = SafeName(cls.Key);
+            using var buffer = new MemoryStream();
+            using (var zip = new System.IO.Compression.ZipArchive(buffer, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var pupil in cls.OrderBy(p => p.FullName, StringComparer.Ordinal))
+                {
+                    var file = built.GetValueOrDefault(pupil.Id) ?? await BuildReportAsync(rule.Key, run.Period, pupil.Id, ct);
+                    if (file is null) continue;
+                    var entry = zip.CreateEntry($"{folder}/{file.FileName}", System.IO.Compression.CompressionLevel.Optimal);
+                    await using var stream = entry.Open();
+                    await stream.WriteAsync(file.Bytes, ct);
+                }
+            }
+            var zipName = $"{(monthly ? "Oylik" : "Haftalik")}_hisobot_{folder}_{(monthly ? $"{from:MM.yyyy}" : $"{from:dd.MM}-{to:dd.MM.yyyy}")}.zip";
+            var caption = $"📦 <b>{title} — {TelegramHtml.Escape(cls.Key)}</b>\n{TelegramHtml.Escape(periodLabel)} · {cls.Count()} ta o'quvchi";
+            var bytes = buffer.ToArray();
+            foreach (var chat in chats)
+                await telegram.SendDocumentHtmlAsync(chat, bytes, zipName, caption, ct);
+            sentClasses++;
+        }
+
+        run.StaffCopyAt = AppClock.NowInstant;
+        await db.SaveChangesAsync(ct);
+        log.LogInformation("Hisobot nusxasi ({Rule}, {Period}): {Classes} sinf, {Chats} chatga", rule.Key, run.Period, sentClasses, chats.Count);
+    }
+
+    /// <summary>"7-A" stays "7-A"; anything but letters, digits and dashes becomes "_".</summary>
+    private static string SafeName(string text)
+    {
+        var chars = text.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_').ToArray();
+        var name = new string(chars).Trim('_');
+        return name.Length == 0 ? "Sinf" : name;
     }
 
     /// <summary>Failed messages of a finished run are tried again (fewer than <see cref="MaxAttempts"/> so far).</summary>
@@ -556,6 +722,7 @@ public sealed partial class AutoMessageService(
             AutoMessageKind.Invoice => await InvoiceItemsAsync(MonthOf(period), ct) is { } invoices ? new Source(invoices) : null,
             AutoMessageKind.Debt => new Source(await DebtItemsAsync(rule.MinAmount, ct)),
             AutoMessageKind.WeeklyReport => new Source(await WeeklyReportItemsAsync(DayOf(period), ct)),
+            AutoMessageKind.MonthlyReport => new Source(await MonthlyReportItemsAsync(period, ct)),
             var key when AutoMessageKind.IsCustom(key) => new Source(await AudienceItemsAsync(rule, ct)),
             _ => new Source([]),
         };
@@ -790,7 +957,22 @@ public sealed partial class AutoMessageService(
         var ids = await WeeklyReport.PupilsAsync(db, from, to, ct);
         var names = await NamesAsync(ids, ct);
         var label = WeeklyReport.Label(from, to);
-        return [.. ids.Select(id => new Item(id, Values(names, id, new() { ["{hafta}"] = label })))];
+        // "Noyabr, 3-hafta" — the month of the week's Thursday (TZ, 2026-11-17).
+        var number = WeeklyReport.WeekTitle(WeeklyReport.MondayOf(from));
+        return [.. ids.Select(id => new Item(id, Values(names, id, new() { ["{hafta}"] = label, ["{hafta_raqami}"] = number })))];
+    }
+
+    /// <summary>
+    /// The monthly report (TZ, 2026-11-17): every pupil with something in the month before the run's month —
+    /// a held lesson of their class or group, or a journal entry. A month of holidays reaches nobody.
+    /// </summary>
+    private async Task<List<Item>> MonthlyReportItemsAsync(string period, CancellationToken ct)
+    {
+        var (from, to) = ReportRange(AutoMessageKind.MonthlyReport, period);
+        var ids = await WeeklyReport.PupilsAsync(db, from, to, ct);
+        var names = await NamesAsync(ids, ct);
+        var month = MonthNames[from.Month - 1];
+        return [.. ids.Select(id => new Item(id, Values(names, id, new() { ["{oy}"] = month })))];
     }
 
     private sealed record Names(string FullName, string FirstName, string ClassName);
@@ -906,9 +1088,10 @@ public sealed partial class AutoMessageService(
     /// Sends the run's rows in <paramref name="statuses"/> pupil by pupil. Before each pupil the run's
     /// status is read again: cancelled — stop. Saved pupil by pupil, so a crash half-way loses nothing.
     /// </summary>
+    /// <param name="built">Report rules: the PDFs built here are kept in it (pupil → file) for the staff copy.</param>
     private async Task<(int Sent, int Failed)> SendRowsAsync(
         AutoMessageRule rule, AutoMessageRun run, string[] statuses, IReadOnlyDictionary<string, string?>? reasonOf,
-        CancellationToken ct)
+        CancellationToken ct, Dictionary<string, ReportFile>? built = null)
     {
         var retry = statuses.Contains(BroadcastDelivery.Failed);
         var rows = await db.AutoMessageLog
@@ -917,7 +1100,7 @@ public sealed partial class AutoMessageService(
             .OrderBy(l => l.StudentId).ThenBy(l => l.ChatId)
             .ToListAsync(ct);
         var isAbsence = rule.Key == AutoMessageKind.Absence;
-        var isWeekly = rule.Key == AutoMessageKind.WeeklyReport;
+        var isWeekly = AutoMessageKind.IsReport(rule.Key);   // weekly or monthly — a PDF per pupil
         var day = isAbsence ? DayOf(run.Period) : default;
         // Read once per send: the first chat uploads the files, every next one gets Telegram's file_id.
         var photos = rows.Count > 0 && !isWeekly ? await PhotosAsync(run, ct) : [];
@@ -948,21 +1131,23 @@ public sealed partial class AutoMessageService(
                 }
             }
 
-            // The weekly report: one PDF per pupil, built now (the week is over), sent to each parent chat.
+            // A report rule: one PDF per pupil, built now (the week or month is over), sent to each parent chat.
             (byte[] Bytes, string FileName)? report = null;
             string? reportError = null;
             if (isWeekly)
             {
                 try
                 {
-                    var (from, to) = WeeklyReport.WeekOf(DayOf(run.Period));
-                    if (await WeeklyReport.BuildAsync(db, pupil.Key, from, to, ct) is { } model)
-                        report = (new WeeklyReportDocument(model).Render(), WeeklyReportDocument.FileName(model));
+                    if (await BuildReportAsync(rule.Key, run.Period, pupil.Key, ct) is { } file)
+                    {
+                        report = (file.Bytes, file.FileName);
+                        built?.TryAdd(pupil.Key, file);
+                    }
                     else reportError = "O'quvchi topilmadi";
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    log.LogError(ex, "Haftalik hisobot ({Student}, {Period}) tayyorlanmadi", pupil.Key, run.Period);
+                    log.LogError(ex, "Hisobot ({Rule}, {Student}, {Period}) tayyorlanmadi", rule.Key, pupil.Key, run.Period);
                     reportError = "Hisobotni tayyorlab bo'lmadi";
                 }
             }

@@ -10,7 +10,8 @@
 import { api, USE_MOCK } from '../client'
 
 /** Asosiy qoidalar; xodim yaratgan shablon kaliti — "c_" va 8 belgi. */
-export type BuiltInAutoMessageKey = 'absence' | 'weekly_report' | 'invoice' | 'debt' | 'birthday' | 'payment'
+export type BuiltInAutoMessageKey =
+  | 'absence' | 'weekly_report' | 'monthly_report' | 'invoice' | 'debt' | 'birthday' | 'payment'
 export type AutoMessageKey = BuiltInAutoMessageKey | `c_${string}`
 
 export type AutoMessageSchedule = 'once' | 'daily' | 'weekly' | 'monthly'
@@ -74,6 +75,8 @@ export interface AutoMessageRule {
   onlyDebtors?: boolean
   /** O'chirilgan shablon — faqat tarixda nomi ko'rinishi uchun keladi. */
   archived?: boolean
+  /** Hisobot qoidalari: "Ma'muriyatga ham yuborish" — sinf bo'yicha ZIP `reportsCopy` kalitli xodimlarga. */
+  copyToStaff?: boolean
 }
 
 export interface SaveAutoMessageRule {
@@ -96,6 +99,8 @@ export interface SaveAutoMessageRule {
   groupId?: string | null
   studentIds?: string[]
   onlyDebtors?: boolean
+  /** Faqat hisobot qoidalarida; berilmasa — o'zgarmaydi. */
+  copyToStaff?: boolean
 }
 
 export interface AutoMessagePreview {
@@ -293,6 +298,38 @@ export async function downloadWeeklyReportSample(params: { studentId?: string; d
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+/**
+ * Bitta o'quvchining oylik hisoboti (PDF) — qoida yuboradigan hujjatning aynan o'zi, hech kimga yubormaydi
+ * (TZ, 2026-11-17). `month` — hisobot oyi "yyyy-MM"; bo'sh — o'tgan oy. `studentId` bo'sh — birinchi o'quvchi.
+ */
+export async function downloadMonthlyReportSample(params: { studentId?: string; month?: string } = {}): Promise<void> {
+  if (USE_MOCK) {
+    alert('Namuna PDF faqat real serverda ishlaydi (VITE_USE_MOCK=false).')
+    return
+  }
+  const res = await api.get('/admin/auto-messages/monthly-report/sample', {
+    params: { studentId: params.studentId || undefined, month: params.month || undefined },
+    responseType: 'blob',
+  })
+  const url = URL.createObjectURL(new Blob([res.data as Blob], { type: 'application/pdf' }))
+  const a = document.createElement('a')
+  a.href = url
+  const cd = (res.headers['content-disposition'] as string | undefined) ?? ''
+  const m = cd.match(/filename="?([^";]+)"?/)
+  a.download = m?.[1] ?? 'Oylik_hisobot.pdf'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/** Hisobotlar nusxasi hozir nechta Telegram chatga boradi (`reportsCopy` kaliti borlar). */
+export async function getReportCopyRecipients(): Promise<number> {
+  if (USE_MOCK) return 0
+  const { data } = await api.get<{ chats: number }>('/admin/auto-messages/report-copy/recipients')
+  return data.chats
 }
 
 export async function getAutoMessageRuns(params: {

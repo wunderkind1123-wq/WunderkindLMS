@@ -117,7 +117,7 @@ public class CustomAutoMessageTemplatesTests(ApiFixture fixture) : IAsyncLifetim
             // Listed after the built-in rules.
             var keys = (await admin.GetFromJsonAsync<JsonElement>(Url)).EnumerateArray()
                 .Select(r => r.GetProperty("key").GetString()).ToList();
-            Assert.Equal(["absence", "invoice", "debt", "birthday", "payment"], keys.Take(5));
+            Assert.Equal(["absence", "weekly_report", "monthly_report", "invoice", "debt", "birthday", "payment"], keys.Take(7));
             Assert.Equal(key, keys.Last());
 
             // Monthly now: the day is kept, the week days dropped.

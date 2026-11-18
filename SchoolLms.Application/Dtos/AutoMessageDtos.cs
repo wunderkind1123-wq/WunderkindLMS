@@ -21,10 +21,11 @@ public record AutoMessageRuleDto(
     List<string>? ImageUrls = null,
     bool Custom = false, string? Title = null, string? Schedule = null, string? SendDate = null,
     List<int>? WeekDays = null, List<string>? ClassIds = null, bool Archived = false,
-    string? Audience = null, string? GroupId = null, List<string>? StudentIds = null, bool OnlyDebtors = false);
+    string? Audience = null, string? GroupId = null, List<string>? StudentIds = null, bool OnlyDebtors = false,
+    bool CopyToStaff = false);
 
 /// <summary>
-/// Saving a rule. <paramref name="RequiresApproval"/> null — unchanged; <paramref name="CutoffTime"/> empty — the
+/// Saving a rule. <paramref name="CopyToStaff"/> (report rules, TZ 2026-11-17) null — unchanged. <paramref name="RequiresApproval"/> null — unchanged; <paramref name="CutoffTime"/> empty — the
 /// send time; <paramref name="ImageUrls"/> null — unchanged, empty — no pictures (uploaded first through
 /// <c>/api/admin/uploads</c>, ≤ 10; ignored for the payment rule).
 /// The template fields (2026-10-26) are read only for a template, and null leaves each unchanged; creating
@@ -35,7 +36,8 @@ public record SaveAutoMessageRuleRequest(
     bool? RequiresApproval = null, string? CutoffTime = null, List<string>? ImageUrls = null,
     string? Title = null, string? Schedule = null, string? SendDate = null,
     List<int>? WeekDays = null, List<string>? ClassIds = null,
-    string? Audience = null, string? GroupId = null, List<string>? StudentIds = null, bool? OnlyDebtors = null);
+    string? Audience = null, string? GroupId = null, List<string>? StudentIds = null, bool? OnlyDebtors = null,
+    bool? CopyToStaff = null);
 
 /// <summary>A class a template can be sent to.</summary>
 public record AutoMessageClassDto(string Id, string Name, int Grade);

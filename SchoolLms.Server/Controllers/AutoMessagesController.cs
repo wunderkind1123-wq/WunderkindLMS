@@ -22,6 +22,8 @@ namespace SchoolLms.Server.Controllers;
 //    DELETE /api/admin/auto-messages/{key}            — delete a template (archived; audited)
 //    POST /api/admin/auto-messages/{key}/preview      — who it would reach now, sample text (sends nothing)
 //    GET  /api/admin/auto-messages/weekly-report/sample — one pupil's weekly report PDF (sends nothing)
+//    GET  /api/admin/auto-messages/monthly-report/sample — one pupil's monthly report PDF (sends nothing)
+//    GET  /api/admin/auto-messages/report-copy/recipients — chats the reports' staff copy reaches
 //    GET  /api/admin/auto-messages/log                — the delivery log, newest first, ≤ 500 rows
 //    GET  /api/admin/auto-messages/log/paged          — the same, paged, with pupil / run / source filters
 //    GET  /api/admin/auto-messages/log/export         — the same as .xlsx
@@ -58,6 +60,7 @@ public class AutoMessagesController(
         [AutoMessageKind.Birthday] = "Tug'ilgan kun tabrigi",
         [AutoMessageKind.Payment] = "To'lov qabul qilindi",
         [AutoMessageKind.WeeklyReport] = "Haftalik hisobot",
+        [AutoMessageKind.MonthlyReport] = "Oylik hisobot",
     };
 
     private static readonly IReadOnlyDictionary<string, string> StatusTitles = new Dictionary<string, string>
@@ -250,8 +253,8 @@ public class AutoMessagesController(
         }
 
         // Pictures (2026-10-25), checked as an announcement's are; the payment message is the receipt's caption.
-        // The weekly report's attachment is its PDF — no pictures either.
-        var images = req.ImageUrls is null || AutoMessageKind.IsEventDriven(key) || key == AutoMessageKind.WeeklyReport
+        // A report's attachment is its PDF — no pictures either.
+        var images = req.ImageUrls is null || AutoMessageKind.IsEventDriven(key) || AutoMessageKind.IsReport(key)
             ? null : BroadcastImages.Clean(req.ImageUrls);
         if (images is not null && BroadcastImages.Check(env, images) is { } imageError) return (imageError, null);
         return (null, images);
@@ -290,6 +293,8 @@ public class AutoMessagesController(
         if (req.RequiresApproval is { } approval && !AutoMessageKind.IsEventDriven(key)) rule.RequiresApproval = approval;
         if (key == AutoMessageKind.Absence)
             rule.CutoffTime = string.IsNullOrWhiteSpace(req.CutoffTime) ? null : req.CutoffTime.Trim();
+        // "Ma'muriyatga ham yuborish" (TZ, 2026-11-17) — the weekly and the monthly report only.
+        if (req.CopyToStaff is { } copy && AutoMessageKind.IsReport(key)) rule.CopyToStaff = copy;
         if (images is not null) rule.ImageUrls = images;
         rule.UpdatedBy = CurrentUserId();
         rule.UpdatedAt = AppClock.NowInstant;
@@ -308,7 +313,7 @@ public class AutoMessagesController(
         r.Enabled, r.SendTime, r.DayOfMonth, r.MinAmount, r.Text, r.RequiresApproval, r.CutoffTime,
         Images = r.ImageUrls.ToList(), r.Title, r.Schedule, r.SendDate, WeekDays = r.WeekDays.ToList(),
         r.Audience, ClassIds = r.ClassIds.ToList(), r.GroupId, StudentIds = r.StudentIds.ToList(), r.OnlyDebtors,
-        r.IsArchived,
+        r.IsArchived, r.CopyToStaff,
     };
 
     [HttpPost("{key}/preview")]
@@ -361,6 +366,33 @@ public class AutoMessagesController(
         if (model is null) return NotFound(new { message = "O'quvchi topilmadi" });
         return File(new WeeklyReportDocument(model).Render(), "application/pdf", WeeklyReportDocument.FileName(model));
     }
+
+    /// <summary>
+    /// The monthly report PDF of one pupil — exactly what the rule sends (TZ, 2026-11-17), to look at before
+    /// switching it on (sends nothing). <paramref name="month"/> — the month reported on, "yyyy-MM"; none — last
+    /// month. <paramref name="studentId"/> none — the first pupil the run would reach.
+    /// </summary>
+    [HttpGet("monthly-report/sample")]
+    public async Task<IActionResult> MonthlyReportSample(
+        [FromQuery] string? studentId, [FromQuery] string? month, CancellationToken ct)
+    {
+        var first = DateOnly.TryParseExact((month ?? "") + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var m)
+            ? m : new DateOnly(AppClock.Today.Year, AppClock.Today.Month, 1).AddMonths(-1);
+        // The run of the month after reports on this one.
+        var (from, to) = AutoMessageService.ReportRange(AutoMessageKind.MonthlyReport, first.AddMonths(1).ToString("yyyy-MM", CultureInfo.InvariantCulture));
+        var id = string.IsNullOrWhiteSpace(studentId)
+            ? (await WeeklyReport.PupilsAsync(db, from, to, ct)).FirstOrDefault()
+            : studentId.Trim();
+        if (id is null) return NotFound(new { message = "Bu oyda hisobot chiqadigan o'quvchi yo'q" });
+        var model = await WeeklyReport.BuildAsync(db, id, from, to, ct);
+        if (model is null) return NotFound(new { message = "O'quvchi topilmadi" });
+        return File(new WeeklyReportDocument(model).Render(), "application/pdf", WeeklyReportDocument.FileName(model));
+    }
+
+    /// <summary>How many Telegram chats the reports' staff copy reaches now (holders of the <c>reportsCopy</c> key).</summary>
+    [HttpGet("report-copy/recipients")]
+    public async Task<IActionResult> ReportCopyRecipients(CancellationToken ct) =>
+        Ok(new { chats = (await Service.StaffCopyChatsAsync(ct)).Count });
 
     // =====================================================================
     //  Delivery log
@@ -519,7 +551,7 @@ public class AutoMessagesController(
         r.LastPeriod, r.LastRunAt, sent, failed, noTelegram, r.UpdatedAt, editor,
         r.RequiresApproval, r.CutoffTime, AutoMessageKind.IsEventDriven(r.Key), r.ImageUrls,
         AutoMessageKind.IsCustom(r.Key), r.Title, r.Schedule, r.SendDate, r.WeekDays, r.ClassIds, r.IsArchived,
-        r.Audience, r.GroupId?.ToString(), r.StudentIds, r.OnlyDebtors);
+        r.Audience, r.GroupId?.ToString(), r.StudentIds, r.OnlyDebtors, r.CopyToStaff);
 
     private string CurrentUserId() =>
         User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value ?? "";
