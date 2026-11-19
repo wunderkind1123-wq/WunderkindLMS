@@ -53,6 +53,26 @@ public static class BlockJournal
     }
 
     /// <summary>
+    /// Ota-ona va o'quvchi ekranlari uchun: berilgan o'quv guruhlaridan BLOK guruhlarining o'rniga
+    /// ko'rsatiladigan nom — o'quvchining manba sinfi yoki yo'nalishi. Guruh nomi ("Katta") ota-onaga
+    /// chiqmaydi (mijoz qarori, docs/modules/blocks.md). Blok bo'lmagan guruhlar lug'atga kirmaydi.
+    /// </summary>
+    public static async Task<Dictionary<Guid, string>> ParentNamesAsync(
+        IAppDbContext db, string studentId, IReadOnlyCollection<Guid> groupIds, CancellationToken ct = default)
+    {
+        var result = new Dictionary<Guid, string>();
+        if (groupIds.Count == 0) return result;
+        var blockGroups = await db.BlockGroups.AsNoTracking().Where(g => groupIds.Contains(g.StudyGroupId))
+            .Select(g => g.StudyGroupId).ToListAsync(ct);
+        foreach (var sg in blockGroups.Distinct())
+        {
+            var names = await SourceNamesAsync(db, sg.ToString(), null, ct);
+            result[sg] = names.GetValueOrDefault(studentId, "");
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Blok guruhidagi o'quvchilarning manba sinfi nomi (sanada; berilmasa — eng oxirgi a'zolik).
     /// Ega blok guruhi bo'lmasa — bo'sh lug'at.
     /// </summary>

@@ -351,7 +351,7 @@ public sealed class TelegramParentController(
                     l.Day, l.Period, lt?.StartTime, lt?.EndTime,
                     l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
                     l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""), l.SubGroup,
-                    l.Owner.Kind, l.Owner.IsGroup ? l.Owner.Name : null);
+                    l.Owner.Kind, l.Owner.IsGroup && !l.Owner.IsBlock ? l.Owner.Name : null);
             })];
     }
 

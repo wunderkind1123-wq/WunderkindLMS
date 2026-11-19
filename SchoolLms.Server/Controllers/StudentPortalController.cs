@@ -428,7 +428,7 @@ public class StudentPortalController(
                     l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
                     l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""),
                     // `subGroup` bu endpointda bugun ham 0 bo'lib qaytadi — o'zgartirmaymiz.
-                    OwnerKind: l.Owner.Kind, OwnerName: l.Owner.IsGroup ? l.Owner.Name : null);
+                    OwnerKind: l.Owner.Kind, OwnerName: l.Owner.IsGroup && !l.Owner.IsBlock ? l.Owner.Name : null);
             })
             .ToList();
     }
@@ -576,12 +576,16 @@ public class StudentPortalController(
                           join sub in db.Subjects.AsNoTracking() on t.SubjectId equals sub.Id
                           where r.StudentId == s.Id
                           orderby t.Date descending, sub.Name
-                          select new { t.Date, GroupName = g.Name, SubjectName = sub.Name, t.QuestionCount, t.Topic, r.Correct, r.Absent })
+                          select new { t.Date, t.GroupId, GroupName = g.Name, SubjectName = sub.Name, t.QuestionCount, t.Topic, r.Correct, r.Absent })
             .Take(200)
             .ToListAsync(ct);
+        // Blok guruhining nomi ota-onaga ko'rsatilmaydi (docs/modules/blocks.md) — o'rnida o'quvchining
+        // manba yo'nalishi.
+        var hidden = await BlockJournal.ParentNamesAsync(db, s.Id, [.. rows.Select(r => r.GroupId)], ct);
         var items = rows.Select(r => new
         {
-            Date = Iso(r.Date), r.GroupName, r.SubjectName, r.QuestionCount, r.Topic, r.Correct, r.Absent,
+            Date = Iso(r.Date), GroupName = hidden.GetValueOrDefault(r.GroupId, r.GroupName), r.SubjectName,
+            r.QuestionCount, r.Topic, r.Correct, r.Absent,
             Percent = r.Correct is { } c ? InterimTestService.Percent(c, r.QuestionCount) : (double?)null,
         }).ToList();
         var scored = items.Where(i => i.Percent != null).Select(i => i.Percent!.Value).ToList();
@@ -732,7 +736,7 @@ public class StudentPortalController(
                 l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""),
                 n?.Topic ?? "", n?.Homework, n?.Conducted ?? false,
                 hideGrades ? null : en?.Grade, en?.ReasonId, r?.Name, r?.IsLate ?? false,
-                l.Owner.Kind, l.Owner.IsGroup ? l.Owner.Name : null));
+                l.Owner.Kind, l.Owner.IsGroup && !l.Owner.IsBlock ? l.Owner.Name : null));
         }
         return rows;
     }
@@ -828,7 +832,7 @@ public class StudentPortalController(
                         l.Day, l.Period, lt?.StartTime, lt?.EndTime,
                         l.SubjectId, subjects.GetValueOrDefault(l.SubjectId, ""),
                         l.TeacherId, teachers.GetValueOrDefault(l.TeacherId, ""), l.SubGroup,
-                        l.Owner.Kind, l.Owner.IsGroup ? l.Owner.Name : null);
+                        l.Owner.Kind, l.Owner.IsGroup && !l.Owner.IsBlock ? l.Owner.Name : null);
                 })
                 .ToList();
 
