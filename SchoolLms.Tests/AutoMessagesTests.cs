@@ -51,7 +51,9 @@ public class AutoMessagesTests(ApiFixture fixture) : IAsyncLifetime
         Assert.True(debt.GetProperty("monthly").GetBoolean());
         Assert.Contains(debt.GetProperty("tokens").EnumerateArray(), t => t.GetProperty("token").GetString() == "{qarzdorlik}");
         // The seeded text is the service's default, word for word.
-        Assert.Equal(AutoMessageService.DefaultText["debt"], debt.GetProperty("text").GetString());
+        // Line endings normalised: the seed is a multi-line SQL literal in the migration, so a Windows
+        // checkout (core.autocrlf) seeds "\r\n"; the repository and the server have "\n".
+        Assert.Equal(AutoMessageService.DefaultText["debt"], debt.GetProperty("text").GetString()!.ReplaceLineEndings("\n"));
 
         AutoMessageRule original = null!;
         await fixture.Api.WithDbAsync(async db => original = await db.AutoMessageRules.AsNoTracking().SingleAsync(r => r.Key == "birthday"));
