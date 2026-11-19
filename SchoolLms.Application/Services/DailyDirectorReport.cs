@@ -65,6 +65,13 @@ public sealed record DailyClassRow(string Name, int Five, int Four, int Three, i
     public double? Average => Grades == 0 ? null : Math.Round((5.0 * Five + 4.0 * Four + 3.0 * Three + 2.0 * Two) / Grades, 2);
 }
 
+/// <summary>
+/// Blok guruhi (docs/modules/blocks.md, TZ 6.5): ustoz bo'yicha har guruh alohida qator — darslar, qo'yilgan
+/// baholar soni va gamifikatsiya ballari.
+/// </summary>
+public sealed record DailyBlockGroupRow(
+    string Teacher, string Block, string Group, int Lessons, int Grades, double? Average, int GamePlus, int GameMinus);
+
 /// <summary>One gamification entry of the day.</summary>
 public sealed record DailyGameEntry(string Time, string Author, string Student, string ClassName, string Reason, int Points);
 
@@ -76,8 +83,12 @@ public sealed record DailyDirectorReportModel(
     List<DailyLesson> Lessons,
     List<DailyTeacherRow> Teachers,
     List<DailyClassRow> Classes,
-    List<DailyGameEntry> Game)
+    List<DailyGameEntry> Game,
+    List<DailyBlockGroupRow>? BlockGroups = null)
 {
+    /// <summary>Blok guruhlari qatorlari (blok bo'lmasa — bo'sh).</summary>
+    public List<DailyBlockGroupRow> BlockRows => BlockGroups ?? [];
+
     public int Planned => Lessons.Count;
     public int Conducted => Lessons.Count(l => l.State == DailyLessonState.Conducted);
     public int Marked => Lessons.Count(l => l.State == DailyLessonState.Marked);
@@ -185,7 +196,7 @@ public static class DailyDirectorReport
         var marked = (await HeldLessons.MarkedAsync(db, null, iso, iso, ct))
             .Select(m => (m.ClassId, m.SubjectId, m.Period)).ToHashSet();
         var grades = (await db.JournalEntries.AsNoTracking().Where(e => e.Date == iso && e.Grade != null)
-                .Select(e => new { e.ClassId, e.OwnerKind, e.SubjectId, e.Period, e.SubGroup, e.StudentId, Grade = e.Grade!.Value })
+                .Select(e => new { e.ClassId, e.OwnerKind, e.SubjectId, e.Period, e.SubGroup, e.StudentId, Grade = e.Grade!.Value, e.SourceClassId })
                 .ToListAsync(ct))
             .Where(e => InScope(KindOf(e.ClassId, e.OwnerKind), e.ClassId)).ToList();
 
@@ -297,9 +308,10 @@ public static class DailyDirectorReport
         // ---- Per class / track group ----
         var classAcc = new Dictionary<string, int[]>(StringComparer.Ordinal); // 5,4,3,2,plus,minus
         int[] C(string name) => classAcc.TryGetValue(name, out var v) ? v : classAcc[name] = new int[6];
+        // Blok bahosi o'quvchining MANBA sinfiga yoziladi (TZ 6.5: baholar sinf bo'yicha jamlanadi).
         foreach (var g in grades)
         {
-            var v = C(OwnerName(g.ClassId));
+            var v = C(OwnerName(g.SourceClassId ?? g.ClassId));
             switch (g.Grade) { case >= 5: v[0]++; break; case 4: v[1]++; break; case 3: v[2]++; break; default: v[3]++; break; }
         }
         foreach (var e in game)
@@ -312,11 +324,51 @@ public static class DailyDirectorReport
             .OrderBy(r => ClassOrder(r.Name)).ThenBy(r => r.Name, StringComparer.Ordinal)
             .ToList();
 
+        // ---- Blok guruhlari: ustoz × guruh ----
+        var blockGroups = await db.BlockGroups.AsNoTracking()
+            .Join(db.Blocks, g => g.BlockId, b => b.Id, (g, b) => new { g.Id, g.StudyGroupId, Group = g.Name, Block = b.Name })
+            .ToListAsync(ct);
+        var blockRows = new List<DailyBlockGroupRow>();
+        if (blockGroups.Count > 0)
+        {
+            var bySg = blockGroups.ToDictionary(g => g.StudyGroupId.ToString(), StringComparer.Ordinal);
+            var byId = blockGroups.ToDictionary(g => g.Id);
+            var acc = new Dictionary<(string Teacher, Guid Group), BlockAcc>();
+            BlockAcc Get((string, Guid) key) => acc.TryGetValue(key, out var v) ? v : acc[key] = new BlockAcc();
+            foreach (var l in lessonsOut.Where(l => bySg.ContainsKey(l.OwnerId)))
+            {
+                var key = (l.TeacherId is null ? l.TeacherName : teacherName.GetValueOrDefault(l.TeacherId, l.TeacherName), bySg[l.OwnerId].Id);
+                var a = Get(key);
+                a.Grades.AddRange(l.Grades);
+                a.Lessons++;
+            }
+            foreach (var p in points.Where(p => p.BlockGroupId is { } bg && byId.ContainsKey(bg)))
+            {
+                var tid = p.CreatedByUserId is { } uid ? teacherOfUser.GetValueOrDefault(uid) : null;
+                var key = (tid is null ? (string.IsNullOrWhiteSpace(p.CreatedBy) ? "—" : p.CreatedBy) : teacherName[tid], p.BlockGroupId!.Value);
+                var a = Get(key);
+                if (p.Points > 0) a.Plus += p.Points; else a.Minus -= p.Points;
+            }
+            blockRows = [.. acc.Select(kv => new DailyBlockGroupRow(
+                    kv.Key.Teacher, byId[kv.Key.Group].Block, byId[kv.Key.Group].Group, kv.Value.Lessons, kv.Value.Grades.Count,
+                    kv.Value.Grades.Count == 0 ? null : Math.Round(kv.Value.Grades.Average(), 2), kv.Value.Plus, kv.Value.Minus))
+                .OrderBy(r => r.Teacher, StringComparer.Ordinal).ThenBy(r => r.Block, StringComparer.Ordinal).ThenBy(r => r.Group, StringComparer.Ordinal)];
+        }
+
         var school = await db.SchoolMeta.AsNoTracking().Select(m => m.Name).FirstOrDefaultAsync(ct);
         return new DailyDirectorReportModel(
             string.IsNullOrWhiteSpace(school) ? "Maktab" : school.Trim(), day, AppClock.Now,
             [.. lessonsOut.OrderBy(l => l.Period).ThenBy(l => ClassOrder(l.OwnerName)).ThenBy(l => l.OwnerName, StringComparer.Ordinal)],
-            teacherRows, classRows, game);
+            teacherRows, classRows, game, blockRows);
+    }
+
+    /// <summary>Blok guruhi qatorining yig'indisi (ustoz × guruh).</summary>
+    private sealed class BlockAcc
+    {
+        public int Lessons;
+        public List<int> Grades = [];
+        public int Plus;
+        public int Minus;
     }
 
     /// <summary>(owner, subject, half) → the teacher, from every template; ambiguous keys are left out.</summary>

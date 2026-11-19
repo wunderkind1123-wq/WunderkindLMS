@@ -127,6 +127,7 @@ import { BlockFormPage } from '@/pages/admin/blocks/BlockFormPage'
 import { BlockRosterPage } from '@/pages/admin/blocks/BlockRosterPage'
 import { BlockMovesPage } from '@/pages/admin/blocks/BlockMovesPage'
 import { BlockSchedulePage } from '@/pages/admin/blocks/BlockSchedulePage'
+import { BlockReportPage } from '@/pages/admin/blocks/BlockReportPage'
 import { ClassRosterPage } from '@/pages/admin/classes/ClassRosterPage'
 import { CertificateTypesPage } from '@/pages/admin/certificates/CertificateTypesPage'
 import { HarakatlarPage } from '@/pages/admin/discipline/HarakatlarPage'
@@ -250,6 +251,7 @@ export default function App() {
           <Route path="blocks" element={<RequirePerm perm="classes"><BlocksPage /></RequirePerm>} />
           <Route path="blocks/new" element={<RequirePerm perm="classes"><BlockFormPage /></RequirePerm>} />
           <Route path="blocks/kochirishlar" element={<RequirePerm perm="classes"><BlockMovesPage /></RequirePerm>} />
+          <Route path="blocks/hisobot" element={<RequirePerm perm="classes"><BlockReportPage /></RequirePerm>} />
           <Route path="blocks/:id" element={<RequirePerm perm="classes"><BlockFormPage /></RequirePerm>} />
           <Route path="blocks/:id/taqsimlash" element={<RequirePerm perm="classes"><BlockRosterPage /></RequirePerm>} />
           <Route path="blocks/:id/jadval" element={<RequirePerm perm="classes"><BlockSchedulePage /></RequirePerm>} />

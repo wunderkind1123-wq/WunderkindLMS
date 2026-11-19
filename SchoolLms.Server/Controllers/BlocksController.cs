@@ -388,6 +388,36 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
     }
 
     /* ===================================================================
+     *  4b. Hisobotlar (TZ 6.5)
+     * ================================================================ */
+
+    /// <summary>
+    /// Davr hisoboti (standart — oxirgi 7 kun, shanba hisoboti uchun): blok guruhlari ustozlar
+    /// kesimida va manba sinflar kesimida.
+    /// </summary>
+    [HttpGet("report")]
+    public async Task<ActionResult<BlockReportDto>> Report(
+        [FromQuery] DateOnly? from = null, [FromQuery] DateOnly? to = null, CancellationToken ct = default)
+    {
+        var end = to ?? AppClock.Today;
+        var start = from ?? end.AddDays(-6);
+        if (start > end) return BadRequest(new { message = "Boshlanish sanasi tugashdan keyin bo'lmasin" });
+        return await BlockReportService.PeriodAsync(db, start, end, ct);
+    }
+
+    /// <summary>Oylik test natijalari: guruh bo'yicha va sinf bo'yicha, balldan yuqoridan pastga.</summary>
+    [HttpGet("{id:guid}/monthly")]
+    public async Task<ActionResult<BlockMonthlyDto>> Monthly(
+        Guid id, [FromQuery] int? year = null, [FromQuery] int? month = null, CancellationToken ct = default)
+    {
+        var y = year ?? AppClock.Today.Year;
+        var m = month ?? AppClock.Today.Month;
+        if (m is < 1 or > 12 || y is < 2000 or > 2100) return BadRequest(new { message = "Oy yoki yil noto'g'ri" });
+        var result = await BlockReportService.MonthlyAsync(db, id, y, m, ct);
+        return result is null ? NotFound() : result;
+    }
+
+    /* ===================================================================
      *  5. Excel: ro'yxatni yuklab olish va import (TZ 6.2)
      * ================================================================ */
 

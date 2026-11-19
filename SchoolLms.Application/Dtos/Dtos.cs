@@ -333,14 +333,17 @@ public record CanteenCopyWeekResultDto(
 /// Jurnal ustuni — bir dars (sana + dars raqami + guruh). SubGroup: 0 = butun sinf,
 /// 1 = 1-guruh, 2 = 2-guruh. Bo'lingan darsda har guruh o'z ustunini oladi.
 /// </summary>
-public record JournalColumnDto(string Date, int Period, int SubGroup = 0);
+/// <param name="Block">Blok darsi ustuni (sinf jurnalida, faqat ko'rish) — blok nomi; oddiy darsda null (docs/modules/blocks.md).</param>
+public record JournalColumnDto(string Date, int Period, int SubGroup = 0, string? Block = null);
 /// <summary>Mavzular Excel importidagi xato qator (Excel qator raqami + sabab).</summary>
 public record TopicImportRowErrorDto(int Row, string Reason);
 /// <summary>Mavzular Excel import natijasi: to'ldirilgan / o'tkazib yuborilgan (bo'sh) / xato qatorlar.</summary>
 public record TopicImportResultDto(int Imported, int Skipped, int Errors, List<TopicImportRowErrorDto> RowErrors);
 public record JournalEntryDto(
     string StudentId, string Date, int Period, int? Grade, string? ReasonId,
-    int Homework, int Behavior, int? Mastery);
+    int Homework, int Behavior, int? Mastery,
+    // Sinf jurnalidagi blok bahosi: guruh belgisi ("K", "Kch" yoki guruh nomi) va o'sha kuni ustoz (docs/modules/blocks.md).
+    string? BlockMark = null, string? BlockTeacher = null);
 public record SetJournalEntryRequest(
     string ClassId, string SubjectId, int Quarter, string StudentId, string Date, int Period,
     int? Grade, string? ReasonId, int Homework = 0, int Behavior = 0, int? Mastery = null);

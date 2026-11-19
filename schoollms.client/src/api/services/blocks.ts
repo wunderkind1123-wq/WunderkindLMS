@@ -306,3 +306,67 @@ export async function getBlockOverlay(): Promise<BlockOverlayItem[]> {
   const { data } = await api.get<BlockOverlayItem[]>(`${base}/schedule-overlay`)
   return data
 }
+
+/* ---------------------------------------------------------------------------
+ *  Hisobotlar (TZ 6.5) — faqat xodimlar uchun.
+ * ------------------------------------------------------------------------ */
+
+export interface BlockReportGroupRow {
+  blockId: string
+  block: string
+  groupId: string
+  group: string
+  teacher: string
+  lessons: number
+  grades: number
+  average: number | null
+  absent: number
+  gamePlus: number
+  gameMinus: number
+}
+
+export interface BlockReportClassRow {
+  blockId: string
+  block: string
+  sourceId: string
+  source: string
+  grades: number
+  average: number | null
+  absent: number
+  gamePlus: number
+  gameMinus: number
+}
+
+export interface BlockReport {
+  from: string
+  to: string
+  groups: BlockReportGroupRow[]
+  classes: BlockReportClassRow[]
+}
+
+export interface BlockMonthlyRow {
+  studentId: string
+  fullName: string
+  group: string
+  source: string
+  score: number | null
+}
+
+export interface BlockMonthly {
+  blockId: string
+  block: string
+  year: number
+  month: number
+  byGroup: { name: string; rows: BlockMonthlyRow[] }[]
+  byClass: { name: string; rows: BlockMonthlyRow[] }[]
+}
+
+export async function getBlockReport(from: string, to: string): Promise<BlockReport> {
+  const { data } = await api.get<BlockReport>(`${base}/report`, { params: { from, to } })
+  return data
+}
+
+export async function getBlockMonthly(id: string, year: number, month: number): Promise<BlockMonthly> {
+  const { data } = await api.get<BlockMonthly>(`${base}/${id}/monthly`, { params: { year, month } })
+  return data
+}

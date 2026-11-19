@@ -157,6 +157,18 @@ Tuzatish (4-bosqich): MCP o'qish roli `app_ro` blok jadvallarini o'qiy olmasdi �
 uchun ro'yxatga tayanadigan MCP vositalari yiqilardi. `mcp_guards.sql` ro'yxatiga qo'shildi, migratsiya
 `BlocksMcpGrants`.
 
+## Hisobotlar va ota-ona (6-bosqich)
+
+| Narsa | Qanday |
+|---|---|
+| Ota-ona | Guruh va blok nomi API javobida ham yo'q: jadval, jurnal va bosh sahifada blok guruhi darsining `ownerName` — null; oraliq testda guruh o'rnida manba yo'nalishi. Fan va ustoz ismi ko'rinadi. `BlockParentPrivacyTests` barcha GET endpointlarni tekshiradi |
+| Sinf jurnali | Sinf (yoki yo'nalish) blok fanining jurnalida blok darslari ustuni ("Blok", faqat ko'rish) va o'quvchilarning blok baholari — "K"/"Kch" (manba sinf bo'yicha blokda guruh nomi) va o'sha kungi ustoz. Bu katakka yozish rad etiladi (`JournalService.BlockColumnMessage`) |
+| 17:00 hisoboti | "Blok guruhlari — ustozlar kesimida" jadvali: ustoz × guruh, darslar, baholar, ball. Sinf kesimida blok bahosi manba sinfga |
+| Haftalik ota-ona hisoboti | Blok baholari ClassAttainment orqali o'zi kiradi, guruh nomisiz |
+| Blok hisoboti | `GET /api/admin/blocks/report?from&to` (standart — 7 kun): guruh × ustoz va manba sinf kesimi; `GET /{id}/monthly?year&month`: oylik test guruh va sinf bo'yicha, balldan pastga. UI: `/admin/blocks/hisobot` |
+
+Testlar: `BlockParentPrivacyTests` (1), `BlockReportTests` (3).
+
 ## Bosqichlar
 1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI ✅ —
-4. Jadval ✅ — 5. Ustoz ekranlari ✅ — 6. Hisobotlar va ota-ona API — 7. Migratsiya skripti (`--dry-run`).
+4. Jadval ✅ — 5. Ustoz ekranlari ✅ — 6. Hisobotlar va ota-ona API ✅ — 7. Migratsiya skripti (`--dry-run`).

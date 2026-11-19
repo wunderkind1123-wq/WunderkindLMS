@@ -79,6 +79,13 @@ public static class JournalService
                     cols.Add(new JournalColumnDto(d, l.Period, l.SubGroup));
             }
         }
+        // Sinf (yoki yo'nalish) shu fanning blokiga manba bo'lsa — blok darslari ham ustun bo'ladi
+        // (TZ 6.5: sinf jurnalida ingliz tili ustunida barcha o'quvchilarning bahosi). Faqat ko'rish uchun.
+        if (owner is not null && !owner.IsBlock)
+            foreach (var (blockName, sg) in await BlockColumnsSourcesAsync(db, classId, subjectId))
+                cols.AddRange((await ComputeColumnsAsync(db, sg, subjectId, quarter))
+                    .Select(c => new JournalColumnDto(c.Date, c.Period, 0, blockName)));
+
         return cols
             .GroupBy(c => (c.Date, c.Period, c.SubGroup)).Select(g => g.First())
             .OrderBy(c => c.Date, StringComparer.Ordinal).ThenBy(c => c.Period).ThenBy(c => c.SubGroup)
@@ -89,11 +96,74 @@ public static class JournalService
         IAppDbContext db, string classId, string subjectId, int quarter)
     {
         var kind = await OwnerKindAsync(db, classId);
-        return await db.JournalEntries
+        var own = await db.JournalEntries
             .Where(e => e.ClassId == classId && e.SubjectId == subjectId && e.Quarter == quarter)
             .Where(e => kind == null || e.OwnerKind == kind)
             .Select(e => new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery))
             .ToListAsync();
+
+        // Sinf jurnalida blok baholari: shu sinfdan (manba) blok guruhlarida qo'yilganlari, guruh belgisi
+        // va o'sha kungi ustozi bilan (TZ 6.5). Sinfning o'z qatorlari bilan aralashmaydi — boshqa sana/dars.
+        var block = await db.JournalEntries.AsNoTracking()
+            .Where(e => e.SourceClassId == classId && e.BlockGroupId != null && e.SubjectId == subjectId && e.Quarter == quarter)
+            .ToListAsync();
+        if (block.Count == 0) return own;
+        var groupIds = block.Select(e => e.BlockGroupId!.Value).Distinct().ToList();
+        var groups = await db.BlockGroups.AsNoTracking().Where(g => groupIds.Contains(g.Id)).ToDictionaryAsync(g => g.Id);
+        var periods = await db.BlockGroupTeachers.AsNoTracking().Where(t => groupIds.Contains(t.BlockGroupId)).ToListAsync();
+        var teacherIds = periods.Select(p => p.TeacherId).Distinct().ToList();
+        var teachers = await db.Teachers.AsNoTracking().Where(t => teacherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.FullName);
+        string? TeacherOn(Guid bg, string date)
+        {
+            if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var d)) return null;
+            var p = periods.Where(x => x.BlockGroupId == bg && x.ValidFrom <= d && (x.ValidTo == null || x.ValidTo >= d))
+                .OrderByDescending(x => x.ValidFrom).FirstOrDefault();
+            return p is null ? null : teachers.GetValueOrDefault(p.TeacherId);
+        }
+        own.AddRange(block.Select(e =>
+        {
+            var g = groups[e.BlockGroupId!.Value];
+            return new JournalEntryDto(e.StudentId, e.Date, e.Period, e.Grade, e.ReasonId, e.Homework, e.Behavior, e.Mastery,
+                BlockMark(g), TeacherOn(g.Id, e.Date));
+        }));
+        return own;
+    }
+
+    /// <summary>Sinf jurnalidagi kichik belgi: Katta — "K", Kichik — "Kch", manba sinf bo'yicha guruh — nomi.</summary>
+    public static string BlockMark(BlockGroup g) => g.Code switch
+    {
+        BlockGroupCode.Katta => "K",
+        BlockGroupCode.Kichik => "Kch",
+        _ => g.Name,
+    };
+
+    public const string BlockColumnMessage =
+        "Bu blok darsi — baho va davomat blok guruhining jurnalida qo'yiladi, sinf jurnalida faqat ko'rinadi.";
+
+    /// <summary>(sana, dars) shu sinf jurnalidagi blok ustunimi.</summary>
+    private static async Task<bool> IsBlockColumnAsync(
+        IAppDbContext db, string ownerId, string subjectId, int quarter, string date, int period)
+    {
+        foreach (var (_, sg) in await BlockColumnsSourcesAsync(db, ownerId, subjectId))
+            if ((await ComputeColumnsAsync(db, sg, subjectId, quarter)).Any(c => c.Date == date && c.Period == period))
+                return true;
+        return false;
+    }
+
+    /// <summary>Shu ega manba bo'lgan, shu fandagi bloklar: (blok nomi, 1-guruhning o'quv guruhi id'si).</summary>
+    private static async Task<List<(string BlockName, string StudyGroupId)>> BlockColumnsSourcesAsync(
+        IAppDbContext db, string ownerId, string subjectId)
+    {
+        var rows = await db.BlockClasses.AsNoTracking().Where(c => c.OwnerId == ownerId)
+            .Join(db.Blocks.Where(b => b.SubjectId == subjectId), c => c.BlockId, b => b.Id, (c, b) => b)
+            .Select(b => new
+            {
+                b.Name,
+                Sg = db.BlockGroups.Where(g => g.BlockId == b.Id).OrderBy(g => g.SortOrder).Select(g => g.StudyGroupId).FirstOrDefault(),
+            })
+            .ToListAsync();
+        return [.. rows.Where(r => r.Sg != Guid.Empty).Select(r => (r.Name, r.Sg.ToString()))];
     }
 
     /// <summary>
@@ -141,6 +211,9 @@ public static class JournalService
         // O'chirgich o'chiq ekan guruh jurnaliga yozib bo'lmaydi (§4.3).
         if (owner is not null && !await LessonRoster.LessonsLiveAsync(db, owner))
             return GroupLessonsOffMessage;
+        // Sinf jurnalidagi blok ustuni — faqat ko'rish: baho blok guruhining jurnalida qo'yiladi.
+        if (owner is not null && !owner.IsBlock && await IsBlockColumnAsync(db, req.ClassId, req.SubjectId, req.Quarter, req.Date, req.Period))
+            return BlockColumnMessage;
         // Yo'nalishli blokda baho yo'q — oraliq test (docs/modules/blocks.md, mijoz qarori 2).
         if (req.Grade.HasValue && owner?.IsBlock == true && !await BlockJournal.GradesAllowedAsync(db, req.ClassId))
             return BlockJournal.NoGradesMessage;

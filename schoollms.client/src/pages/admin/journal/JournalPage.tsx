@@ -615,6 +615,14 @@ export function JournalPage() {
                                 {weekdayShort(c.date)} · {c.period}-soat
                               </div>
                               <div className="mt-1 flex items-center justify-center gap-1">
+                                {c.block && (
+                                  <span
+                                    className="rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800"
+                                    title={`${c.block} — blok darsi, baho blok guruhi jurnalida qo'yiladi`}
+                                  >
+                                    Blok
+                                  </span>
+                                )}
                                 {sg > 0 && (
                                   <span
                                     className={cn(
@@ -957,6 +965,24 @@ function JournalRow({
             )}
           </>
         )
+        // Blok darsi — faqat ko'rish: baho blok guruhining jurnalida qo'yiladi (docs/modules/blocks.md).
+        if (c.block)
+          return (
+            <td key={`${c.date}-${c.period}-${sg}`} className={cn(cellBase, 'bg-amber-50/40')}>
+              <div
+                className="relative flex h-11 w-full items-center justify-center"
+                title={entry?.blockTeacher ? `${c.block} · ${entry.blockTeacher}` : c.block}
+              >
+                {content}
+                {marks}
+                {entry?.blockMark && (
+                  <span className="absolute right-1 top-0.5 text-[9px] font-bold leading-none text-amber-700">
+                    {entry.blockMark}
+                  </span>
+                )}
+              </div>
+            </td>
+          )
         return (
           <td key={`${c.date}-${c.period}-${sg}`} className={cellBase}>
             {onCell ? (

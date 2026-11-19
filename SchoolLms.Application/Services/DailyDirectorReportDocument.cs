@@ -85,6 +85,7 @@ public sealed class DailyDirectorReportDocument(DailyDirectorReportModel m) : ID
             if (m.Lessons.Any(l => l.State != DailyLessonState.Conducted)) col.Item().Element(ComposeNotConducted);
             if (m.Teachers.Count > 0) col.Item().Element(ComposeTeachers);
             if (m.Classes.Count > 0) col.Item().Element(ComposeClasses);
+            if (m.BlockRows.Count > 0) col.Item().Element(ComposeBlockGroups);
             if (m.Game.Count > 0) col.Item().Element(ComposeGame);
             col.Item().Element(ComposeNote);
         });
@@ -252,6 +253,37 @@ public sealed class DailyDirectorReportDocument(DailyDirectorReportModel m) : ID
                     Cell(t, bg).AlignCenter().Text(Dash(r.Grades)).Bold();
                     Cell(t, bg).AlignCenter().Text(r.Average is { } a ? WeeklyReport.Num(a) : "—").Bold()
                         .FontColor(r.Average is < 3.5 ? Bad : Ink);
+                    Cell(t, bg).AlignCenter().Text(r.GamePlus == 0 && r.GameMinus == 0 ? "—" : $"+{r.GamePlus} / −{r.GameMinus}");
+                }
+            });
+        });
+
+    // Bloklar (docs/modules/blocks.md, TZ 6.5): ustoz bo'yicha har guruh alohida qator.
+    private void ComposeBlockGroups(IContainer c) =>
+        c.Column(col =>
+        {
+            col.Item().PaddingBottom(6).Text("Blok guruhlari — ustozlar kesimida").FontSize(13).Bold();
+            col.Item().Table(t =>
+            {
+                t.ColumnsDefinition(cols =>
+                {
+                    cols.RelativeColumn(2.2f);
+                    cols.RelativeColumn(2.2f);
+                    cols.RelativeColumn(1.4f);
+                    for (var k = 0; k < 3; k++) cols.RelativeColumn(1f);
+                    cols.RelativeColumn(1.6f);
+                });
+                Header(t, "Ustoz", "Blok", "Guruh", "Darslar", "Baholar", "O'rtacha", "Ball (+/−)");
+                var i = 0;
+                foreach (var r in m.BlockRows)
+                {
+                    var bg = i++ % 2 == 0 ? Colors.White : Soft;
+                    Cell(t, bg).Text(r.Teacher);
+                    Cell(t, bg).Text(r.Block);
+                    Cell(t, bg).Text(r.Group);
+                    Cell(t, bg).AlignCenter().Text(Dash(r.Lessons));
+                    Cell(t, bg).AlignCenter().Text(Dash(r.Grades)).Bold();
+                    Cell(t, bg).AlignCenter().Text(r.Average is { } a ? WeeklyReport.Num(a) : "—");
                     Cell(t, bg).AlignCenter().Text(r.GamePlus == 0 && r.GameMinus == 0 ? "—" : $"+{r.GamePlus} / −{r.GameMinus}");
                 }
             });

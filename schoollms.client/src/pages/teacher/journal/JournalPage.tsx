@@ -443,9 +443,14 @@ export function TeacherJournalPage() {
                                 <td key={`${c.date}-${c.period}`} className="px-1 py-1 text-center">
                                   <button
                                     type="button"
-                                    disabled={future}
+                                    // Blok darsi ustuni — faqat ko'rish (baho blok guruhi jurnalida, docs/modules/blocks.md).
+                                    disabled={future || !!c.block}
                                     onClick={() => setEditing({ student: s, date: c.date, period: c.period })}
-                                    title={future ? "Dars hali o'tilmagan" : entry?.reasonId ? reasonShort(entry.reasonId) : undefined}
+                                    title={
+                                      c.block
+                                        ? `${c.block}${entry?.blockMark ? ` · ${entry.blockMark}` : ''}${entry?.blockTeacher ? ` · ${entry.blockTeacher}` : ''}`
+                                        : future ? "Dars hali o'tilmagan" : entry?.reasonId ? reasonShort(entry.reasonId) : undefined
+                                    }
                                     className={cn(
                                       'relative flex h-9 w-11 items-center justify-center rounded-md border text-sm font-semibold transition-colors',
                                       future

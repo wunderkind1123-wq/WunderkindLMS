@@ -395,6 +395,8 @@ export interface JournalColumn {
   period: number
   /** Bo'linish: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh. Belgilanmagan = 0. */
   subGroup?: number
+  /** Sinf jurnalidagi blok darsi ustuni (faqat ko'rish) — blok nomi (docs/modules/blocks.md). */
+  block?: string | null
 }
 
 export interface JournalEntry {
@@ -413,6 +415,9 @@ export interface JournalEntry {
   behavior?: number
   /** Shu darsni o'zlashtirish foizi (0-100); null/undefined = belgilanmagan */
   mastery?: number | null
+  /** Sinf jurnalidagi blok bahosi: guruh belgisi ("K", "Kch" yoki guruh nomi) va o'sha kungi ustoz. */
+  blockMark?: string | null
+  blockTeacher?: string | null
 }
 
 /** Dars ma'lumoti (sana + dars raqami + guruh bo'yicha): mavzu, uyga vazifa, o'tildi */

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowRightLeft, CalendarRange, CheckCircle2, Pencil, Plus, Power, Trash2, Upload, Users } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, BarChart3, CalendarRange, CheckCircle2, Pencil, Plus, Power, Trash2, Upload, Users } from 'lucide-react'
 import type { Block } from '@/api/services/blocks'
 import {
   DAY_PATTERN_LABELS,
@@ -75,6 +75,9 @@ export function BlocksPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => navigate('/admin/blocks/hisobot')}>
+            <BarChart3 className="h-4 w-4" /> Hisobot
+          </Button>
           <Button variant="secondary" onClick={() => navigate('/admin/blocks/kochirishlar')}>
             <ArrowRightLeft className="h-4 w-4" /> Ko'chirishlar
           </Button>
