@@ -801,7 +801,9 @@ app.MapFallback(async ctx =>
     if (path.StartsWith("/ariza/", StringComparison.OrdinalIgnoreCase)
         || path.Equals("/vakansiya", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/vakansiya/", StringComparison.OrdinalIgnoreCase)
-        || path.StartsWith("/sorovnoma/", StringComparison.OrdinalIgnoreCase))
+        || path.StartsWith("/sorovnoma/", StringComparison.OrdinalIgnoreCase)
+        // Olimpiada botidagi QR skaner (Telegram Mini App, OlympiadScannerController).
+        || path.Equals("/olimpiada-skaner", StringComparison.OrdinalIgnoreCase))
     {
         var spaIndex = Path.Combine(webRoot, "index.html");
         if (!File.Exists(spaIndex)) { ctx.Response.StatusCode = StatusCodes.Status404NotFound; return; }

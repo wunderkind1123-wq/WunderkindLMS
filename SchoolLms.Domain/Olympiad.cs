@@ -98,6 +98,14 @@ public class OlympiadSettings
     /// <summary>"Adminga savol" — https://t.me/username</summary>
     public string AdminLink { get; set; } = string.Empty;
 
+    // --- Bot adminlari (mijoz, 2026-11-18) ---
+    /// <summary>
+    /// Telefonlar, har qatorda bittasi (<c>+998XXXXXXXXX</c>). Botda O'Z raqamini Telegram tugmasi orqali
+    /// yuborgan va raqami shu ro'yxatda bo'lgan foydalanuvchi — admin: botda QR skaner paneli ochiladi.
+    /// Ro'yxatdan o'chirilsa, huquq darhol yo'qoladi.
+    /// </summary>
+    public string AdminPhones { get; set; } = string.Empty;
+
     public DateTime? UpdatedAt { get; set; }
     public string UpdatedBy { get; set; } = string.Empty;
 }

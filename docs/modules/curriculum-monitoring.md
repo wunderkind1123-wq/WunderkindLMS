@@ -46,6 +46,31 @@ ish rejasi o'zining dars soatlariga mos tushadimi yo'qmi tekshirish."*
   plans count only that teacher's lessons. Exact topic dates without a lesson that day are listed.
   Substitutions are ignored.
 
+### 1.2 Teacher uploads and edits their own plan (2026-11-18)
+
+*"Ish rejani ustozning o'zi yuklaydigan holatga keltirish kerak. Ustoz LMS dan o'zi namunani ham yuklay
+olsin … ish rejada asosan chorak / hafta / mavzu / sana bo'lishi kerak. Ustozlarga o'z ish rejalarini edit
+qilish — dars holatidan kelib chiqib o'zgartirish imkoni bo'lsin … oldinda yoki orqadaligi ham ko'rinib tursin."*
+
+| Question (asked 2026-11-18) | Answer |
+|---|---|
+| Approval by o'quv bo'limi | **None** — the teacher's upload is live at once; o'quv bo'limi sees it under Ish rejalar and can change or delete it |
+| Required columns | **All four**: every topic has Chorak, Hafta, Mavzu and Sana, and the week must match the date — otherwise the file is refused with the row and what is missing |
+| What the teacher edits | **Everything + shift**: title, date (quarter/week follow from it), hours, section, goal, homework; add (after any topic) and delete; "Dars bo'lmadi" shifts the topic and every later one by one lesson |
+
+- Teacher API (`/api/teacher/curriculum`): `GET options` (subject + grade/track pairs from the timetable, with
+  the own plan if any), `GET template`, `POST import` (`dryRun`; always the teacher's own plan, strict check,
+  the uploaded file is kept as the original), `POST {planId}/topics`, `PUT/DELETE topics/{id}`, `POST shift`.
+  Edits only on a plan with `teacher_id` = the teacher; the shared plan stays read-only (403).
+- O'quv bo'limi gets the same edit endpoints under `/api/admin/curriculum` (any plan). Its own uploads keep the
+  old, lenient check (only Mavzu required).
+- Edited topic: the date is required and must fall in a quarter, not on a Sunday or a holiday; quarter and week
+  are recomputed. A new topic goes after `afterOrder`, later ones renumber (marks follow the topic, not the number).
+- Shift: each topic of the tail takes the next one's date; the last one moves to the next lesson day of the
+  plan's subject (teacher plan — that teacher's lessons) in the timetable. Refused when a tail topic has no date
+  or no lesson is left before the year ends. Marks are not touched.
+- Plan page shows, per class/group, the same ahead/behind as the report (`owners[].delta`).
+
 ## 2. Ichki monitoring (`monitoring`)
 
 *"Yo'nalish guruhlardan blok testdan tashqari ichki monitoring test olinadi … oddiy 30–100 test

@@ -29,7 +29,7 @@ public class ViewAccessSweepTests(ApiFixture fixture)
     [
         "dashboard", "leads", "marketing", "admission", "exams", "seasonalMarks", "students",
         "teachers", "attendance", "attendanceEvening", "attendanceDorm", "schedule", "classes",
-        "journal", "messages", "app", "gradesReport", "teacherReports", "dailyReport", "contracts", "finance",
+        "journal", "messages", "app", "gradesReport", "teacherReports", "dailyReport", "studentReports", "reportsCopy", "contracts", "finance",
         "academicYear", "settings", "staff", "feedback", "gps", "cameras", "discipline",
         "lessonAnalysis", "hrTasks", "polls", "kpi", "recruitment", "audit", "chatbot", "curriculum", "monitoring",
         // Olimpiada (docs/modules/olympiad.md, 2026-11-16).

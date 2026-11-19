@@ -35,9 +35,34 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
 
     private string Period => WeeklyReport.Label(m.From, m.To);
 
+    /// <summary>
+    /// A school week (Monday–Saturday) — "Noyabr, 3-hafta (16.11–21.11.2026)", its number in the month of its
+    /// Thursday (TZ, 2026-11-17); a part of a week — "16–18 noyabr 2026"; longer — "Hisobot: 01.11.2026 – 30.11.2026".
+    /// </summary>
+    private string Subtitle =>
+        m.Scope != ReportScope.Week ? $"Hisobot: {m.From:dd.MM.yyyy} – {m.To:dd.MM.yyyy}"
+        : m.From.DayOfWeek == DayOfWeek.Monday && m.To == m.From.AddDays(5)
+            ? $"{WeeklyReport.WeekTitle(m.From)} ({m.From:dd.MM}–{m.To:dd.MM.yyyy})"
+            : Period;
+
+    private string GoalsTitle
+    {
+        get
+        {
+            if (m.Scope == ReportScope.Week)
+                return $"Keyingi hafta maqsadlari ({WeeklyReport.Label(m.From.AddDays(7), m.From.AddDays(12))})";
+            if (m.Scope == ReportScope.Month)
+            {
+                var next = m.From.AddMonths(1);
+                return $"Keyingi oy maqsadlari ({WeeklyReport.MonthsNominative[next.Month - 1]} {next.Year})";
+            }
+            return "Keyingi davr maqsadlari";
+        }
+    }
+
     public DocumentMetadata GetMetadata() => new()
     {
-        Title = $"Haftalik hisobot — {m.StudentName} — {Period}",
+        Title = $"{m.Words.Title} — {m.StudentName} — {Period}",
         Author = m.SchoolName,
         Language = "uz",
     };
@@ -46,12 +71,35 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
 
     public byte[] Render() => this.GeneratePdf();
 
-    /// <summary>"Haftalik_hisobot_Abdunumonova_Madinaxon_03.11-08.11.pdf" — no apostrophes or spaces.</summary>
+    /// <summary>
+    /// The file parents get: "Haftalik_hisobot_Abdunumonova_Madinaxon_03.11-08.11.pdf", a month —
+    /// "Oylik_hisobot_Abdunumonova_Madinaxon_oktabr_2026.pdf". No apostrophes or spaces.
+    /// </summary>
     public static string FileName(WeeklyReportModel m)
     {
         var name = new string(m.StudentName.Where(c => char.IsLetterOrDigit(c) || c == ' ').ToArray());
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2);
-        return $"Haftalik_hisobot_{string.Join('_', parts)}_{m.From:dd.MM}-{m.To:dd.MM}.pdf";
+        var parts = string.Join('_', name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2));
+        return m.Scope switch
+        {
+            ReportScope.Month => $"Oylik_hisobot_{parts}_{WeeklyReport.MonthsGenitive[m.From.Month - 1]}_{m.From.Year}.pdf",
+            ReportScope.Range => $"Hisobot_{parts}_{m.From:dd.MM}-{m.To:dd.MM.yyyy}.pdf",
+            _ => $"Haftalik_hisobot_{parts}_{m.From:dd.MM}-{m.To:dd.MM}.pdf",
+        };
+    }
+
+    /// <summary>
+    /// The file staff download (TZ, 2026-11-17): "Hisobot_Abdunumonova_Madinaxon_7-A_01.11.2026_30.11.2026.pdf"
+    /// — the full name and class, only letters, digits and dashes.
+    /// </summary>
+    public static string StaffFileName(WeeklyReportModel m)
+    {
+        static string Clean(string s) =>
+            string.Join('_', new string(s.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : ' ').ToArray())
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        var name = Clean(m.StudentName);
+        var cls = Clean(m.ClassName);
+        var parts = new[] { "Hisobot", name, cls, $"{m.From:dd.MM.yyyy}", $"{m.To:dd.MM.yyyy}" }.Where(p => p.Length > 0);
+        return string.Join('_', parts) + ".pdf";
     }
 
     public void Compose(IDocumentContainer container)
@@ -75,8 +123,8 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
             col.Item().Background(Dark).PaddingHorizontal(36).PaddingVertical(22).Column(h =>
             {
                 h.Item().Text(m.SchoolName.ToUpperInvariant()).FontSize(9).Bold().FontColor(Accent).LetterSpacing(0.05f);
-                h.Item().PaddingTop(4).Text("Haftalik o'quvchi hisoboti").FontSize(22).Bold().FontColor(Colors.White);
-                h.Item().PaddingTop(2).Text($"{Period} · {m.Days.Count} o'quv kuni · {m.Quarter}-chorak")
+                h.Item().PaddingTop(4).Text(m.Words.Title).FontSize(22).Bold().FontColor(Colors.White);
+                h.Item().PaddingTop(2).Text($"{Subtitle} · {m.Days.Count} o'quv kuni · {m.Quarter}-chorak")
                     .FontSize(10).FontColor(Colors.Grey.Lighten2);
             });
             col.Item().Height(4).Background(Accent);
@@ -88,10 +136,13 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
             col.Spacing(14);
             col.Item().Element(ComposeIdentity);
             col.Item().Element(ComposeGreeting);
+            if (m.IsEmpty) col.Item().Element(ComposeEmpty);
             col.Item().Element(ComposeFigures);
             col.Item().Element(ComposeSummary);
             if (m.Subjects.Count > 0) col.Item().Element(ComposeSubjects);
-            if (m.Days.Count > 0) col.Item().Element(ComposeDays);
+            // A week lists its days; a month or longer lists its weeks (26 day rows would bury the picture).
+            if (m.Scope == ReportScope.Week && m.Days.Count > 0) col.Item().Element(ComposeDays);
+            if (m.Weeks.Count > 0) col.Item().Element(ComposeWeeks);
             if (m.Behaviour.Count > 0) col.Item().Element(ComposeBehaviour);
             if (m.Recommendations.Count > 0) col.Item().Element(ComposeRecommendations);
             if (m.Goals.Count > 0) col.Item().Element(ComposeGoals);
@@ -136,8 +187,8 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
         {
             row.Spacing(8);
             var avg = m.Average;
-            Tile(row.RelativeItem(), avg is null ? "—" : WeeklyReport.Num(avg.Value), "Haftalik o'rtacha baho",
-                m.ClassAverage is { } cls ? $"Sinf o'rtachasi shu darslarda: {WeeklyReport.Num(cls)}" : "Bu hafta baho qo'yilmagan",
+            Tile(row.RelativeItem(), avg is null ? "—" : WeeklyReport.Num(avg.Value), WeeklyReport.Cap(m.Words.AvgLabel),
+                m.ClassAverage is { } cls ? $"Sinf o'rtachasi shu darslarda: {WeeklyReport.Num(cls)}" : $"{WeeklyReport.Cap(m.Words.This)} baho qo'yilmagan",
                 highlight: true);
             Tile(row.RelativeItem(), m.AttendancePercent is { } p ? $"{p}%" : "—", "Davomat",
                 m.Lessons == 0 ? "Dars qayd etilmagan"
@@ -145,8 +196,8 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
                 : $"{m.Lessons} darsdan {m.Lessons - m.Absent} tasida qatnashdi");
             Tile(row.RelativeItem(), m.Marks.Count.ToString(), "Olingan baholar", Distribution());
             Tile(row.RelativeItem(), m.DisciplineScore.ToString(), "Intizom bali",
-                m.BehaviourDelta == 0 ? "Bu hafta o'zgarmadi"
-                : $"Bu hafta: {(m.BehaviourDelta > 0 ? "+" : "")}{m.BehaviourDelta} ball");
+                m.BehaviourDelta == 0 ? $"{WeeklyReport.Cap(m.Words.This)} o'zgarmadi"
+                : $"{WeeklyReport.Cap(m.Words.This)}: {(m.BehaviourDelta > 0 ? "+" : "")}{m.BehaviourDelta} ball");
         });
 
     private string Distribution()
@@ -167,7 +218,7 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
     private void ComposeSummary(IContainer c) =>
         c.Column(col =>
         {
-            col.Item().PaddingBottom(6).Text("Haftaning qisqa xulosasi").FontSize(13).Bold();
+            col.Item().PaddingBottom(6).Text(m.Words.SummaryTitle).FontSize(13).Bold();
             if (!string.IsNullOrWhiteSpace(m.Overview))
                 col.Item().PaddingBottom(8).BorderLeft(3).BorderColor(Accent).Background(AccentSoft)
                     .PaddingVertical(8).PaddingHorizontal(10).Text(t =>
@@ -189,7 +240,7 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
                 {
                     var lines = new List<string>();
                     if (m.PreviousAverage is { } prev)
-                        lines.Add($"O'tgan hafta o'rtacha baho: {WeeklyReport.Num(prev)} ({m.PreviousCount} ta baho).");
+                        lines.Add($"{WeeklyReport.Cap(m.Words.Prev)} o'rtacha baho: {WeeklyReport.Num(prev)} ({m.PreviousCount} ta baho).");
                     if (m.QuarterAverage is { } q)
                         lines.Add($"{m.Quarter}-chorak bo'yicha umumiy o'rtacha: {WeeklyReport.Num(q)}.");
                     SummaryRow(t, "Taqqoslash", lines, Ink);
@@ -216,11 +267,11 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
     private void ComposeSubjects(IContainer c) =>
         c.Column(col =>
         {
-            col.Item().Text("Fanlar bo'yicha hafta natijasi").FontSize(13).Bold();
+            col.Item().Text($"Fanlar bo'yicha {m.Words.Noun} natijasi").FontSize(13).Bold();
             col.Item().PaddingBottom(6).Text(t =>
             {
                 t.DefaultTextStyle(s => s.FontSize(8).FontColor(Muted));
-                t.Span("Sariq chiziq — farzandingizning bu haftadagi o'rtachasi, kulrang — sinfning o'sha darslardagi o'rtachasi (5 ball shkalasida).");
+                t.Span($"Sariq chiziq — farzandingizning {m.Words.ThisAt} o'rtachasi, kulrang — sinfning o'sha darslardagi o'rtachasi (5 ball shkalasida).");
             });
             col.Item().Table(t =>
             {
@@ -235,7 +286,7 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
                 });
                 t.Header(h =>
                 {
-                    foreach (var title in new[] { "Fan", "Baholar", "Taqqoslash", "Hafta", "Sinf", "Chorak" })
+                    foreach (var title in new[] { "Fan", "Baholar", "Taqqoslash", WeeklyReport.Cap(m.Words.Noun), "Sinf", "Chorak" })
                         h.Cell().Background(Dark).PaddingVertical(6).PaddingHorizontal(6)
                             .Text(title).FontColor(Colors.White).Bold().FontSize(8.5f);
                 });
@@ -322,10 +373,82 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
             });
         });
 
+    /// <summary>Nothing in the period (a holiday, a new pupil) — the PDF still comes out and says so (TZ, 2026-11-17).</summary>
+    private static void ComposeEmpty(IContainer c) =>
+        c.BorderLeft(3).BorderColor(Muted).Background(Soft).PaddingVertical(10).PaddingHorizontal(12).Column(col =>
+        {
+            col.Item().Text("Bu davrda baho va davomat yo'q").Bold();
+            col.Item().PaddingTop(2).Text("Tanlangan kunlarda dars o'tilmagan yoki baho qo'yilmagan (ta'til, yangi o'quvchi).")
+                .FontSize(9).FontColor(Muted);
+        });
+
+    /// <summary>
+    /// Weekly dynamics of a month or longer (TZ, 2026-11-17): each school week whole, as its weekly report
+    /// showed it, then the period's own total.
+    /// </summary>
+    private void ComposeWeeks(IContainer c) =>
+        c.Column(col =>
+        {
+            col.Item().PaddingBottom(6).Text("Haftalar kesimida dinamika").FontSize(13).Bold();
+            col.Item().Table(t =>
+            {
+                t.ColumnsDefinition(cols =>
+                {
+                    cols.RelativeColumn(2.2f);
+                    cols.RelativeColumn(1.6f);
+                    cols.RelativeColumn(2.4f);
+                    cols.RelativeColumn(1f);
+                    cols.RelativeColumn(1.6f);
+                    cols.RelativeColumn(1f);
+                    cols.RelativeColumn(1f);
+                });
+                t.Header(h =>
+                {
+                    foreach (var title in new[] { "Hafta", "Sana", "Taqqoslash", "Baho", "Davomat", "O'rtacha", "Sinf" })
+                        h.Cell().Background(Dark).PaddingVertical(6).PaddingHorizontal(6)
+                            .Text(title).FontColor(Colors.White).Bold().FontSize(8.5f);
+                });
+                var i = 0;
+                foreach (var w in m.Weeks)
+                {
+                    var bg = i++ % 2 == 0 ? Colors.White : Soft;
+                    Cell(t, bg).Text(w.Ongoing ? $"{w.Title} (davom etmoqda)" : w.Title).FontSize(9);
+                    Cell(t, bg).Text($"{w.From:dd.MM}–{w.To:dd.MM}").FontSize(9);
+                    Cell(t, bg).Column(bars =>
+                    {
+                        bars.Spacing(2);
+                        bars.Item().Element(x => Bar(x, w.Average, Accent));
+                        bars.Item().Element(x => Bar(x, w.ClassAverage, ClassBar));
+                    });
+                    Cell(t, bg).Text(w.Marks == 0 ? "—" : w.Marks.ToString()).FontSize(9);
+                    var (attendance, color) = w.Lessons == 0 ? ("Dars yo'q", Muted)
+                        : w.Absent == 0 && w.Late == 0 ? ($"{w.AttendancePercent}%", Good)
+                        : w.Absent == 0 ? ($"{w.AttendancePercent}% · {w.Late} kech.", Bad)
+                        : ($"{w.AttendancePercent}% · {w.Absent} dars yo'q", Bad);
+                    Cell(t, bg).Text(attendance).FontSize(8.5f).FontColor(color);
+                    Cell(t, bg).Text(Fmt(w.Average)).FontSize(9).Bold();
+                    Cell(t, bg).Text(Fmt(w.ClassAverage)).FontSize(9).FontColor(Muted);
+                }
+
+                Cell(t, Accent).Text($"{WeeklyReport.Cap(m.Words.Noun)} jami").Bold().FontSize(9);
+                Cell(t, Accent).Text($"{m.From:dd.MM}–{m.To:dd.MM}").Bold().FontSize(9);
+                Cell(t, Accent).Text($"{m.Days.Count} o'quv kuni").FontSize(9);
+                Cell(t, Accent).Text(m.Marks.Count == 0 ? "—" : m.Marks.Count.ToString()).Bold().FontSize(9);
+                Cell(t, Accent).Text(m.AttendancePercent is { } p ? $"{p}%" : "—").Bold().FontSize(9);
+                Cell(t, Accent).Text(Fmt(m.Average)).Bold().FontSize(9);
+                Cell(t, Accent).Text(Fmt(m.ClassAverage)).FontSize(9);
+            });
+            col.Item().PaddingTop(4).Text(
+                    "Hafta — dushanbadan shanbagacha. Oy chegarasidagi hafta payshanbasi tushgan oyga tegishli va to'liq "
+                    + "ko'rsatiladi (ota-onaga ketgan haftalik hisobot bilan bir xil), shuning uchun haftalar yig'indisi "
+                    + $"{m.Words.Noun} jamidan biroz farq qilishi mumkin. Sariq chiziq — o'quvchi, kulrang — sinf.")
+                .FontSize(7.5f).FontColor(Muted);
+        });
+
     private void ComposeBehaviour(IContainer c) =>
         c.Column(col =>
         {
-            col.Item().PaddingBottom(6).Text("Intizom: bu haftadagi qaydlar").FontSize(13).Bold();
+            col.Item().PaddingBottom(6).Text($"Intizom: {m.Words.ThisAt} qaydlar").FontSize(13).Bold();
             col.Item().Table(t =>
             {
                 t.ColumnsDefinition(cols => { cols.RelativeColumn(1f); cols.RelativeColumn(6f); cols.RelativeColumn(1.2f); });
@@ -348,7 +471,7 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
             col.Item().Column(h =>
             {
                 h.Item().Text("O'sish uchun tavsiyalar").FontSize(13).Bold();
-                h.Item().Text("Har bir tavsiya shu haftaning aniq natijasiga asoslangan va uyda bajarish uchun mo'ljallangan. Kuniga jami 30–40 daqiqa yetarli.")
+                h.Item().Text($"Har bir tavsiya {m.Words.Genitive} aniq natijasiga asoslangan va uyda bajarish uchun mo'ljallangan. Kuniga jami 30–40 daqiqa yetarli.")
                     .FontSize(8).FontColor(Muted);
             });
             var n = 0;
@@ -382,7 +505,7 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
     private void ComposeGoals(IContainer c) =>
         c.ShowEntire().Column(col =>
         {
-            col.Item().PaddingBottom(6).Text($"Keyingi hafta maqsadlari ({WeeklyReport.Label(m.From.AddDays(7), m.From.AddDays(12))})")
+            col.Item().PaddingBottom(6).Text(GoalsTitle)
                 .FontSize(13).Bold();
             col.Item().Row(row =>
             {
@@ -415,7 +538,7 @@ public sealed class WeeklyReportDocument(WeeklyReportModel m) : IDocument
     private void ComposeFooter(IContainer c) =>
         c.BorderTop(1).BorderColor(Line).PaddingTop(6).Row(r =>
         {
-            r.RelativeItem().Text($"{m.SchoolName} · Haftalik o'quvchi hisoboti · {Period}").FontSize(7.5f).FontColor(Muted);
+            r.RelativeItem().Text($"{m.SchoolName} · {m.Words.Title} · {Period}").FontSize(7.5f).FontColor(Muted);
             r.AutoItem().Text(t =>
             {
                 t.DefaultTextStyle(s => s.FontSize(7.5f).FontColor(Muted));

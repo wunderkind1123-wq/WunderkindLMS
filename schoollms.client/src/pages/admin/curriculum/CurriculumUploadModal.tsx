@@ -6,6 +6,7 @@ import {
   type CurriculumImportResult,
   type CurriculumOptions,
   type CurriculumPlanListItem,
+  type TeacherCurriculumKey,
 } from '@/api/services/curriculum'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -18,22 +19,32 @@ const control =
 /**
  * Ish reja yuklash: avval tekshiruv (dry run — mavzular ro'yxati yoki qator xatolari), keyin saqlash.
  * `plan` berilsa — qayta yuklash (fan va ega o'zgarmaydi).
+ * `teacherKeys` berilsa — ustoz o'z rejasini yuklaydi: faqat o'zi dars beradigan fan + sinf, har mavzuda
+ * chorak, hafta, mavzu va sana shart; yuklangan fayl asl hujjat sifatida saqlanadi.
  */
 export function CurriculumUploadModal({
   options,
+  teacherKeys,
+  initialKey,
   plan,
   onClose,
   onSaved,
 }: {
-  options: CurriculumOptions
+  options?: CurriculumOptions
+  teacherKeys?: TeacherCurriculumKey[]
+  /** Ustoz rejimi: oldindan tanlangan juftlik (qayta yuklash). */
+  initialKey?: TeacherCurriculumKey | null
   plan: CurriculumPlanListItem | null
   onClose: () => void
   onSaved: () => void
 }) {
-  const [kind, setKind] = useState<'grade' | 'track'>(plan?.groupId ? 'track' : 'grade')
-  const [subjectId, setSubjectId] = useState(plan?.subjectId ?? '')
-  const [grade, setGrade] = useState(plan?.grade != null ? String(plan.grade) : '')
-  const [groupId, setGroupId] = useState(plan?.groupId ?? '')
+  const teacher = !!teacherKeys
+  const [kind, setKind] = useState<'grade' | 'track'>(plan?.groupId || initialKey?.groupId ? 'track' : 'grade')
+  const [subjectId, setSubjectId] = useState(plan?.subjectId ?? initialKey?.subjectId ?? '')
+  const [grade, setGrade] = useState(plan?.grade != null ? String(plan.grade) : initialKey?.grade != null ? String(initialKey.grade) : '')
+  const [groupId, setGroupId] = useState(plan?.groupId ?? initialKey?.groupId ?? '')
+  const keyOf = (k: TeacherCurriculumKey) => `${k.subjectId}|${k.grade ?? ''}|${k.groupId ?? ''}`
+  const chosenKey = teacherKeys?.find((k) => keyOf(k) === `${subjectId}|${kind === 'grade' ? grade : ''}|${kind === 'track' ? groupId : ''}`)
   const [teacherId, setTeacherId] = useState(plan?.teacherId ?? '')
   const [title, setTitle] = useState(plan?.title ?? '')
   const [file, setFile] = useState<File | null>(null)
@@ -45,7 +56,7 @@ export function CurriculumUploadModal({
   const ready = !!file && !!subjectId && (kind === 'grade' ? grade !== '' : !!groupId)
 
   // teachers who teach this subject in this grade / track (from the timetable)
-  const teachers = (options.teachers ?? []).filter((t) =>
+  const teachers = (options?.teachers ?? []).filter((t) =>
     t.keys.some((k) => k.subjectId === subjectId && (kind === 'grade' ? k.grade === Number(grade) && grade !== '' : k.groupId === groupId)),
   )
   const chosenTeacher = teachers.some((t) => t.id === teacherId) || plan?.teacherId ? teacherId : ''
@@ -57,7 +68,7 @@ export function CurriculumUploadModal({
       grade: kind === 'grade' ? Number(grade) : undefined,
       groupId: kind === 'track' ? groupId : undefined,
       title: title.trim() || undefined,
-      teacherId: chosenTeacher || undefined,
+      teacherId: teacher ? undefined : chosenTeacher || undefined,
     }
   }
 
@@ -66,7 +77,7 @@ export function CurriculumUploadModal({
     setBusy(true)
     setError(null)
     try {
-      setPreview(await importCurriculum(input(), true))
+      setPreview(await importCurriculum(input(), true, teacher))
     } catch (e) {
       setError(curriculumError(e, 'Faylni tekshirib bo‘lmadi'))
     } finally {
@@ -79,10 +90,11 @@ export function CurriculumUploadModal({
     setBusy(true)
     setError(null)
     try {
-      // a Word plan is itself the original document unless another one is attached
-      const source = original ?? (file && /\.docx$/i.test(file.name) ? file : null)
+      // a Word plan is itself the original document unless another one is attached;
+      // a teacher's own file is stored as the original by the server
+      const source = teacher ? null : original ?? (file && /\.docx$/i.test(file.name) ? file : null)
       const orig = source ? await uploadOriginal(source) : null
-      const result = await importCurriculum({ ...input(), originalUrl: orig?.url, originalName: orig?.fileName }, false)
+      const result = await importCurriculum({ ...input(), originalUrl: orig?.url, originalName: orig?.fileName }, false, teacher)
       if (result.errors.length > 0) setPreview(result)
       else onSaved()
     } catch (e) {
@@ -99,7 +111,7 @@ export function CurriculumUploadModal({
       open
       onClose={onClose}
       size="xl"
-      title={plan ? `Qayta yuklash — ${plan.title}` : 'Ish reja yuklash'}
+      title={plan ? `Qayta yuklash — ${plan.title}` : teacher ? 'Ish rejamni yuklash' : 'Ish reja yuklash'}
       footer={
         <div className="flex w-full flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={busy}>
@@ -121,12 +133,49 @@ export function CurriculumUploadModal({
             yangi faylda yo'q raqamlar belgilari bilan o'chadi.
           </p>
         )}
+        {teacher && (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            Namunadagi ustunlar bilan to'ldiring. Har bir mavzuda <b>Chorak</b>, <b>Hafta</b>, <b>Mavzu</b> va <b>Sana</b> bo'lishi
+            shart, hafta sanaga mos kelishi kerak — aks holda tizim qaysi qatorda nima yetishmasligini ko'rsatadi.
+          </p>
+        )}
+        {teacher && chosenKey?.planId && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Bu fan va sinf uchun ish rejangiz bor — yangi fayl uni almashtiradi. Mavzular tartib raqami (№) bo'yicha
+            yangilanadi: «o'tildi» belgilari saqlanadi, yangi faylda yo'q raqamlar belgilari bilan o'chadi.
+          </p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
+          {teacher ? (
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span className="font-medium text-slate-600">Fan va sinf</span>
+              <select
+                className={control}
+                value={chosenKey ? keyOf(chosenKey) : ''}
+                onChange={(e) => {
+                  const k = teacherKeys!.find((x) => keyOf(x) === e.target.value)
+                  setSubjectId(k?.subjectId ?? '')
+                  setKind(k?.groupId ? 'track' : 'grade')
+                  setGrade(k?.grade != null ? String(k.grade) : '')
+                  setGroupId(k?.groupId ?? '')
+                  setPreview(null)
+                }}
+              >
+                <option value="">Tanlang</option>
+                {teacherKeys!.map((k) => (
+                  <option key={keyOf(k)} value={keyOf(k)}>
+                    {k.label}{k.planId ? ' — reja bor' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <>
           <label className="space-y-1 text-sm">
             <span className="font-medium text-slate-600">Fan</span>
             <select className={control} value={subjectId} disabled={!!plan} onChange={(e) => { setSubjectId(e.target.value); setPreview(null) }}>
               <option value="">Tanlang</option>
-              {options.subjects.map((s) => (
+              {options!.subjects.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -141,14 +190,14 @@ export function CurriculumUploadModal({
               {kind === 'grade' ? (
                 <select className={control} value={grade} disabled={!!plan} onChange={(e) => setGrade(e.target.value)} aria-label="Sinf darajasi">
                   <option value="">Daraja</option>
-                  {options.grades.map((g) => (
+                  {options!.grades.map((g) => (
                     <option key={g} value={g}>{g}-sinf</option>
                   ))}
                 </select>
               ) : (
                 <select className={control} value={groupId} disabled={!!plan} onChange={(e) => setGroupId(e.target.value)} aria-label="Yo'nalish">
                   <option value="">Yo'nalish</option>
-                  {options.tracks.map((t) => (
+                  {options!.tracks.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
@@ -176,6 +225,8 @@ export function CurriculumUploadModal({
               dars soatlariga mosligi tekshiriladi. Sinf umumiy rejadan chiqadi.
             </span>
           </label>
+            </>
+          )}
           <label className="space-y-1 text-sm sm:col-span-2">
             <span className="font-medium text-slate-600">Nomi (ixtiyoriy)</span>
             <input className={control} value={title} placeholder="Masalan: 5-sinf Matematika (2026–2027)" onChange={(e) => setTitle(e.target.value)} />
@@ -184,10 +235,12 @@ export function CurriculumUploadModal({
             <span className="font-medium text-slate-600">Ish reja (Excel .xlsx yoki Word .docx)</span>
             <input type="file" accept=".xlsx,.docx" className="block w-full text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null) }} />
           </label>
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-slate-600">Asl hujjat (Word/PDF, ixtiyoriy)</span>
-            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" className="block w-full text-sm" onChange={(e) => setOriginal(e.target.files?.[0] ?? null)} />
-          </label>
+          {!teacher && (
+            <label className="space-y-1 text-sm">
+              <span className="font-medium text-slate-600">Asl hujjat (Word/PDF, ixtiyoriy)</span>
+              <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" className="block w-full text-sm" onChange={(e) => setOriginal(e.target.files?.[0] ?? null)} />
+            </label>
+          )}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -215,7 +268,7 @@ export function CurriculumUploadModal({
         {okPreview && preview.fit && preview.fit.length > 0 && (
           <div>
             <p className="mb-2 text-sm font-medium text-slate-700">Dars jadvaliga mosligi</p>
-            <CurriculumFitTable fit={preview.fit} personal={!!chosenTeacher} />
+            <CurriculumFitTable fit={preview.fit} personal={teacher || !!chosenTeacher} />
           </div>
         )}
         {okPreview && (

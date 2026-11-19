@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Award, BarChart3, CalendarCheck, CalendarDays, ChevronDown, FileSignature,
+  ArrowLeft, Award, BarChart3, CalendarCheck, CalendarDays, ChevronDown, FileDown, FileSignature,
   History, MapPin, MessageSquare, Repeat, ShieldAlert, User, Users, Wallet,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
+import { hasSection } from '@/lib/access'
+import { StudentReportModal } from '@/pages/admin/students/profile/StudentReportModal'
 import type { Credentials, Student } from '@/types'
 import { getStudentNotebook, type StudentNotebook } from '@/api/services/studentNotebook'
 import { getStudentCard, type StudentCard } from '@/api/services/studentProfile'
@@ -127,6 +129,9 @@ export function StudentDetailPage() {
   // Behaviour incidents: add / edit / delete need the FULL discipline key (the server's AdminPerm).
   // Roles without a permission list (admin, director) hold every section.
   const canEditDiscipline = !!user && (!user.permissions || user.permissions.includes('discipline'))
+  // "Hisobot (PDF)" (TZ, 2026-11-17) — `studentReports` kaliti borlarga; server o'qishni ham shu kalit bilan yopadi.
+  const canReport = hasSection(user, 'studentReports')
+  const [reportOpen, setReportOpen] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
 
   const load = useCallback(() => {
@@ -273,6 +278,15 @@ export function StudentDetailPage() {
               <TabButton key={t.id} def={t} active={tab === t.id} onClick={() => setTab(t.id)} />
             ))}
             <MoreTabs tabs={moreTabs} active={tab} onPick={setTab} />
+            {canReport && (
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-white hover:text-brand-700"
+              >
+                <FileDown className="h-4 w-4" /> Hisobot (PDF)
+              </button>
+            )}
           </div>
 
       {tab === 'overview' && <OverviewTab data={data} card={card} showPersonal={false} />}
@@ -348,6 +362,14 @@ export function StudentDetailPage() {
       </div>
 
       {/* ---------- Oynalar ---------- */}
+      {reportOpen && (
+        <StudentReportModal
+          open
+          onClose={() => setReportOpen(false)}
+          studentId={data.id}
+          studentName={data.fullName}
+        />
+      )}
       {payOpen && (
         <StudentPaymentModal
           open

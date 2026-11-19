@@ -61,7 +61,7 @@ public static class AuditCatalog
         [Students] =
         [
             AuditService.EntityStudent, AuditService.EntityStudentClass, AuditService.EntitySchoolClass,
-            AuditService.EntityStudentStatus, AuditService.EntityStudentImport, AuditService.EntityStudentDelete,
+            AuditService.EntityStudentStatus, AuditService.EntityStudentImport, AuditService.EntityStudentDelete, AuditService.EntityStudentReport,
             AuditService.EntityGuardian, AuditService.EntityStudentEvent, AuditService.EntityCertificate,
             AuditService.EntityStudyGroup, AuditService.EntityLead, "StudentLocation",
             AuditService.EntityAttendanceDay,
@@ -213,6 +213,8 @@ public static class AuditCatalog
         ["return"] = "Qaytardi",
         ["activate"] = "Yoqdi",
         ["deactivate"] = "O'chirib qo'ydi",
+        ["download"] = "Yuklab oldi",
+        ["view"] = "Ko'rdi",
         ["add"] = "Qo'shdi",
         ["score"] = "Ball qo'ydi",
         ["absent"] = "Kelmadi deb belgiladi",

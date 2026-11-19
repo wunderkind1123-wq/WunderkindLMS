@@ -43,7 +43,8 @@ public class AutoMessagesTests(ApiFixture fixture) : IAsyncLifetime
         using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
         var rules = await admin.GetFromJsonAsync<JsonElement>(Url);
         // The payment rule (2026-10-15) ships off like the others.
-        Assert.Equal(["absence", "invoice", "debt", "birthday", "payment"],
+        // The weekly (2026-11-08) and monthly (2026-11-17) reports too.
+        Assert.Equal(["absence", "weekly_report", "monthly_report", "invoice", "debt", "birthday", "payment"],
             rules.EnumerateArray().Select(r => r.GetProperty("key").GetString()!));
         Assert.All(rules.EnumerateArray(), r => Assert.False(r.GetProperty("enabled").GetBoolean()));
         var debt = rules.EnumerateArray().Single(r => r.GetProperty("key").GetString() == "debt");

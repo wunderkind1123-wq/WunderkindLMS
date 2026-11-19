@@ -29,6 +29,12 @@ export interface CurriculumOwner {
   kind: 'class' | 'group'
   id: string
   name: string
+  /** Bugungacha o'tilishi kerak bo'lgan mavzular; null — reja sanalari yo'q. */
+  expected?: number | null
+  /** O'tilgan − kutilgan: musbat — oldinda, manfiy — orqada. */
+  delta?: number | null
+  forecastFinish?: string | null
+  lateWarning?: boolean
 }
 
 export interface CurriculumMark {
@@ -217,8 +223,8 @@ export interface CurriculumImportInput {
   teacherId?: string
 }
 
-/** `dryRun` — faqat tekshiradi (mavzular ko'rinishi). Xatoli fayl 400 bilan `errors` qaytaradi. */
-export async function importCurriculum(input: CurriculumImportInput, dryRun: boolean): Promise<CurriculumImportResult> {
+/** `dryRun` — faqat tekshiradi (mavzular ko'rinishi). Xatoli fayl 400 bilan `errors` qaytaradi. `teacher` — ustozning o'z rejasi. */
+export async function importCurriculum(input: CurriculumImportInput, dryRun: boolean, teacher = false): Promise<CurriculumImportResult> {
   const fd = new FormData()
   fd.append('file', input.file)
   fd.append('subjectId', input.subjectId)
@@ -229,7 +235,7 @@ export async function importCurriculum(input: CurriculumImportInput, dryRun: boo
   if (input.originalName) fd.append('originalName', input.originalName)
   if (input.teacherId) fd.append('teacherId', input.teacherId)
   try {
-    const { data } = await api.post<CurriculumImportResult>(`/admin/curriculum/plans/import${dryRun ? '?dryRun=true' : ''}`, fd, {
+    const { data } = await api.post<CurriculumImportResult>(`${teacher ? '/teacher/curriculum/import' : '/admin/curriculum/plans/import'}${dryRun ? '?dryRun=true' : ''}`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return data
@@ -305,5 +311,54 @@ export async function getCurriculumOptions(): Promise<CurriculumOptions> {
 
 export async function getCurriculumFit(id: string, teacher = false): Promise<CurriculumFit[]> {
   const { data } = await api.get<CurriculumFit[]>(teacher ? `/teacher/curriculum/${id}/fit` : `/admin/curriculum/plans/${id}/fit`)
+  return data
+}
+
+// ---------------------------------------------------------------- ustoz o'z rejasini yuklaydi va tahrirlaydi
+
+/** Ustoz jadvalda dars beradigan (fan, daraja/yo'nalish) juftligi; `planId` — o'z rejasi bor. */
+export interface TeacherCurriculumKey {
+  subjectId: string
+  subjectName: string
+  grade: number | null
+  groupId: string | null
+  label: string
+  planId: string | null
+}
+
+export async function getTeacherCurriculumOptions(): Promise<TeacherCurriculumKey[]> {
+  const { data } = await api.get<TeacherCurriculumKey[]>('/teacher/curriculum/options')
+  return data
+}
+
+/** Mavzuni saqlash: sana majburiy, chorak va hafta sanadan hisoblanadi. */
+export interface CurriculumTopicSave {
+  title: string
+  section?: string | null
+  plannedOn: string
+  quarter?: number | null
+  week?: number | null
+  hours: number
+  goal?: string | null
+  homework?: string | null
+  /** Faqat yangi mavzu: shu raqamdan keyin (0 — boshiga); yo'q — oxiriga. */
+  afterOrder?: number | null
+}
+
+const base = (teacher: boolean) => (teacher ? '/teacher/curriculum' : '/admin/curriculum')
+
+/** `topicId` yo'q — yangi mavzu. */
+export async function saveCurriculumTopic(planId: string, topicId: string | null, req: CurriculumTopicSave, teacher: boolean): Promise<void> {
+  if (topicId) await api.put(`${base(teacher)}/topics/${topicId}`, req)
+  else await api.post(teacher ? `/teacher/curriculum/${planId}/topics` : `/admin/curriculum/plans/${planId}/topics`, req)
+}
+
+export async function deleteCurriculumTopic(topicId: string, teacher: boolean): Promise<void> {
+  await api.delete(`${base(teacher)}/topics/${topicId}`)
+}
+
+/** "Dars bo'lmadi": shu mavzudan boshlab hammasi bir darsga suriladi. */
+export async function shiftCurriculum(fromTopicId: string, teacher: boolean): Promise<{ moved: number; lastDate: string }> {
+  const { data } = await api.post<{ moved: number; lastDate: string }>(`${base(teacher)}/shift`, { fromTopicId })
   return data
 }

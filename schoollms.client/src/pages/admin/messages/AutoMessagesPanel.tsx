@@ -14,8 +14,8 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CalendarClock, Eye, FileDown, Plus, RotateCcw, Save, Settings2, Trash2 } from 'lucide-react'
 import {
   deleteAutoMessageRule,
-  downloadWeeklyReportSample,
   getAutoMessageClasses,
+  getReportCopyRecipients,
   getAutoMessageRules,
   previewAutoMessage,
   saveAutoMessageRule,
@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import { AutoMessagesHistory } from './AutoMessagesHistory'
 import { BroadcastImagePicker } from './BroadcastImagePicker'
 import { AutoMessageTemplateEditor } from './AutoMessageTemplateEditor'
+import { ReportSamplePanel } from './ReportSamplePanel'
 import { TITLES, errorText, fmtDateTime, ruleTitle, templateHint } from './autoMessageLabels'
 
 const VIEWS = [
@@ -169,22 +170,23 @@ function RuleCard({
     ? { title: ruleTitle(rule), hint: templateHint(rule, classes) }
     : TITLES[rule.key as BuiltInAutoMessageKey]
   const isAbsence = rule.key === 'absence'
-  // Haftalik hisobotning ilovasi — PDF; rasm qo'shilmaydi.
-  const isWeekly = rule.key === 'weekly_report'
-  const withImages = !rule.eventDriven && !isWeekly
-  const [pdfBusy, setPdfBusy] = useState(false)
-
-  const samplePdf = async () => {
-    setPdfBusy(true)
-    setMsg(null)
-    try {
-      await downloadWeeklyReportSample()
-    } catch (e) {
-      setMsg({ ok: false, text: errorText(e, "Namuna PDF'ni olib bo'lmadi.") })
-    } finally {
-      setPdfBusy(false)
+  // Haftalik va oylik hisobotning ilovasi — PDF; rasm qo'shilmaydi (TZ, 2026-11-17).
+  const isReport = rule.key === 'weekly_report' || rule.key === 'monthly_report'
+  const withImages = !rule.eventDriven && !isReport
+  const [sampleOpen, setSampleOpen] = useState(false)
+  // "Ma'muriyatga ham yuborish": sinf bo'yicha ZIP `reportsCopy` kalitli xodimlarning Telegramiga.
+  const [copyToStaff, setCopyToStaff] = useState(!!rule.copyToStaff)
+  const [copyChats, setCopyChats] = useState<number | null>(null)
+  useEffect(() => {
+    if (!isReport) return
+    let active = true
+    getReportCopyRecipients()
+      .then((n) => active && setCopyChats(n))
+      .catch(() => active && setCopyChats(null))
+    return () => {
+      active = false
     }
-  }
+  }, [isReport])
 
   // Shablon oynasida oyning kuni o'zgarsa, karta ham shuni ko'rsatsin (eskisini qayta saqlamasin).
   useEffect(() => setDay(rule.dayOfMonth), [rule.dayOfMonth])
@@ -211,7 +213,8 @@ function RuleCard({
     text !== rule.text ||
     (!rule.eventDriven && approval !== rule.requiresApproval) ||
     (isAbsence && cutoff !== (rule.cutoffTime ?? '')) ||
-    (withImages && images.join('\n') !== (rule.imageUrls ?? []).join('\n'))
+    (withImages && images.join('\n') !== (rule.imageUrls ?? []).join('\n')) ||
+    (isReport && copyToStaff !== !!rule.copyToStaff)
 
   const save = async (nextEnabled = enabled) => {
     setBusy(true)
@@ -226,6 +229,7 @@ function RuleCard({
         requiresApproval: rule.eventDriven ? undefined : approval,
         cutoffTime: isAbsence ? cutoff || null : undefined,
         imageUrls: withImages ? images : undefined,
+        copyToStaff: isReport ? copyToStaff : undefined,
       })
       setEnabled(saved.enabled)
       onSaved(saved)
@@ -357,7 +361,29 @@ function RuleCard({
             <Switch checked={approval} disabled={busy} ariaLabel="Tasdiq bilan yuborish" onChange={setApproval} />
             Tasdiq bilan
           </label>
+          {isReport && (
+            <label className="flex items-center gap-2 pb-2 text-sm text-slate-600">
+              <Switch
+                checked={copyToStaff}
+                disabled={busy}
+                ariaLabel="Ma'muriyatga ham yuborish"
+                onChange={setCopyToStaff}
+              />
+              Ma'muriyatga ham yuborish
+            </label>
+          )}
         </div>
+      )}
+      {isReport && copyToStaff && (
+        <p className="-mt-2 text-xs text-slate-400">
+          Ota-onalarga yuborilgach, har bir sinfning PDF'lari ZIP qilib «Hisobotlar nusxasi» ruxsati bor xodimlarning
+          Telegramiga ketadi (Boshqaruv → Rollar).{' '}
+          {copyChats === 0 ? (
+            <span className="text-amber-600">Hozir bunday ruxsati bor va botga ulangan xodim yo'q.</span>
+          ) : copyChats ? (
+            <>Hozir: {copyChats} ta chat.</>
+          ) : null}
+        </p>
       )}
       {isAbsence && (
         <p className="-mt-2 text-xs text-slate-400">
@@ -453,14 +479,13 @@ function RuleCard({
           )}
         </p>
         <div className="flex gap-2">
-          {isWeekly && (
+          {isReport && (
             <Button
               variant="secondary"
-              onClick={() => void samplePdf()}
-              disabled={pdfBusy}
-              title="Shu hafta bo'yicha birinchi o'quvchining hisoboti — hech kimga yuborilmaydi"
+              onClick={() => setSampleOpen((o) => !o)}
+              title="O'quvchi va davrni tanlab hisobotni ko'rish — hech kimga yuborilmaydi"
             >
-              <FileDown className="h-4 w-4" /> {pdfBusy ? 'Tayyorlanmoqda…' : 'Namuna PDF'}
+              <FileDown className="h-4 w-4" /> Namuna PDF
             </Button>
           )}
           <Button variant="secondary" onClick={() => void runPreview()} disabled={previewBusy}>
@@ -471,6 +496,9 @@ function RuleCard({
           </Button>
         </div>
       </div>
+      {isReport && sampleOpen && (
+        <ReportSamplePanel monthly={rule.key === 'monthly_report'} onClose={() => setSampleOpen(false)} />
+      )}
       {msg && <p className={cn('text-sm', msg.ok ? 'text-emerald-700' : 'text-red-600')}>{msg.text}</p>}
     </Card>
   )

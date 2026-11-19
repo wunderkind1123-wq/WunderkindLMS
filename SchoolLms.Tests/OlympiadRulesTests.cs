@@ -28,6 +28,22 @@ public class OlympiadRulesTests
     public void Telefon_998_formatiga_keltiriladi(string input, string? expected) =>
         Assert.Equal(expected, OlympiadText.NormalizePhone(input));
 
+    [Fact]
+    public void Admin_raqamlari_normallanadi_takror_va_notogrisi_ajratiladi()
+    {
+        var (phones, bad) = OlympiadText.ParseAdminPhones("90 123 45 67\n+998901234567; 998931112233,\r\nabc");
+        Assert.Equal(["+998901234567", "+998931112233"], phones);
+        Assert.Equal(["abc"], bad);
+    }
+
+    [Theory]
+    [InlineData("+998931112233", true)]
+    [InlineData("998931112233", true)]
+    [InlineData("+998931112234", false)]
+    [InlineData("", false)]
+    public void Admin_faqat_royxatdagi_raqam(string phone, bool expected) =>
+        Assert.Equal(expected, OlympiadText.IsAdminPhone("+998901234567\n+998 93 111 22 33", phone));
+
     [Theory]
     [InlineData("Karimov Aziz", true)]
     [InlineData("  Karimov   Aziz  ", true)]

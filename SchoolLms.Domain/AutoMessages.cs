@@ -91,6 +91,12 @@ public class AutoMessageRule
     /// </summary>
     public bool IsArchived { get; set; }
 
+    /// <summary>
+    /// Report rules only (TZ, 2026-11-17, "Ma'muriyat nusxasi"): after a run has gone to the parents, the
+    /// holders of the <c>reportsCopy</c> key get the PDFs as one ZIP per class in Telegram.
+    /// </summary>
+    public bool CopyToStaff { get; set; }
+
     public DateTimeOffset? CreatedAt { get; set; }
 
     /// <summary>The last period this rule finished ("2026-10-13" or "2026-10").</summary>
@@ -123,8 +129,18 @@ public static class AutoMessageKind
     /// </summary>
     public const string WeeklyReport = "weekly_report";
 
+    /// <summary>
+    /// The monthly report PDF to every parent (TZ "O'quvchi hisoboti", 2026-11-17, 3-vazifa): on its day of the
+    /// month (default the 1st, 10:00), for the calendar month before; the rule's text is the PDF's caption.
+    /// Independent of <see cref="WeeklyReport"/> — each is switched on and off on its own.
+    /// </summary>
+    public const string MonthlyReport = "monthly_report";
+
+    /// <summary>A rule whose message is a pupil's report PDF (weekly or monthly).</summary>
+    public static bool IsReport(string key) => key is WeeklyReport or MonthlyReport;
+
     /// <summary>The built-in rules, in the screen's order.</summary>
-    public static readonly IReadOnlyList<string> All = [Absence, WeeklyReport, Invoice, Debt, Birthday, Payment];
+    public static readonly IReadOnlyList<string> All = [Absence, WeeklyReport, MonthlyReport, Invoice, Debt, Birthday, Payment];
 
     /// <summary>Key prefix of a template staff created (2026-10-26): "c_" and 8 hex digits.</summary>
     public const string CustomPrefix = "c_";
@@ -132,7 +148,7 @@ public static class AutoMessageKind
     public static bool IsCustom(string key) => key.StartsWith(CustomPrefix, StringComparison.Ordinal);
 
     /// <summary>Monthly rules run on <see cref="AutoMessageRule.DayOfMonth"/>; the others every day.</summary>
-    public static bool IsMonthly(string key) => key is Invoice or Debt;
+    public static bool IsMonthly(string key) => key is Invoice or Debt or MonthlyReport;
 
     /// <summary>Like <see cref="IsMonthly(string)"/>, and a template whose schedule is monthly.</summary>
     public static bool IsMonthly(AutoMessageRule rule) =>
@@ -264,6 +280,9 @@ public class AutoMessageRun
     /// <summary>users.id, or "auto" when the period ended or the rule was switched off.</summary>
     public string? CancelledBy { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
+
+    /// <summary>Report rules: when the staff copy (class ZIPs) of this run went out; null — not yet.</summary>
+    public DateTimeOffset? StaffCopyAt { get; set; }
 
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? FinishedAt { get; set; }

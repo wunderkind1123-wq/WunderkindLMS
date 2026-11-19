@@ -90,7 +90,8 @@ public sealed class OlympiadBotService(IServiceProvider sp, OlympiadTelegram tg,
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
             var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
-            var handler = new OlympiadBotHandler(db, tg, new OlympiadMessenger(db, tg, env.ContentRootPath));
+            var scannerUrl = OlympiadText.ScannerUrl(scope.ServiceProvider.GetService<Microsoft.Extensions.Configuration.IConfiguration>());
+            var handler = new OlympiadBotHandler(db, tg, new OlympiadMessenger(db, tg, env.ContentRootPath), scannerUrl);
             await handler.HandleAsync(upd, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
@@ -124,7 +125,8 @@ public sealed class BotState
 }
 
 /// <summary>Bitta update'ni qayta ishlaydi. Sof mantiq — testlarda to'g'ridan-to'g'ri chaqiriladi.</summary>
-public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, OlympiadMessenger messenger)
+/// <param name="scannerUrl">Admin QR skaneri (Mini App) manzili; null — sozlanmagan, panelda tugma chiqmaydi.</param>
+public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, OlympiadMessenger messenger, string? scannerUrl = null)
 {
     private OlympiadBotUser _user = null!;
     private BotState _state = new();
@@ -132,6 +134,11 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
     private bool _hasGeneralRules;
     /// <summary>Akkauntdan kamida bitta bola yozilgan — menyuda "Boshqa o'quvchi uchun" tugmasi.</summary>
     private bool _hasRegistrations;
+    /// <summary>Sozlamalar → "Bot adminlari".</summary>
+    private string _adminPhones = "";
+
+    /// <summary>O'z kontakti orqali tasdiqlangan raqami admin ro'yxatida.</summary>
+    private bool IsAdmin => OlympiadText.IsAdminPhone(_adminPhones, _user.Phone);
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -180,6 +187,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         // Umumiy nizom kiritilmagan bo'lsa, menyuda "Nizom" tugmasi ko'rinmaydi.
         var s = await db.OlympiadSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         _hasGeneralRules = s is not null && RulesOf(s.RulesText, s.RulesFileUrl, s.RulesDisplay).Any;
+        _adminPhones = s?.AdminPhones ?? "";
         _hasRegistrations = !isNew && await (from r in db.OlympiadRegistrations.AsNoTracking()
                                              join p in db.OlympiadParticipants.AsNoTracking() on r.ParticipantId equals p.Id
                                              where p.BotUserId == _user.Id && r.Status != OlympiadRegStatus.Cancelled
@@ -230,18 +238,34 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
 
     // ======================= Klaviaturalar =======================
 
-    private object MainMenu => new
+    private object MainMenu
     {
-        keyboard = new[]
+        get
         {
-            new[] { new { text = _hasRegistrations ? OlympiadText.BtnRegisterAnother : OlympiadText.BtnRegister } },
-            new[] { new { text = OlympiadText.BtnMyRegs }, new { text = OlympiadText.BtnKids } },
-            _hasGeneralRules
-                ? new[] { new { text = OlympiadText.BtnAsk }, new { text = OlympiadText.BtnRules } }
-                : new[] { new { text = OlympiadText.BtnAsk } },
+            var rows = new List<object[]>
+            {
+                new[] { new { text = _hasRegistrations ? OlympiadText.BtnRegisterAnother : OlympiadText.BtnRegister } },
+                // "Mening yozuvlarim" va "Farzandlarim" menyudan olib tashlangan (mijoz, 2026-11-18).
+                // Ishlovchilari qoldirilgan — eski menyusida tugma qolgan foydalanuvchi bossa ishlaydi.
+                _hasGeneralRules
+                    ? new[] { new { text = OlympiadText.BtnAsk }, new { text = OlympiadText.BtnRules } }
+                    : new[] { new { text = OlympiadText.BtnAsk } },
+            };
+            if (IsAdmin) rows.Add([new { text = OlympiadText.BtnAdmin }]);
+            return new { keyboard = rows, resize_keyboard = true, is_persistent = true };
+        }
+    }
+
+    /// <summary>Admin raqamini so'rash: faqat Telegram kontakt tugmasi (o'z raqami) va bekor qilish.</summary>
+    private static object AdminPhoneKeys => new
+    {
+        keyboard = new object[]
+        {
+            new[] { new { text = OlympiadText.BtnSendPhone, request_contact = true } },
+            new[] { new { text = OlympiadText.BtnCancel, request_contact = false } },
         },
         resize_keyboard = true,
-        is_persistent = true,
+        one_time_keyboard = true,
     };
 
     private static object FormKeys => new
@@ -280,14 +304,18 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
             if (arg.StartsWith("ev_", StringComparison.Ordinal)
                 && int.TryParse(arg[3..], NumberStyles.None, CultureInfo.InvariantCulture, out var code))
             {
-                // Obuna so'ralsa ham yo'qolmasin — "Tekshirish"dan keyin davom etadi.
+                // "Qatnashish" bosilganda (obunadan keyin ham) shu tadbirga o'tiladi.
                 _state.PendingEventCode = code;
                 await SaveAsync(ct);
             }
-            if (!await EnsureSubscribedAsync(ct, force: true)) return;
-            await WelcomeAndResumeAsync(ct);
+            // Obuna /start da so'ralmaydi — avval salomlashish, obuna "Qatnashish" bosilgandan keyin.
+            await WelcomeAsync(ct);
             return;
         }
+
+        // Admin kirishi — kanal obunasidan oldin (kirish joyidagi xodim kanalga a'zo bo'lishi shart emas).
+        if (text is "/admin" or OlympiadText.BtnAdmin) { await AdminEntryAsync(ct); return; }
+        if (_state.Step == "admin_phone") { await AdminPhoneAsync(msg, text, ct); return; }
 
         if (!await EnsureSubscribedAsync(ct)) return;
 
@@ -312,7 +340,13 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         {
             contactPhone = OlympiadText.NormalizePhone(Str(contact, "phone_number"));
             if (contact.TryGetProperty("user_id", out var cu) && cu.GetInt64() == _user.TelegramUserId && contactPhone is not null)
+            {
+                var wasAdmin = IsAdmin;
                 _user.Phone = contactPhone;
+                // Admin raqami bilan oddiy ro'yxatdan o'tishda ham — avtomatik admin.
+                if (!wasAdmin && IsAdmin)
+                    await SayAsync("🛡 Siz olimpiada admini sifatida tanildingiz. Skaner — menyudagi «" + OlympiadText.BtnAdmin + "» tugmasida.", null, ct);
+            }
         }
 
         switch (_state.Step)
@@ -362,11 +396,15 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
             if (await EnsureSubscribedAsync(ct, force: true))
             {
                 await SayTemplateAsync("subscribe_ok", new Dictionary<string, string?>(), MainMenu, ct);
-                await WelcomeAndResumeAsync(ct);
+                // Obuna "Qatnashish"dan keyin so'raladi — tasdiqlangach ro'yxatdan o'tish davom etadi.
+                await JoinAsync(ct);
             }
             return;
         }
-        if (!await EnsureSubscribedAsync(ct)) return;
+        // Admin paneli "Yangilash" — obunaga bog'liq emas.
+        if (data == "adm") { if (IsAdmin) await ShowAdminPanelAsync(ct); return; }
+        // "Qatnashish" — obuna birinchi marta shu yerda so'raladi, keshga qaramay tekshiriladi.
+        if (!await EnsureSubscribedAsync(ct, force: data == "join")) return;
 
         var (cmd, arg) = data.IndexOf(':') is var i and >= 0 ? (data[..i], data[(i + 1)..]) : (data, "");
         Guid.TryParseExact(arg, "N", out var id);
@@ -409,21 +447,13 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         }
     }
 
-    /// <summary>Salomlashish; deep link bilan kelgan bo'lsa — darhol shu tadbirga yozilish.</summary>
-    private async Task WelcomeAndResumeAsync(CancellationToken ct)
-    {
-        // Salomlashish ostida "Qatnashish" tugmasi. Inline tugma bilan bitta xabarga reply-menyu sig'maydi —
-        // menyu keyingi xabarlar bilan (tadbir tanlangach, ro'yxatdan o'tgach) chiqadi.
-        await SayTemplateAsync("welcome", new Dictionary<string, string?> { ["ism"] = _user.FirstName },
+    /// <summary>
+    /// Salomlashish ostida "Qatnashish" tugmasi. Inline tugma bilan bitta xabarga reply-menyu sig'maydi —
+    /// menyu keyingi xabarlar bilan (tadbir tanlangach, ro'yxatdan o'tgach) chiqadi.
+    /// </summary>
+    private Task<TgResult> WelcomeAsync(CancellationToken ct) =>
+        SayTemplateAsync("welcome", new Dictionary<string, string?> { ["ism"] = _user.FirstName },
             Inline([Btn(OlympiadText.BtnJoin, "join")]), ct);
-        if (_state.PendingEventCode is { } code)
-        {
-            _state.PendingEventCode = null;
-            await SaveAsync(ct);
-            var ev = await db.OlympiadEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Code == code, ct);
-            if (ev is not null) await StartEventAsync(ev.Id, ct);
-        }
-    }
 
     // ======================= Obuna =======================
 
@@ -477,9 +507,19 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
             .Where(e => OlympiadRegistrar.IsOpen(e, now)).ToList();
     }
 
-    /// <summary>"Qatnashish" tugmasi: bitta ochiq tadbir bo'lsa — darhol unga, bir nechta bo'lsa — ro'yxat.</summary>
+    /// <summary>
+    /// "Qatnashish" tugmasi: deep link (<c>/start ev_N</c>) bilan kelgan bo'lsa — shu tadbirga;
+    /// bitta ochiq tadbir bo'lsa — darhol unga, bir nechta bo'lsa — ro'yxat.
+    /// </summary>
     private async Task JoinAsync(CancellationToken ct)
     {
+        if (_state.PendingEventCode is { } code)
+        {
+            _state.PendingEventCode = null;
+            await SaveAsync(ct);
+            var pending = await db.OlympiadEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Code == code, ct);
+            if (pending is not null) { await StartEventAsync(pending.Id, ct); return; }
+        }
         var events = await OpenEventsAsync(ct);
         if (events.Count == 1) { await StartEventAsync(events[0].Id, ct); return; }
         await ShowEventsAsync(ct, events);
@@ -611,7 +651,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         if (!keep) { _state.Name = ""; _state.Phone = ""; _state.Grade = 0; _state.School = ""; }
         await SaveAsync(ct);
         var cur = keep && _state.Name.Length > 0 ? $"\n(hozirgi: <b>{TelegramHtml.Escape(_state.Name)}</b>)" : "";
-        await SayAsync("👤 Bolaning <b>familiyasi va ismi</b>ni yozing.\nMasalan: <i>Karimov Aziz</i>" + cur, FormKeys, ct);
+        await SayAsync("👤 O'quvchining <b>familiyasi va ismi</b>ni yozing.\nMasalan: <i>Karimov Aziz</i>" + cur, FormKeys, ct);
     }
 
     private async Task AskPhoneAsync(CancellationToken ct)
@@ -629,7 +669,7 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         var grades = Enumerable.Range(s.GradeFrom, Math.Max(1, s.GradeTo - s.GradeFrom + 1)).ToList();
         var rows = grades.Chunk(4).Select(ch => ch.Select(g => Btn($"{g}-sinf", "grade:" + g)).ToArray()).ToArray();
         await SayAsync("🏫", FormKeys, ct);
-        await SayAsync(hint ?? "Bola nechanchi sinfda o'qiydi?", Inline(rows), ct);
+        await SayAsync(hint ?? "O'quvchi nechanchi sinfda o'qiydi?", Inline(rows), ct);
     }
 
     private async Task AskSchoolAsync(CancellationToken ct)
@@ -704,21 +744,22 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         {
             case RegisterKind.Registered:
                 await OlympiadRegistrar.SendTicketAsync(db, messenger, outcome.Registration!.Id, "registered", ct, MainMenu);
-                await OfferAnotherAsync(ct);
                 break;
             case RegisterKind.Waitlisted:
                 await SayTemplateAsync("waitlisted", new Dictionary<string, string?>
                 {
                     ["bola"] = kid.FullName, ["tadbir"] = ev.Title, ["navbat"] = outcome.WaitlistPosition.ToString(CultureInfo.InvariantCulture),
                 }, MainMenu, ct);
-                await OfferAnotherAsync(ct);
                 break;
             case RegisterKind.Full:
                 await SayTemplateAsync("event_full",
                     new Dictionary<string, string?> { ["tadbir"] = ev.Title }, MainMenu, ct);
                 break;
             case RegisterKind.Duplicate:
-                await SayAsync($"ℹ️ <b>{TelegramHtml.Escape(kid.FullName)}</b> bu tadbirga allaqachon yozilgan. «{OlympiadText.BtnMyRegs}» bo'limida ko'rasiz.", MainMenu, ct);
+                await SayAsync($"ℹ️ <b>{TelegramHtml.Escape(kid.FullName)}</b> bu tadbirga allaqachon yozilgan.", MainMenu, ct);
+                // "Mening yozuvlarim" menyuda yo'q — QR kodni shu yerda qayta beramiz.
+                if (outcome.Registration is { Status: OlympiadRegStatus.Registered } dup)
+                    await OlympiadRegistrar.SendTicketAsync(db, messenger, dup.Id, "registered", ct, MainMenu);
                 break;
             default:
                 await SayTemplateAsync("registration_closed",
@@ -726,11 +767,6 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
                 break;
         }
     }
-
-    /// <summary>Muvaffaqiyatli yozilgandan keyin — boshqa o'quvchini ham yozishni taklif qiladi.</summary>
-    private Task<TgResult> OfferAnotherAsync(CancellationToken ct) =>
-        SayAsync("👨‍👩‍👧‍👦 Boshqa o'quvchi uchun ham ro'yxatdan o'tishni davom ettirasizmi?",
-            Inline([Btn("✅ Ha, davom etish", "another"), Btn("Yo'q, rahmat", "noop")]), ct);
 
     // ======================= Mening yozuvlarim =======================
 
@@ -889,6 +925,69 @@ public sealed class OlympiadBotHandler(IAppDbContext db, OlympiadTelegram tg, Ol
         k.UpdatedAt = AppClock.Now;
         await db.SaveChangesAsync(ct);
         await SayAsync("🗑 O'chirildi.", MainMenu, ct);
+    }
+
+    // ======================= Admin (QR skaner) =======================
+
+    /// <summary><c>/admin</c> yoki "🛡 Admin panel": admin bo'lsa — panel, aks holda o'z raqamini so'raymiz.</summary>
+    private async Task AdminEntryAsync(CancellationToken ct)
+    {
+        if (IsAdmin) { await ResetAsync(ct); await ShowAdminPanelAsync(ct); return; }
+        _state = new BotState { Step = "admin_phone" };
+        await SaveAsync(ct);
+        await SayAsync("🛡 Admin sifatida kirish uchun pastdagi «" + OlympiadText.BtnSendPhone + "» tugmasini bosing.\n"
+                       + "Raqamingiz olimpiada adminlari ro'yxatida bo'lsa, QR skaner paneli ochiladi.", AdminPhoneKeys, ct);
+    }
+
+    /// <summary>
+    /// Admin raqami: FAQAT Telegram kontakt tugmasi orqali va faqat o'z raqami (<c>contact.user_id</c> = yuboruvchi).
+    /// Qo'lda yozilgan raqam qabul qilinmaydi — aks holda admin raqamini bilgan har kim admin bo'lardi.
+    /// </summary>
+    private async Task AdminPhoneAsync(JsonElement msg, string text, CancellationToken ct)
+    {
+        if (text == OlympiadText.BtnCancel) { await ResetAsync(ct); await SayAsync("Bekor qilindi.", MainMenu, ct); return; }
+        if (!msg.TryGetProperty("contact", out var contact))
+        {
+            await SayAsync("Raqamni qo'lda yozib bo'lmaydi — pastdagi «" + OlympiadText.BtnSendPhone + "» tugmasini bosing.", AdminPhoneKeys, ct);
+            return;
+        }
+        var phone = OlympiadText.NormalizePhone(Str(contact, "phone_number"));
+        var own = contact.TryGetProperty("user_id", out var cu) && cu.GetInt64() == _user.TelegramUserId;
+        if (!own || phone is null)
+        {
+            await SayAsync("Faqat o'zingizning raqamingizni tugma orqali yuboring.", AdminPhoneKeys, ct);
+            return;
+        }
+        _user.Phone = phone;
+        await ResetAsync(ct);
+        if (!IsAdmin)
+        {
+            await SayAsync($"❌ <b>{phone}</b> raqami olimpiada adminlari ro'yxatida yo'q.\nRo'yxatga qo'shish uchun olimpiada mas'uliga murojaat qiling.", MainMenu, ct);
+            return;
+        }
+        await SayAsync("✅ Siz olimpiada admini sifatida tasdiqlandingiz.", MainMenu, ct);
+        await ShowAdminPanelAsync(ct);
+    }
+
+    /// <summary>Bugungi va yaqin tadbirlar bo'yicha kelganlar soni + skanerni ochish tugmasi.</summary>
+    private async Task ShowAdminPanelAsync(CancellationToken ct)
+    {
+        var today = AppClock.Today;
+        var events = (await OlympiadCheckin.EventsAsync(db, ct)).Where(e => e.Date >= today).Take(3).ToList();
+        var lines = new List<string> { "🛡 <b>Admin panel</b>" };
+        if (events.Count == 0) lines.Add("\nYaqin kunlarda tadbir yo'q.");
+        foreach (var e in events)
+        {
+            var s = await OlympiadCheckin.SummaryAsync(db, e.Id, ct);
+            var when = e.Date == today ? "bugun" : OlympiadText.FormatDate(e.Date);
+            lines.Add($"\n🏆 <b>{TelegramHtml.Escape(e.Title)}</b> — {when}, {e.StartTime:HH\\:mm}\n"
+                      + $"✅ Kelgan: <b>{s.Attended}</b> / {s.Registered}   ⏳ Kelmagan: {s.NotYet}");
+        }
+        var rows = new List<object[]>();
+        if (scannerUrl is not null) rows.Add([new { text = "📷 QR skanerni ochish", web_app = new { url = scannerUrl } }]);
+        else lines.Add("\n⚠️ Skaner manzili serverda sozlanmagan (Receipts:PublicBaseUrl, https).");
+        rows.Add([Btn("🔄 Yangilash", "adm")]);
+        await SayAsync(string.Join("\n", lines), Inline(rows.ToArray()), ct);
     }
 
     // ======================= Adminga savol =======================

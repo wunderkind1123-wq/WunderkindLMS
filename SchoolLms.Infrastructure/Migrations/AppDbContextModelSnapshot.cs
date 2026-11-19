@@ -1144,6 +1144,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("class_ids");
 
+                    b.Property<bool>("CopyToStaff")
+                        .HasColumnType("boolean")
+                        .HasColumnName("copy_to_staff");
+
                     b.Property<DateTimeOffset?>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -1251,7 +1255,7 @@ namespace SchoolLms.Infrastructure.Migrations
 
                             t.HasCheckConstraint("ck_auto_message_rules_day", "day_of_month between 1 and 28");
 
-                            t.HasCheckConstraint("ck_auto_message_rules_key", "key in ('absence','invoice','debt','birthday','payment','weekly_report') or key ~ '^c_[0-9a-f]{8}$'");
+                            t.HasCheckConstraint("ck_auto_message_rules_key", "key in ('absence','invoice','debt','birthday','payment','weekly_report','monthly_report') or key ~ '^c_[0-9a-f]{8}$'");
 
                             t.HasCheckConstraint("ck_auto_message_rules_min", "min_amount >= 0");
 
@@ -1343,6 +1347,10 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.Property<int>("Sent")
                         .HasColumnType("integer")
                         .HasColumnName("sent");
+
+                    b.Property<DateTimeOffset?>("StaffCopyAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("staff_copy_at");
 
                     b.Property<DateTimeOffset?>("StartedAt")
                         .HasColumnType("timestamp with time zone")
@@ -9089,6 +9097,12 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("admin_link");
+
+                    b.Property<string>("AdminPhones")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("admin_phones");
 
                     b.Property<string>("BotName")
                         .IsRequired()

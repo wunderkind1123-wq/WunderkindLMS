@@ -271,6 +271,8 @@ export interface OlympiadSettings {
   inviteUrl: string
   certificateFormat: 'pdf' | 'png'
   adminLink: string
+  /** Bot adminlari (QR skaner) — har qatorda bitta raqam. */
+  adminPhones: string
   updatedAt: string | null
 }
 

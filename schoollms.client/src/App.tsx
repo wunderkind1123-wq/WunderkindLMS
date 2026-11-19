@@ -177,6 +177,7 @@ const OlympiadCheckinPage = lazy(() => import('@/pages/admin/olympiad/CheckinPag
 const OlympiadParticipantsPage = lazy(() => import('@/pages/admin/olympiad/ParticipantsPage'))
 const OlympiadBroadcastsPage = lazy(() => import('@/pages/admin/olympiad/BroadcastsPage'))
 const OlympiadSettingsPage = lazy(() => import('@/pages/admin/olympiad/SettingsPage'))
+const OlympiadScannerPage = lazy(() => import('@/pages/public/OlympiadScannerPage'))
 
 export default function App() {
   return (
@@ -193,6 +194,8 @@ export default function App() {
       <Route path="/r/:token" element={<ReceiptVerifyPage />} />
       {/* So'rovnoma havolasi (2026-10-15) — login'siz; server `/sorovnoma/` ni har qanday hostda SPA'ga beradi. */}
       <Route path="/sorovnoma/:token" element={<PollPublicPage />} />
+      {/* Olimpiada botidagi QR skaner (Telegram Mini App, 2026-11-18) — login'siz, Telegram initData bilan. */}
+      <Route path="/olimpiada-skaner" element={lazyPage(<OlympiadScannerPage />)} />
       {/* Onlayn monitoring testi — o'quvchi shaxsiy kodi bilan (curriculum-monitoring.md §2). */}
       <Route path="/monitoring" element={<MonitoringPublicPage />} />
 

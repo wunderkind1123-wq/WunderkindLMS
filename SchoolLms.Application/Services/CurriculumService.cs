@@ -739,7 +739,11 @@ public static partial class CurriculumService
 
         return new CurriculumPlanDetailDto(
             plan.Id, plan.Title, plan.SubjectId, subjectName, plan.Grade, plan.GroupId, plan.FileUrl, plan.FileName, plan.UpdatedAt,
-            [.. owners.Select(o => new CurriculumOwnerDto(o.Kind, o.Id, o.Name))],
+            [.. owners.Select(o =>
+            {
+                var p = ProgressOf(topics, planned, [.. marks.Where(m => m.OwnerKind == o.Kind && m.OwnerId == o.Id)], cal, AppClock.Today);
+                return new CurriculumOwnerDto(o.Kind, o.Id, o.Name, p.Expected, p.Delta, p.Finish?.ToString("yyyy-MM-dd"), p.LateWarning);
+            })],
             [.. topics.Select(t => new CurriculumTopicDto(
                 t.Id, t.Order, t.Quarter, t.Week, t.Section, t.Title, t.Hours, t.Goal, t.Homework,
                 planned.TryGetValue(t.Id, out var d) ? d.ToString("yyyy-MM-dd") : null, t.PlannedOn is not null,
