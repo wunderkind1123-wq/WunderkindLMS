@@ -105,7 +105,8 @@ public static class JournalService
         // Sinf jurnalida blok baholari: shu sinfdan (manba) blok guruhlarida qo'yilganlari, guruh belgisi
         // va o'sha kungi ustozi bilan (TZ 6.5). Sinfning o'z qatorlari bilan aralashmaydi — boshqa sana/dars.
         var block = await db.JournalEntries.AsNoTracking()
-            .Where(e => e.SourceClassId == classId && e.BlockGroupId != null && e.SubjectId == subjectId && e.Quarter == quarter)
+            // O'z qatori (yo'nalishning migratsiyada belgilangan eski darsi) — yuqorida bor, qayta qo'shilmaydi.
+            .Where(e => e.SourceClassId == classId && e.ClassId != classId && e.BlockGroupId != null && e.SubjectId == subjectId && e.Quarter == quarter)
             .ToListAsync();
         if (block.Count == 0) return own;
         var groupIds = block.Select(e => e.BlockGroupId!.Value).Distinct().ToList();

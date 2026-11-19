@@ -418,6 +418,36 @@ public class BlocksController(AppDbContext db, AuditService audit) : ControllerB
     }
 
     /* ===================================================================
+     *  4c. Ko'chirish (migratsiya) va tekshiruv — TZ 8
+     * ================================================================ */
+
+    /// <summary>TZ 7-bo'lim qoidalari butun ma'lumot ustida — buzilishlar ro'yxati. Hech narsani o'zgartirmaydi.</summary>
+    [HttpGet("audit")]
+    public async Task<ActionResult<IEnumerable<BlockAuditIssue>>> Audit(CancellationToken ct = default) =>
+        await BlockAuditService.RunAsync(db, ct);
+
+    /// <summary>
+    /// Rejani bajaradi (BlockMigration.cs izohi): ustoz profillarini birlashtirish, bloklarni yaratish,
+    /// jadval, taqsimlash, eski qatorlar, tekshiruv. <paramref name="dryRun"/> STANDART — true: hammasi
+    /// bajariladi, hisobot qaytadi va hech narsa saqlanmaydi. Faqat admin (ustozlarni birlashtiradi).
+    /// </summary>
+    [HttpPost("migration")]
+    [Authorize(Roles = Roles.AdminOrSuper)]
+    public async Task<ActionResult<BlockMigrationReport>> Migration(
+        BlockMigrationPlan plan, [FromQuery] bool dryRun = true, CancellationToken ct = default)
+    {
+        var report = await BlockMigration.RunAsync(db, plan, dryRun, UserId, ct);
+        if (report.Applied)
+        {
+            audit.Record(AuditService.EntityBlock, "migration", "update",
+                $"Bloklarga ko'chirish bajarildi: {report.Steps.Count} ta qadam",
+                after: new { report.Steps, report.Warnings });
+            await db.SaveChangesAsync(ct);
+        }
+        return report.Errors.Count > 0 ? UnprocessableEntity(report) : report;
+    }
+
+    /* ===================================================================
      *  5. Excel: ro'yxatni yuklab olish va import (TZ 6.2)
      * ================================================================ */
 

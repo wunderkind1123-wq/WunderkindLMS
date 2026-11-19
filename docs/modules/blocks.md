@@ -169,6 +169,22 @@ uchun ro'yxatga tayanadigan MCP vositalari yiqilardi. `mcp_guards.sql` ro'yxatig
 
 Testlar: `BlockParentPrivacyTests` (1), `BlockReportTests` (3).
 
+## Ko'chirish va tekshiruv (7-bosqich)
+
+`POST /api/admin/blocks/migration?dryRun=true` (faqat admin) — reja bo'yicha (`BlockMigration`), hammasi BITTA tranzaksiyada.
+`dryRun` STANDART: hammasi bajariladi, hisobot qaytadi va orqaga qaytariladi. Birorta xato — hech narsa saqlanmaydi (422 + xatolar).
+
+| Qadam | Nima |
+|---|---|
+| Ustozlarni birlashtirish | `teacherMerges: [{keepId, mergeId}]` — faqat admin bergan ro'yxat. `teacher_id`, `absent_teacher_id`, `substitute_teacher_id` ustunlari katalogdan topiladi va asosiyga o'tadi; takror bo'ladigan qator (unique) olib tashlanadi; `audit_logs` tegilmaydi; ikkinchi profil arxivlanadi. Joriy/keyingi haftada ikkalasi bir soatda ikki joyda bo'lsa — to'xtatiladi |
+| Blok | `blocks: [{block: SaveBlockRequest, fromTimetable, distribute, activate}]`. Ustoz berilmasa — manbalardagi Katta (1) / Kichik (2) darslarining ustozi (ogohlantirish bilan) |
+| Jadval | Manbalardagi blok fani darslari (Katta/Kichik va oddiy) blok kataklariga aylanadi; manbadan `LiveScheduleEdit` bilan olinadi (o'tgan haftalar eski shablonda). Naqshga zid — xato |
+| Taqsimlash | `distribute: subGroup` — `students.sub_group` 1/2 → 1-/2-guruh; manba sinf bo'yicha blokda — avtomatik. Belgisizlar — ogohlantirish (Excel import) |
+| Eski qatorlar | Yo'nalish (guruh) jurnalidagi blok fani qatorlari o'quvchining joriy guruhi va manbasi bilan belgilanadi. Sinf jurnali qatorlari o'zgarmaydi (`ck_journal_entries_block_group`), soni ogohlantirishda |
+| Tekshiruv | `GET /api/admin/blocks/audit` — TZ 7-bo'limdagi 9 qoida butun ma'lumot ustida (`BlockAuditService`); migratsiya hisobotida ham |
+
+Testlar: `BlockMigrationTests` (6 ta, har biri o'z bazasida).
+
 ## Bosqichlar
 1. Baza ✅ — 2. Backend (servislar, validatsiya, "o'quvchining shu sanadagi guruhi", API) ✅ — 3. Admin UI ✅ —
-4. Jadval ✅ — 5. Ustoz ekranlari ✅ — 6. Hisobotlar va ota-ona API ✅ — 7. Migratsiya skripti (`--dry-run`).
+4. Jadval ✅ — 5. Ustoz ekranlari ✅ — 6. Hisobotlar va ota-ona API ✅ — 7. Migratsiya skripti (`--dry-run`) ✅.
