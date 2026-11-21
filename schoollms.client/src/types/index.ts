@@ -332,6 +332,8 @@ export interface ScheduleLesson {
   teacherId: string
   /** Bo'linish: 0 = butun sinf (default), 1 = 1-guruh, 2 = 2-guruh. Belgilanmagan = 0. */
   subGroup?: number
+  /** Xona (rooms.id); null/yo'q — sinfning o'z xonasi (2026-11-21). */
+  roomId?: string | null
 }
 
 /**

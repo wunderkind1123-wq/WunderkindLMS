@@ -104,6 +104,16 @@ public class ScheduleUtilsController(AppDbContext db) : ControllerBase
     /// BO'SH — bugungi ekran o'zgarmaydi.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Ish reja bo'yicha haftalik dars me'yori (ega × fan) — umumiy jadval muharriridagi
+    /// "Tekshiruv" paneli jadvaldagi dars sonini shu bilan solishtiradi. <c>quarter</c> berilmasa —
+    /// joriy (yoki eng yaqin kelgusi) chorak.
+    /// </summary>
+    [HttpGet("curriculum-norms")]
+    public async Task<ActionResult<CurriculumNormsDto>> CurriculumNorms(
+        [FromQuery] int? quarter, CancellationToken ct = default)
+        => await CurriculumService.WeeklyNormsAsync(db, quarter, ct);
+
     [HttpGet("pupil-overlay/{ownerId}")]
     public async Task<ActionResult<IEnumerable<PupilOverlaySlotDto>>> PupilOverlay(
         string ownerId, CancellationToken ct = default)

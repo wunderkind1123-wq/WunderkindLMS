@@ -220,3 +220,27 @@ export async function setLiveTemplateCells(
 
 /** Avtomatik saqlangan eski versiya nomi ("Asosiy · 10.10.2026 gacha") — ro'yxatda alohida turadi. */
 export const isArchivedTemplateName = (name: string) => /· \d{2}\.\d{2}\.\d{4} gacha$/.test(name)
+
+/** Ish reja bo'yicha haftalik dars me'yori: ega × fan (server: CurriculumService.WeeklyNormsAsync). */
+export interface CurriculumNorm {
+  ownerKind: LessonOwnerKind
+  ownerId: string
+  subjectId: string
+  /** Chorakdagi reja soati. */
+  planHours: number
+  /** Haftasiga kerakli dars (o'rtacha, bayramlar hisobga olingan). */
+  perWeek: number
+  planTitle: string
+}
+
+export interface CurriculumNorms {
+  quarter: number
+  weeks: number
+  norms: CurriculumNorm[]
+}
+
+export async function getCurriculumNorms(quarter?: number): Promise<CurriculumNorms> {
+  if (USE_MOCK) return { quarter: quarter ?? 0, weeks: 0, norms: [] }
+  const { data } = await api.get<CurriculumNorms>('/admin/schedule/curriculum-norms', { params: { quarter } })
+  return data
+}

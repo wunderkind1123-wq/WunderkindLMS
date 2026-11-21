@@ -118,3 +118,9 @@ public record CurriculumShiftResultDto(int Moved, string LastDate);
 /// <summary>Ustozning yuklash formasi: u jadvalda dars beradigan (fan, daraja/yo'nalish) juftliklari.</summary>
 /// <param name="PlanId">Shu juftlik bo'yicha ustozning o'z rejasi bor bo'lsa — qayta yuklash.</param>
 public record TeacherCurriculumKeyDto(string SubjectId, string SubjectName, int? Grade, Guid? GroupId, string Label, Guid? PlanId);
+
+/// <summary>Jadval muharriri uchun: ega × fan bo'yicha chorakdagi reja soati va haftasiga kerakli dars.</summary>
+public record CurriculumNormDto(string OwnerKind, string OwnerId, string SubjectId, int PlanHours, double PerWeek, string PlanTitle);
+
+/// <param name="Weeks">Chorakdagi o'quv haftalari (o'quv kunlari / 6).</param>
+public record CurriculumNormsDto(int Quarter, double Weeks, List<CurriculumNormDto> Norms);

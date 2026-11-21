@@ -291,6 +291,10 @@ public interface IAppDbContext
     DbSet<BlockClass> BlockClasses { get; }
     DbSet<BlockGroup> BlockGroups { get; }
     DbSet<BlockGroupTeacher> BlockGroupTeachers { get; }
+    /// <summary>Weekly teaching load per owner × subject and teacher unavailability — timetable generator input (2026-11-21).</summary>
+    DbSet<TeachingLoad> TeachingLoads { get; }
+    DbSet<TeacherUnavailability> TeacherUnavailability { get; }
+    DbSet<OwnerStudyDays> OwnerStudyDays { get; }
     /// <summary>One rule's run per period: status, approval, counts (2026-10-15).</summary>
     DbSet<AutoMessageRun> AutoMessageRuns { get; }
     /// <summary>Teacher certificates and named allowances paid with the salary (2026-10-15).</summary>

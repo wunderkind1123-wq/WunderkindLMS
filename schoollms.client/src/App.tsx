@@ -39,6 +39,8 @@ import { SalaryCalcPage } from '@/pages/admin/schedule/SalaryCalcPage'
 import { TeacherSchedulePage } from '@/pages/admin/schedule/TeacherSchedulePage'
 import { ClassScheduleViewPage } from '@/pages/admin/schedule/ClassScheduleViewPage'
 import { HolidaysPage } from '@/pages/admin/schedule/HolidaysPage'
+import { TimetableBuilderPage } from '@/pages/admin/schedule/TimetableBuilderPage'
+import { SchedulePrintPage } from '@/pages/admin/schedule/SchedulePrintPage'
 import { ChatbotPage } from '@/pages/admin/chatbot/ChatbotPage'
 import { BallarNazoratiPage } from '@/pages/admin/discipline/BallarNazoratiPage'
 import { BallSabablarPage } from '@/pages/admin/discipline/BallSabablarPage'
@@ -203,6 +205,8 @@ export default function App() {
 
       {/* Administrator paneli */}
       <Route element={<ProtectedRoute role="admin" />}>
+        {/* Jadvalni chop etish — admin menyusisiz (2026-11-21) */}
+        <Route path="/admin/schedule/print" element={<RequirePerm perm="schedule"><SchedulePrintPage /></RequirePerm>} />
         <Route path="/admin" element={<AppLayout />}>
           <Route index element={<AdminHome />} />
           <Route path="leads" element={<RequirePerm perm="leads"><LeadsPage /></RequirePerm>} />
@@ -261,6 +265,7 @@ export default function App() {
           <Route path="schedule" element={<RequirePerm perm="schedule"><ClassScheduleViewPage /></RequirePerm>} />
           <Route path="schedule/teachers" element={<RequirePerm perm="schedule"><TeacherSchedulePage /></RequirePerm>} />
           <Route path="schedule/manage" element={<RequirePerm perm="schedule"><SchedulePage /></RequirePerm>} />
+          <Route path="schedule/builder" element={<RequirePerm perm="schedule"><TimetableBuilderPage /></RequirePerm>} />
           {/* Ish haqi — Moliya ostida va endi har bir xodim uchun: `finance` ham ochadi (sahifa o'zi
               hasFinanceAccess bilan tekshiradi). */}
           <Route path="teachers/salary" element={<RequirePerm perm={['finance', 'teachers']}><SalaryCalcPage /></RequirePerm>} />

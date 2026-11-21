@@ -9396,6 +9396,32 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.OwnerStudyDays", b =>
+                {
+                    b.Property<string>("OwnerId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("owner_id");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("integer")
+                        .HasColumnName("days");
+
+                    b.Property<string>("OwnerKind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("owner_kind");
+
+                    b.HasKey("OwnerId")
+                        .HasName("pk_owner_study_days");
+
+                    b.ToTable("owner_study_days", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_owner_study_days_days", "days between 5 and 6");
+                        });
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10336,6 +10362,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("period");
 
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("room_id");
+
                     b.Property<int>("SubGroup")
                         .HasColumnType("integer")
                         .HasColumnName("sub_group");
@@ -10361,6 +10391,9 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasIndex("BlockId")
                         .HasDatabaseName("ix_schedule_lesson_block")
                         .HasFilter("block_id is not null");
+
+                    b.HasIndex("RoomId")
+                        .HasDatabaseName("ix_schedule_lesson_room_id");
 
                     b.HasIndex("TemplateId")
                         .HasDatabaseName("ix_schedule_lesson_template_id");
@@ -12599,6 +12632,112 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasName("pk_teacher_attendances");
 
                     b.ToTable("teacher_attendances", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.TeacherUnavailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("integer")
+                        .HasColumnName("day");
+
+                    b.Property<int>("Period")
+                        .HasColumnType("integer")
+                        .HasColumnName("period");
+
+                    b.Property<string>("TeacherId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("teacher_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_teacher_unavailability");
+
+                    b.HasIndex("TeacherId", "Day", "Period")
+                        .IsUnique()
+                        .HasDatabaseName("ux_teacher_unavailability");
+
+                    b.ToTable("teacher_unavailability", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_teacher_unavailability_day", "day between 0 and 5");
+
+                            t.HasCheckConstraint("ck_teacher_unavailability_period", "period between 0 and 12");
+                        });
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.TeachingLoad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("HoursPerWeek")
+                        .HasColumnType("integer")
+                        .HasColumnName("hours_per_week");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("OwnerKind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("owner_kind");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("room_id");
+
+                    b.Property<int>("SubGroup")
+                        .HasColumnType("integer")
+                        .HasColumnName("sub_group");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("subject_id");
+
+                    b.Property<string>("TeacherId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("teacher_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_teaching_loads");
+
+                    b.HasIndex("RoomId")
+                        .HasDatabaseName("ix_teaching_loads_room_id");
+
+                    b.HasIndex("TeacherId")
+                        .HasDatabaseName("ix_teaching_loads_teacher");
+
+                    b.HasIndex("OwnerKind", "OwnerId", "SubjectId", "SubGroup")
+                        .IsUnique()
+                        .HasDatabaseName("ux_teaching_loads_owner_subject");
+
+                    b.ToTable("teaching_loads", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_teaching_loads_hours", "hours_per_week between 1 and 20");
+
+                            t.HasCheckConstraint("ck_teaching_loads_owner_kind", "owner_kind in ('class','group')");
+
+                            t.HasCheckConstraint("ck_teaching_loads_sub_group", "sub_group between 0 and 2");
+                        });
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.TelegramAccount", b =>
@@ -14884,6 +15023,12 @@ namespace SchoolLms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_schedule_lesson_blocks_block_id");
 
+                    b.HasOne("SchoolLms.Domain.Room", null)
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_schedule_lesson_rooms_room_id");
+
                     b.HasOne("SchoolLms.Domain.ScheduleTemplate", null)
                         .WithMany("Lessons")
                         .HasForeignKey("TemplateId")
@@ -15261,6 +15406,15 @@ namespace SchoolLms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_teacher_allowances_teachers_teacher_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.TeachingLoad", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Room", null)
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_teaching_loads_rooms_room_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.TelegramAccount", b =>

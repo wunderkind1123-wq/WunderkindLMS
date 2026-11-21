@@ -605,6 +605,12 @@ public class ScheduleLesson
 
     /// <summary>Blok darsi bo'lsa — blok (blocks.id). Katak blokning barcha manba sinflari jadvalida bir xil turadi. Oddiy darsda null.</summary>
     public Guid? BlockId { get; set; }
+
+    /// <summary>
+    /// Xona (rooms.id), 2026-11-21. null — sinfning o'z xonasi (<see cref="SchoolClass.Room"/> nomi
+    /// bo'yicha). Faqat maxsus xona (sport zali, laboratoriya) yoki boshqa xonada o'tiladigan dars uchun.
+    /// </summary>
+    public Guid? RoomId { get; set; }
 }
 
 /// <summary>Chorak ichidagi haftaga jadval biriktirish.</summary>

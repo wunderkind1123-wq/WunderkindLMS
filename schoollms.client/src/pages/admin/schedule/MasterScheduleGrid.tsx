@@ -28,9 +28,9 @@
  * YO'NALISH guruhlari (9–11-sinflar o'rnida — ularning sinfi bu yerda yo'q), keyin (faqat
  * "Guruh darslari" yoqilganda) oddiy guruhlar. Tartib serverda (`/admin/schedule/owners`).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CalendarRange, Clock, Plus } from 'lucide-react'
+import { AlertTriangle, CalendarRange, Clock, FileSpreadsheet, Pencil, Plus, Printer, Trash2, Undo2, Wand2 } from 'lucide-react'
 import type { LessonOwnerKind, ScheduleLesson, ScheduleTemplate, SchoolSettings, Subject, Teacher } from '@/types'
 import { getLessonOwners } from '@/api/services/lessonOwners'
 import { getSubjects } from '@/api/services/subjects'
@@ -38,13 +38,19 @@ import { getTeachers } from '@/api/services/teachers'
 import { getSettings } from '@/api/services/settings'
 import {
   createTemplate,
+  deleteTemplate,
+  getCurriculumNorms,
   getOccupiedSlots,
   getTemplates,
   isArchivedTemplateName,
+  renameTemplate,
   setLiveTemplateCells,
   type CellChange,
+  type CurriculumNorms,
   type LiveCellResult,
 } from '@/api/services/scheduleTemplates'
+import { ScheduleChecks, type RoomClash, type TeacherClash } from './ScheduleChecks'
+import { downloadScheduleExcel, getScheduleRooms, type ScheduleRooms } from '@/api/services/timetableBuilder'
 import { getWeekAssignments, saveWeekAssignments } from '@/api/services/weekAssignments'
 import { weekDays, schedulePeriods } from '@/config/constants'
 import { getCurrentQuarterAndWeek, getEditableQuarterAndWeek, getQuarterWeeks } from '@/lib/weeks'
@@ -109,9 +115,31 @@ export function MasterScheduleGrid() {
   /** Sinf id → joriy haftada amal qilayotgan shablon id'si ("faol" jadval). */
   const [activeNow, setActiveNow] = useState<Record<string, string | null>>({})
 
+  /** Jadvalni butunlay (hamma sinfda) qayta nomlash / o'chirish (2026-11-20). */
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameTo, setRenameTo] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  /** Ish reja bo'yicha haftalik me'yor — "Tekshiruv" paneli uchun. */
+  const [normQuarter, setNormQuarter] = useState<number | null>(null)
+  const [norms, setNorms] = useState<CurriculumNorms | null>(null)
+  /** Tekshiruvdan bosilgan katak — bir oz vaqt belgilanib turadi. */
+  const [focus, setFocus] = useState<{ ownerId: string; period: number } | null>(null)
+
+  /** Xonalar va sinflarning o'z xonasi (2026-11-21). */
+  const [roomInfo, setRoomInfo] = useState<ScheduleRooms>({ rooms: [], homeRooms: {} })
+  /**
+   * "Ortga qaytarish" (2026-11-21): har saqlashdan oldingi kataklar holati. Bekor qilish — o'sha
+   * holatni oddiy saqlash bilan qaytarish (faol jadvalda ham tarix qoidasi o'z kuchida).
+   */
+  const [history, setHistory] = useState<{ cls: OwnerRow; cells: CellChange[]; label: string; tplName: string }[]>([])
+  const [exporting, setExporting] = useState(false)
+
   useEffect(() => {
     Promise.all([getLessonOwners(), getSubjects(), getTeachers(), getSettings(), getOccupiedSlots('')])
       .then(async ([owners, subs, tchs, st, occ]) => {
+        getScheduleRooms().then(setRoomInfo).catch(() => undefined)
         // Arxivsiz, tartiblangan — server qoidasi (sinflar, yo'nalishlar, oddiy guruhlar).
         const active: OwnerRow[] = owners.map((o) => ({
           id: o.id,
@@ -139,7 +167,9 @@ export function MasterScheduleGrid() {
         const counts = new Map<string, number>()
         for (const list of tpls) for (const t of list) counts.set(t.name, (counts.get(t.name) ?? 0) + 1)
         const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
-        setName(top ?? DEFAULT_NAME)
+        // ?name=... — avtomatik tuzilgan jadvalni darhol ochish uchun.
+        const wanted = new URLSearchParams(window.location.search).get('name')
+        setName(wanted && counts.has(wanted) ? wanted : (top ?? DEFAULT_NAME))
         // Joriy haftada qaysi shablon amal qilyapti — "Faol" belgisi shundan.
         // Yakshanba kuni — kelgusi hafta (server bilan bir xil, 2026-10-11).
         const { quarter: cq, week: cw } = getEditableQuarterAndWeek(st.quarters) ?? getCurrentQuarterAndWeek(st.quarters)
@@ -147,10 +177,25 @@ export function MasterScheduleGrid() {
         const now: Record<string, string | null> = {}
         active.forEach((c, i) => (now[c.id] = wa[i].find((a) => a.week === cw)?.templateId ?? null))
         setActiveNow(now)
+        setNormQuarter(cq)
       })
       .catch((e) => setError(errText(e, "Ma'lumotni yuklab bo'lmadi")))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (normQuarter == null) return
+    getCurriculumNorms(normQuarter)
+      .then(setNorms)
+      .catch(() => setNorms(null))
+  }, [normQuarter])
+
+  useEffect(() => {
+    if (!focus) return
+    document.getElementById(`cell-${focus.ownerId}-${focus.period}`)?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' })
+    const t = setTimeout(() => setFocus(null), 2500)
+    return () => clearTimeout(t)
+  }, [focus])
 
   /** Hamma sinflardagi shablon nomlari (+ hozir yaratilayotgani); eski versiyalar alohida. */
   const names = useMemo(() => {
@@ -207,33 +252,108 @@ export function MasterScheduleGrid() {
     return first ? `${last} ${first[0]}.` : last ?? ''
   }
 
+  /** Eganing shu jadvaldagi darslari (shablon yo'q — null) — "Tekshiruv" paneli uchun. */
+  const lessonsOfOwner = useCallback(
+    (ownerId: string) => templates[ownerId]?.find((t) => t.name === name)?.lessons ?? null,
+    [templates, name],
+  )
+
   /**
-   * To'qnashgan kataklar ("sinf|soat|o'qituvchi") — shu kun, shu jadval bo'yicha. Ikkala darsning
-   * vaqti ma'lum bo'lsa vaqt KESISHUVI, aks holda soat raqami solishtiriladi: sinflarning
-   * qo'ng'iroq jadvallari har xil bo'lishi mumkin (2026-10-11).
+   * To'qnashuvlar — shu jadvalning HAMMA kunlari bo'yicha (2026-11-20: "Tekshiruv" paneli). Bitta
+   * egadagi bo'lingan dars (bir soatda 1-/2-guruh) to'qnashuv emas. Ikkala darsning vaqti ma'lum
+   * bo'lsa vaqt KESISHUVI, aks holda soat raqami solishtiriladi: sinflarning qo'ng'iroq jadvallari
+   * har xil bo'lishi mumkin (2026-10-11).
    */
-  const clashes = useMemo(() => {
-    const byTeacher = new Map<string, { key: string; period: number; time: PeriodTime | undefined }[]>()
-    for (const c of classes)
+  const clashList = useMemo(() => {
+    type Entry = { ownerId: string; day: number; period: number; time: PeriodTime | undefined }
+    const byTeacher = new Map<string, Entry[]>()
+    for (const c of classes) {
+      const seen = new Set<string>()
       for (const l of templates[c.id]?.find((t) => t.name === name)?.lessons ?? []) {
-        if (l.day !== day || !l.teacherId) continue
+        if (!l.teacherId) continue
+        const k = `${l.teacherId}|${l.day}|${l.period}`
+        if (seen.has(k)) continue
+        seen.add(k)
         const list = byTeacher.get(l.teacherId) ?? []
-        list.push({ key: `${c.id}|${l.period}|${l.teacherId}`, period: l.period, time: periodTimesOf(c.id).get(l.period) })
+        list.push({ ownerId: c.id, day: l.day, period: l.period, time: periodTimesOf(c.id).get(l.period) })
         byTeacher.set(l.teacherId, list)
       }
-    const out = new Set<string>()
-    for (const list of byTeacher.values())
+    }
+    const out: TeacherClash[] = []
+    for (const [teacherId, list] of byTeacher)
       for (let i = 0; i < list.length; i++)
         for (let j = i + 1; j < list.length; j++) {
           const a = list[i]
           const b = list[j]
-          if (a.time && b.time ? timesOverlap(a.time, b.time) : a.period === b.period) {
-            out.add(a.key)
-            out.add(b.key)
-          }
+          if (a.day !== b.day || a.ownerId === b.ownerId) continue
+          if (a.time && b.time ? timesOverlap(a.time, b.time) : a.period === b.period)
+            out.push({ teacherId, day: a.day, a: { ownerId: a.ownerId, period: a.period }, b: { ownerId: b.ownerId, period: b.period } })
         }
     return out
-  }, [classes, templates, name, day, periodTimesOf])
+  }, [classes, templates, name, periodTimesOf])
+
+  /** To'qnashgan kataklar ("sinf|kun|soat|o'qituvchi") va har kundagi to'qnashuvlar soni. */
+  const clashes = useMemo(() => {
+    const keys = new Set<string>()
+    for (const c of clashList) {
+      keys.add(`${c.a.ownerId}|${c.day}|${c.a.period}|${c.teacherId}`)
+      keys.add(`${c.b.ownerId}|${c.day}|${c.b.period}|${c.teacherId}`)
+    }
+    return keys
+  }, [clashList])
+  const clashesByDay = useMemo(() => {
+    const out: number[] = weekDays.map(() => 0)
+    for (const c of clashList) out[c.day] = (out[c.day] ?? 0) + 1
+    return out
+  }, [clashList])
+
+  /** Darsning amaldagi xonasi: o'zi tanlangan xona, bo'lmasa (butun sinf darsida) sinfning o'z xonasi. */
+  const effectiveRoom = useCallback(
+    (ownerId: string, l: ScheduleLesson) =>
+      l.roomId ?? ((l.subGroup ?? 0) === 0 ? (roomInfo.homeRooms[ownerId] ?? null) : null),
+    [roomInfo],
+  )
+  const roomName = useCallback((id: string) => roomInfo.rooms.find((r) => r.id === id)?.name ?? '', [roomInfo])
+
+  /** Xona to'qnashuvlari — bir xona bir vaqtda ikki egada (shu jadval, hamma kunlar). */
+  const roomClashList = useMemo(() => {
+    type Entry = { ownerId: string; day: number; period: number; time: PeriodTime | undefined }
+    const byRoom = new Map<string, Entry[]>()
+    for (const c of classes)
+      for (const l of templates[c.id]?.find((t) => t.name === name)?.lessons ?? []) {
+        const room = effectiveRoom(c.id, l)
+        if (!room) continue
+        const list = byRoom.get(room) ?? []
+        if (!list.some((e) => e.ownerId === c.id && e.day === l.day && e.period === l.period))
+          list.push({ ownerId: c.id, day: l.day, period: l.period, time: periodTimesOf(c.id).get(l.period) })
+        byRoom.set(room, list)
+      }
+    const out: RoomClash[] = []
+    for (const [roomId, list] of byRoom)
+      for (let i = 0; i < list.length; i++)
+        for (let j = i + 1; j < list.length; j++) {
+          const a = list[i]
+          const b = list[j]
+          if (a.day !== b.day || a.ownerId === b.ownerId) continue
+          if (a.time && b.time ? timesOverlap(a.time, b.time) : a.period === b.period)
+            out.push({ roomId, day: a.day, a: { ownerId: a.ownerId, period: a.period }, b: { ownerId: b.ownerId, period: b.period } })
+        }
+    return out
+  }, [classes, templates, name, periodTimesOf, effectiveRoom])
+
+  /** Katak oynasi uchun: xona shu kun va soatda boshqa qaysi egada band. */
+  const roomBusyFor = (cls: OwnerRow, period: number) => (roomId: string): string | null => {
+    const mine = periodTimesOf(cls.id).get(period)
+    for (const o of classes) {
+      if (o.id === cls.id) continue
+      for (const l of templateOf(o.id)?.lessons ?? []) {
+        if (l.day !== day || effectiveRoom(o.id, l) !== roomId) continue
+        const theirs = periodTimesOf(o.id).get(l.period)
+        if (mine && theirs ? timesOverlap(mine, theirs) : l.period === period) return o.name
+      }
+    }
+    return null
+  }
 
   /** O'qituvchi shu kuni boshqa sinfda shu vaqtda (yoki vaqti noma'lum bo'lsa — shu soatda) bandmi. */
   const teacherBusyAt = (cls: OwnerRow, period: number, teacherId: string): string | null => {
@@ -284,16 +404,25 @@ export function MasterScheduleGrid() {
       setActiveNow((prev) => (prev[classId] === r.archivedId ? { ...prev, [classId]: r.template.id } : prev))
   }
 
-  /** Kataklarni saqlash — faol jadvalda ham, qoralamada ham bitta yo'l (server farqlaydi). */
-  const saveCells = async (cls: OwnerRow, cells: CellChange[], done: string) => {
+  /**
+   * Kataklarni saqlash — faol jadvalda ham, qoralamada ham bitta yo'l (server farqlaydi).
+   * `undo` — bu saqlashning o'zi "Ortga qaytarish" (tarixga yozilmaydi).
+   */
+  const saveCells = async (cls: OwnerRow, cells: CellChange[], done: string, undo = false) => {
     setError(null)
     setSaving(true)
     try {
       // Sinfda shu nomdagi shablon yo'q bo'lsa — birinchi katakda yaratiladi.
       const tpl = templateOf(cls.id) ?? (await createTemplate(cls.id, name))
+      const before: CellChange[] = cells.map((c) => ({
+        day: c.day,
+        period: c.period,
+        lessons: tpl.lessons.filter((l) => l.day === c.day && l.period === c.period).map((l) => ({ ...l })),
+      }))
       const rowLive = activeNow[cls.id] === tpl.id
       const r = await setLiveTemplateCells(cls.id, tpl.id, cells)
       applyLive(cls.id, r)
+      if (!undo) setHistory((h) => [...h.slice(-29), { cls, cells: before, label: done, tplName: name }])
       setToast(
         r.archivedId
           ? `${done} — o'tgan haftalar avvalgi jadval bo'yicha qoldi`
@@ -308,6 +437,31 @@ export function MasterScheduleGrid() {
       setSaving(false)
     }
   }
+
+  /** Oxirgi o'zgarishni bekor qilish — kataklar avvalgi holatiga qaytadi. */
+  const undoLast = async () => {
+    const last = history[history.length - 1]
+    if (!last || saving || last.tplName !== name) return
+    setHistory((h) => h.slice(0, -1))
+    await saveCells(last.cls, last.cells, `Bekor qilindi: ${last.label}`, true)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        void undoLastRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  const undoLastRef = useRef(undoLast)
+  useEffect(() => {
+    undoLastRef.current = undoLast
+  })
 
   const handleSave = async (d: number, period: number, next: ScheduleLesson[]) => {
     if (!editing) return
@@ -462,6 +616,76 @@ export function MasterScheduleGrid() {
     }
   }
 
+  /** Jadvalni hamma sinfda qayta nomlash — har sinfdagi shu nomli shablon. */
+  const renameAll = async () => {
+    const to = renameTo.trim()
+    if (!to || to === name) return
+    setBusy(true)
+    setError(null)
+    const owners = classes.filter((c) => templateOf(c.id))
+    let done = 0
+    try {
+      for (const c of owners) {
+        const tpl = templateOf(c.id)!
+        await renameTemplate(c.id, tpl.id, to)
+        done++
+      }
+    } catch (e) {
+      setError(
+        errText(e, "Nomni o'zgartirib bo'lmadi") +
+          (done > 0 ? ` (${done} ta sinfda o'zgardi — qayta urinib ko'ring)` : ''),
+      )
+    } finally {
+      const renamed = new Set(owners.slice(0, done).map((c) => templateOf(c.id)!.id))
+      setTemplates((prev) => {
+        const next: Record<string, ScheduleTemplate[]> = {}
+        for (const [k, list] of Object.entries(prev)) next[k] = list.map((t) => (renamed.has(t.id) ? { ...t, name: to } : t))
+        return next
+      })
+      if (done === owners.length) {
+        setName(to)
+        setRenameOpen(false)
+        setToast(`Jadval nomi o'zgardi: "${to}"`)
+      }
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Jadvalni hamma sinfda o'chirish. Faol jadval o'chirilmaydi (sinflar jadvalsiz qolardi). O'tgan
+   * haftalarda ishlatilgan shablonni server arxivlaydi — tarix (jurnal, davomat, maosh) saqlanadi.
+   */
+  const deleteAll = async () => {
+    setBusy(true)
+    setError(null)
+    const owners = classes.filter((c) => templateOf(c.id))
+    const removed = new Set<string>()
+    try {
+      for (const c of owners) {
+        const tpl = templateOf(c.id)!
+        await deleteTemplate(c.id, tpl.id)
+        removed.add(tpl.id)
+      }
+    } catch (e) {
+      setError(errText(e, "Jadvalni o'chirib bo'lmadi") + (removed.size > 0 ? ` (${removed.size} ta sinfda o'chdi)` : ''))
+    } finally {
+      const next: Record<string, ScheduleTemplate[]> = {}
+      for (const [k, list] of Object.entries(templates)) next[k] = list.filter((t) => !removed.has(t.id))
+      setTemplates(next)
+      if (removed.size === owners.length) {
+        // Eng ko'p sinfda uchraydigan qolgan jadvalga o'tamiz.
+        const counts = new Map<string, number>()
+        for (const list of Object.values(next))
+          for (const t of list) if (!isArchivedTemplateName(t.name)) counts.set(t.name, (counts.get(t.name) ?? 0) + 1)
+        setName([...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? DEFAULT_NAME)
+        setDeleteOpen(false)
+        setToast(`"${name}" jadvali o'chirildi`)
+      }
+      void refreshOccupied()
+      setBusy(false)
+    }
+  }
+
   if (loading) return <Loader label="Yuklanmoqda..." />
 
   const withTemplate = classes.filter((c) => templateOf(c.id)).length
@@ -475,6 +699,7 @@ export function MasterScheduleGrid() {
   /** Eski versiya ("… gacha") faqat o'tgan haftalarda — tarix, o'zgartirilmaydi. */
   const readOnly = isArchivedTemplateName(name)
   const pickable = subjects.filter((s) => s.isActive !== false)
+  const canUndo = history.length > 0 && history[history.length - 1].tplName === name
 
   return (
     <div className="space-y-4">
@@ -502,6 +727,31 @@ export function MasterScheduleGrid() {
               </optgroup>
             )}
           </select>
+          {!readOnly && withTemplate > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameTo(name)
+                  setRenameOpen(true)
+                }}
+                title="Jadval nomini o'zgartirish (hamma sinfda)"
+                aria-label="Jadval nomini o'zgartirish"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(true)}
+                title="Jadvalni o'chirish (hamma sinfda)"
+                aria-label="Jadvalni o'chirish"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
           <Button variant="secondary" onClick={() => { setNewName(''); setNewOpen(true) }}>
             <Plus className="h-4 w-4" /> Yangi jadval
           </Button>
@@ -524,11 +774,59 @@ export function MasterScheduleGrid() {
             {withTemplate} / {classes.length} sinfda bor
           </span>
         </div>
-        {!live && !readOnly && (
-          <Button onClick={() => setAssignOpen(true)} disabled={withTemplate === 0}>
-            <CalendarRange className="h-4 w-4" /> Nashr qilish
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {!readOnly && (
+            <Button
+              variant="secondary"
+              disabled={saving || !canUndo}
+              onClick={() => void undoLast()}
+              title={canUndo ? `Ortga qaytarish (Ctrl+Z): ${history[history.length - 1].label}` : "Bekor qilinadigan o'zgarish yo'q"}
+            >
+              <Undo2 className="h-4 w-4" /> Ortga
+            </Button>
+          )}
+          {withTemplate > 0 && (
+            <>
+              <Button
+                variant="secondary"
+                disabled={exporting}
+                title="Excel'da yuklab olish: har kun alohida varaq va o'qituvchilar varag'i"
+                onClick={async () => {
+                  setExporting(true)
+                  try {
+                    await downloadScheduleExcel(name)
+                  } catch (e) {
+                    setError(errText(e, "Excel faylni yuklab bo'lmadi"))
+                  } finally {
+                    setExporting(false)
+                  }
+                }}
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Excel
+              </Button>
+              <Link
+                to={`/admin/schedule/print?name=${encodeURIComponent(name)}`}
+                target="_blank"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                title="Butun haftani chop etish"
+              >
+                <Printer className="h-4 w-4" /> Chop etish
+              </Link>
+            </>
+          )}
+          <Link
+            to="/admin/schedule/builder"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            title="Yuklama, o'qituvchilar bandligi va avtomatik jadval tuzish"
+          >
+            <Wand2 className="h-4 w-4" /> Avtomatik tuzish
+          </Link>
+          {!live && !readOnly && (
+            <Button onClick={() => setAssignOpen(true)} disabled={withTemplate === 0}>
+              <CalendarRange className="h-4 w-4" /> Nashr qilish
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Hafta kunlari */}
@@ -544,9 +842,37 @@ export function MasterScheduleGrid() {
             )}
           >
             {d}
+            {clashesByDay[i] > 0 && (
+              <span
+                title={`${clashesByDay[i]} ta to'qnashuv — o'qituvchi bir vaqtda ikki joyda`}
+                className="ml-1.5 rounded-full bg-red-100 px-1.5 text-[10px] font-semibold text-red-700"
+              >
+                {clashesByDay[i]}
+              </span>
+            )}
           </button>
         ))}
       </div>
+
+      {!readOnly && withTemplate > 0 && (
+        <ScheduleChecks
+          owners={classes}
+          lessonsOf={lessonsOfOwner}
+          clashes={clashList}
+          roomClashes={roomClashList}
+          roomName={roomName}
+          subjects={subjects}
+          teachers={teachers}
+          norms={norms}
+          quarters={(settings?.quarters ?? []).filter((q) => q.startDate && q.endDate).map((q) => q.quarter)}
+          quarter={normQuarter}
+          onQuarter={setNormQuarter}
+          onJump={(d, ownerId, period) => {
+            setDay(d)
+            setFocus({ ownerId, period })
+          }}
+        />
+      )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -637,7 +963,8 @@ export function MasterScheduleGrid() {
                   </td>
                   {periods.map((p) => {
                     const lessons = lessonsAt(c.id, p)
-                    const clash = lessons.some((l) => l.teacherId && clashes.has(`${c.id}|${p}|${l.teacherId}`))
+                    const clash = lessons.some((l) => l.teacherId && clashes.has(`${c.id}|${day}|${p}|${l.teacherId}`))
+                    const focused = focus?.ownerId === c.id && focus.period === p
                     const ownTime = ownerTimeLabel(c.id, p)
                     const dropTarget = drag?.classId === c.id && dropAt === p && drag.period !== p
                     return (
@@ -658,6 +985,7 @@ export function MasterScheduleGrid() {
                       >
                         {/* div role=button: Firefox <button> ni sudratmaydi. */}
                         <div
+                          id={`cell-${c.id}-${p}`}
                           role="button"
                           tabIndex={readOnly ? -1 : 0}
                           aria-disabled={readOnly || saving}
@@ -698,6 +1026,7 @@ export function MasterScheduleGrid() {
                             clash && 'ring-2 ring-red-400',
                             drag?.classId === c.id && drag.period === p && 'opacity-40',
                             dropTarget && 'bg-brand-50 ring-2 ring-brand-400',
+                            focused && 'animate-pulse ring-2 ring-amber-400',
                           )}
                         >
                           {lessons.length === 0 ? (
@@ -718,7 +1047,10 @@ export function MasterScheduleGrid() {
                                       {s?.name ?? '—'}
                                     </span>
                                     {lessons.length === 1 && l.teacherId && (
-                                      <span className="block truncate text-[11px] text-slate-500">{shortName(teacherName(l.teacherId))}</span>
+                                      <span className="block truncate text-[11px] text-slate-500">
+                                        {shortName(teacherName(l.teacherId))}
+                                        {l.roomId && roomName(l.roomId) ? ` · ${roomName(l.roomId)}` : ''}
+                                      </span>
                                     )}
                                   </span>
                                 )
@@ -754,6 +1086,9 @@ export function MasterScheduleGrid() {
         onClose={() => setEditing(null)}
         onSave={(d, p, lessons) => void handleSave(d, p, lessons)}
         onClear={(d, p) => void handleClear(d, p)}
+        rooms={roomInfo.rooms}
+        homeRoomName={editing && roomInfo.homeRooms[editing.cls.id] ? roomName(roomInfo.homeRooms[editing.cls.id]) : null}
+        roomBusy={editing ? roomBusyFor(editing.cls, editing.slot.period) : undefined}
       />
 
       <Modal
@@ -829,6 +1164,87 @@ export function MasterScheduleGrid() {
           Hozirgi faol jadval o'tgan haftalar uchun saqlanadi — u haftalarning jurnali, davomati va maoshi
           o'zgarmaydi.
         </p>
+      </Modal>
+
+      <Modal
+        open={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        title="Jadval nomini o'zgartirish"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRenameOpen(false)}>
+              Bekor qilish
+            </Button>
+            <Button
+              disabled={
+                busy ||
+                !renameTo.trim() ||
+                renameTo.trim() === name ||
+                names.includes(renameTo.trim()) ||
+                isArchivedTemplateName(renameTo.trim())
+              }
+              onClick={() => void renameAll()}
+            >
+              {busy ? 'Saqlanmoqda...' : 'Saqlash'}
+            </Button>
+          </>
+        }
+      >
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">Yangi nom</span>
+          <input
+            autoFocus
+            value={renameTo}
+            onChange={(e) => setRenameTo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void renameAll()
+            }}
+            className="h-10 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-brand-400"
+          />
+        </label>
+        {renameTo.trim() !== name && names.includes(renameTo.trim()) && (
+          <p className="mt-1 text-xs text-amber-700">Bu nomdagi jadval bor</p>
+        )}
+        <p className="mt-3 text-xs text-slate-400">
+          Nom {withTemplate} ta sinfda o'zgaradi. Darslar, haftalar va faollik o'zgarmaydi.
+        </p>
+      </Modal>
+
+      <Modal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Jadvalni o'chirish"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
+              {live ? 'Yopish' : 'Bekor qilish'}
+            </Button>
+            {!live && (
+              <Button variant="danger" disabled={busy} onClick={() => void deleteAll()}>
+                {busy ? "O'chirilmoqda..." : "O'chirish"}
+              </Button>
+            )}
+          </>
+        }
+      >
+        {live ? (
+          <p className="text-sm text-slate-600">
+            <b>"{name}"</b> hozir {activeCount} ta sinfda <b>faol</b> — uni o'chirsangiz bu sinflar joriy haftadan
+            jadvalsiz qoladi. Avval yangi jadvalni nashr qiling, keyin buni o'chirish mumkin bo'ladi.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-600">
+              <b>"{name}"</b> jadvali {withTemplate} ta sinfdan o'chiriladi.
+            </p>
+            <p className="mt-2 text-xs text-slate-400">
+              Agar u o'tgan haftalarda ishlatilgan bo'lsa, o'sha haftalarning jurnali, davomati va maoshi saqlanadi —
+              jadval faqat ro'yxatdan yo'qoladi va kelgusi haftalardan olinadi.
+            </p>
+          </>
+        )}
       </Modal>
 
       <Toast message={toast} onClose={closeToast} />

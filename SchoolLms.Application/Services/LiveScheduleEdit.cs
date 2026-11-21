@@ -74,7 +74,7 @@ public static class LiveScheduleEdit
         copy.Lessons = [.. tpl.Lessons.Select(l => new ScheduleLesson
         {
             TemplateId = copy.Id, Day = l.Day, Period = l.Period, SubjectId = l.SubjectId,
-            TeacherId = l.TeacherId, SubGroup = l.SubGroup, BlockId = l.BlockId,
+            TeacherId = l.TeacherId, SubGroup = l.SubGroup, BlockId = l.BlockId, RoomId = l.RoomId,
         })];
         db.ScheduleTemplates.Add(copy);
         foreach (var a in uses.Except(past)) a.TemplateId = copy.Id;

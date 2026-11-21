@@ -37,7 +37,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
     private static ScheduleTemplateDto ToDto(ScheduleTemplate t) => new(
         t.Id, t.ClassId, t.Name,
         t.Lessons.OrderBy(l => l.Day).ThenBy(l => l.Period).ThenBy(l => l.SubGroup)
-            .Select(l => new ScheduleLessonDto(l.Day, l.Period, l.SubjectId, l.TeacherId, l.SubGroup)).ToList(),
+            .Select(l => new ScheduleLessonDto(l.Day, l.Period, l.SubjectId, l.TeacherId, l.SubGroup, l.RoomId)).ToList(),
         t.OwnerKind, t.IsArchived);
 
     /// <summary>Yo'ldagi id'ni egaga (sinf yoki guruh) aylantiradi.</summary>
@@ -161,6 +161,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
             SubjectId = lesson.SubjectId,
             TeacherId = lesson.TeacherId,
             SubGroup = lesson.SubGroup,
+            RoomId = lesson.RoomId,
         });
         await db.SaveChangesAsync(ct);
         return NoContent();
@@ -206,6 +207,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
 
         var lessons = req.Lessons ?? new();
         if (CellError(owner, req) is { } invalid) return BadRequest(new { message = invalid });
+        if (await RoomErrorAsync(lessons, ct) is { } badRoom) return BadRequest(new { message = badRoom });
 
         if (await BlockClashAsync(owner, lessons.Count > 0 ? [(req.Day, req.Period)] : [], ct) is { } blockClash)
             return Conflict(new { message = blockClash });
@@ -229,6 +231,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
                 SubjectId = l.SubjectId,
                 TeacherId = l.TeacherId,
                 SubGroup = l.SubGroup,
+                RoomId = l.RoomId,
             });
         }
         await db.SaveChangesAsync(ct);
@@ -262,6 +265,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
             return BadRequest(new { message = "Bitta katak ikki marta berildi" });
         foreach (var cell in cells)
             if (CellError(owner, cell) is { } invalid) return BadRequest(new { message = invalid });
+        if (await RoomErrorAsync([.. cells.SelectMany(c => c.Lessons ?? [])], ct) is { } badRoom) return BadRequest(new { message = badRoom });
         if (await BlockClashAsync(owner,
                 [.. cells.Where(c => (c.Lessons ?? []).Count > 0).Select(c => (c.Day, c.Period))], ct) is { } blockClash)
             return Conflict(new { message = blockClash });
@@ -296,7 +300,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
                 edited.Lessons.Add(new ScheduleLesson
                 {
                     TemplateId = edited.Id, Day = l.Day, Period = l.Period,
-                    SubjectId = l.SubjectId, TeacherId = l.TeacherId, SubGroup = l.SubGroup,
+                    SubjectId = l.SubjectId, TeacherId = l.TeacherId, SubGroup = l.SubGroup, RoomId = l.RoomId,
                 });
         }
         await db.SaveChangesAsync(ct);
@@ -312,6 +316,15 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         LessonOwner owner, IReadOnlyCollection<(int Day, int Period)> cells, CancellationToken ct) =>
         new BlockScheduleService(db).ClashForOwnerAsync(owner.Id, owner.Name, cells, ct);
 
+
+    /// <summary>Darsdagi xona mavjud va faolmi (2026-11-21). Xona berilmagan bo'lsa — null.</summary>
+    private async Task<string?> RoomErrorAsync(IReadOnlyCollection<ScheduleLessonDto> lessons, CancellationToken ct)
+    {
+        var ids = lessons.Select(l => l.RoomId).OfType<Guid>().Distinct().ToList();
+        if (ids.Count == 0) return null;
+        var found = await db.Rooms.AsNoTracking().Where(r => ids.Contains(r.Id) && r.IsActive).CountAsync(ct);
+        return found == ids.Count ? null : "Xona topilmadi yoki faol emas";
+    }
     /// <summary>Katak so'rovining tuzilish xatosi (yoki null) — <see cref="SetCell"/> va <see cref="SetLiveCell"/> uchun.</summary>
     private static string? CellError(LessonOwner owner, SetCellRequest req)
     {
@@ -353,13 +366,16 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var teacherIds = before.Select(l => l.TeacherId).Concat(after.Select(l => l.TeacherId)).Distinct().ToList();
         var subjects = await db.Subjects.AsNoTracking().Where(s => subjectIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct);
         var teachers = await db.Teachers.AsNoTracking().Where(t => teacherIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
+        var roomIds = before.Select(l => l.RoomId).Concat(after.Select(l => l.RoomId)).OfType<Guid>().Distinct().ToList();
+        var rooms = await db.Rooms.AsNoTracking().Where(r => roomIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.Name, ct);
 
-        string Describe(IEnumerable<(int SubGroup, string SubjectId, string TeacherId)> lessons)
+        string Describe(IEnumerable<(int SubGroup, string SubjectId, string TeacherId, Guid? RoomId)> lessons)
         {
             var parts = lessons.OrderBy(l => l.SubGroup).Select(l =>
                 (l.SubGroup > 0 ? $"{l.SubGroup}-guruh: " : "")
                 + subjects.GetValueOrDefault(l.SubjectId, "?")
-                + (string.IsNullOrEmpty(l.TeacherId) ? "" : " — " + teachers.GetValueOrDefault(l.TeacherId, "?")))
+                + (string.IsNullOrEmpty(l.TeacherId) ? "" : " — " + teachers.GetValueOrDefault(l.TeacherId, "?"))
+                + (l.RoomId is { } r ? $" ({rooms.GetValueOrDefault(r, "?")}-xona)" : ""))
                 .ToList();
             return parts.Count == 0 ? "—" : string.Join("; ", parts);
         }
@@ -368,8 +384,8 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var now = new Dictionary<string, object?>();
         foreach (var (day, period) in cells.Distinct().OrderBy(c => c.Day).ThenBy(c => c.Period))
         {
-            var b = Describe(before.Where(l => l.Day == day && l.Period == period).Select(l => (l.SubGroup, l.SubjectId, l.TeacherId)));
-            var a = Describe(after.Where(l => l.Day == day && l.Period == period).Select(l => (l.SubGroup, l.SubjectId, l.TeacherId)));
+            var b = Describe(before.Where(l => l.Day == day && l.Period == period).Select(l => (l.SubGroup, l.SubjectId, l.TeacherId, l.RoomId)));
+            var a = Describe(after.Where(l => l.Day == day && l.Period == period).Select(l => (l.SubGroup, l.SubjectId, l.TeacherId, l.RoomId)));
             if (a == b) continue;
             var key = $"{(day >= 0 && day < DayNames.Length ? DayNames[day] : $"{day}-kun")}, {period}-dars";
             was[key] = b;

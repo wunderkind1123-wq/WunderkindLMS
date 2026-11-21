@@ -211,6 +211,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BlockClass> BlockClasses => Set<BlockClass>();
     public DbSet<BlockGroup> BlockGroups => Set<BlockGroup>();
     public DbSet<BlockGroupTeacher> BlockGroupTeachers => Set<BlockGroupTeacher>();
+    // Yuklama va ustoz bandligi — avtomatik jadval tuzish (2026-11-21). Konfiguratsiya: TeachingLoadModel.cs.
+    public DbSet<TeachingLoad> TeachingLoads => Set<TeachingLoad>();
+    public DbSet<TeacherUnavailability> TeacherUnavailability => Set<TeacherUnavailability>();
+    public DbSet<OwnerStudyDays> OwnerStudyDays => Set<OwnerStudyDays>();
     // Teacher certificates and named allowances paid with the salary (teacher-allowances.md, 2026-10-15).
     public DbSet<TeacherAllowance> TeacherAllowances => Set<TeacherAllowance>();
     // Thank-you / warning messages after a test (exam-awards.md, 2026-10-15).
@@ -618,6 +622,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
         // Bloklar — birlashgan va daraja guruhlari (2026-11-18, docs/modules/blocks.md).
         BlockModel.Apply(b);
+
+        // Yuklama, ustoz bandligi va dars xonasi (2026-11-21).
+        TeachingLoadModel.Apply(b);
 
         // ----- PostgreSQL: vaqt turi -----
         // Tizim sanalarni Toshkent "devor soati" sifatida saqlaydi (AppClock.Now — Kind=Unspecified),

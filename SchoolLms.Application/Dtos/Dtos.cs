@@ -410,7 +410,8 @@ public record SaveAbsenceReasonsRequest(List<AbsenceReasonDto> AbsenceReasons);
 
 /* ---------- Schedule templates ---------- */
 /// <summary>Bitta dars katagi. SubGroup: 0 = butun sinf, 1 = 1-guruh, 2 = 2-guruh.</summary>
-public record ScheduleLessonDto(int Day, int Period, string SubjectId, string TeacherId, int SubGroup = 0);
+/// <param name="RoomId">Xona (rooms.id); null — sinfning o'z xonasi (2026-11-21).</param>
+public record ScheduleLessonDto(int Day, int Period, string SubjectId, string TeacherId, int SubGroup = 0, Guid? RoomId = null);
 /// <summary>
 /// Jadval varianti. <paramref name="ClassId"/> — EGAning id'si: sinf yoki
 /// o'quv guruhi, <paramref name="OwnerKind"/> qaysi ekanini aytadi

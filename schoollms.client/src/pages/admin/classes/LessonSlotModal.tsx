@@ -83,14 +83,23 @@ interface Props {
    */
   blocks?: { id: string; name: string }[]
   onPlaceBlock?: (day: number, period: number, blockId: string) => void
+  /**
+   * Xonalar (2026-11-21). Berilsa — har darsga xona tanlanadi (bo'sh = sinfning o'z xonasi).
+   * `roomBusy` — xona shu vaqtda kimda band (ogohlantirish, saqlashni to'xtatmaydi).
+   */
+  rooms?: { id: string; name: string }[]
+  homeRoomName?: string | null
+  roomBusy?: (roomId: string) => string | null
 }
 
 interface Row {
   subjectId: string
   teacherId: string
+  roomId: string
 }
 
-const emptyRow: Row = { subjectId: '', teacherId: '' }
+const emptyRow: Row = { subjectId: '', teacherId: '', roomId: '' }
+const rowOf = (l: ScheduleLesson): Row => ({ subjectId: l.subjectId, teacherId: l.teacherId, roomId: l.roomId ?? '' })
 
 export function LessonSlotModal({
   slot,
@@ -106,6 +115,9 @@ export function LessonSlotModal({
   onClear,
   blocks = [],
   onPlaceBlock,
+  rooms = [],
+  homeRoomName,
+  roomBusy,
 }: Props) {
   const [mode, setMode] = useState<'whole' | 'split'>('whole')
   const [whole, setWhole] = useState<Row>(emptyRow)
@@ -122,11 +134,11 @@ export function LessonSlotModal({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- katak o'zgarganda formani sinxronlash (maqsadli)
       setMode('split')
       setWhole(emptyRow)
-      setG1(g1Lesson ? { subjectId: g1Lesson.subjectId, teacherId: g1Lesson.teacherId } : emptyRow)
-      setG2(g2Lesson ? { subjectId: g2Lesson.subjectId, teacherId: g2Lesson.teacherId } : emptyRow)
+      setG1(g1Lesson ? rowOf(g1Lesson) : emptyRow)
+      setG2(g2Lesson ? rowOf(g2Lesson) : emptyRow)
     } else if (wholeLesson) {
       setMode('whole')
-      setWhole({ subjectId: wholeLesson.subjectId, teacherId: wholeLesson.teacherId })
+      setWhole(rowOf(wholeLesson))
       setG1(emptyRow)
       setG2(emptyRow)
     } else {
@@ -157,11 +169,11 @@ export function LessonSlotModal({
   const updateRow = (
     row: Row,
     setter: (r: Row) => void,
-    key: 'subjectId' | 'teacherId',
+    key: keyof Row,
     val: string,
   ) => {
     if (key === 'subjectId') {
-      const next: Row = { subjectId: val, teacherId: '' }
+      const next: Row = { subjectId: val, teacherId: '', roomId: row.roomId }
       if (val && row.teacherId && teachersFor(val).some((t) => t.id === row.teacherId))
         next.teacherId = row.teacherId
       setter(next)
@@ -188,6 +200,7 @@ export function LessonSlotModal({
           period: slot.period,
           subjectId: whole.subjectId,
           teacherId: whole.teacherId,
+          roomId: whole.roomId || null,
           subGroup: 0,
         },
       ])
@@ -199,6 +212,7 @@ export function LessonSlotModal({
           period: slot.period,
           subjectId: g1.subjectId,
           teacherId: g1.teacherId,
+          roomId: g1.roomId || null,
           subGroup: 1,
         })
       if (g2.subjectId)
@@ -207,6 +221,7 @@ export function LessonSlotModal({
           period: slot.period,
           subjectId: g2.subjectId,
           teacherId: g2.teacherId,
+          roomId: g2.roomId || null,
           subGroup: 2,
         })
       if (out.length === 0) return
@@ -272,6 +287,9 @@ export function LessonSlotModal({
             row={whole}
             onChange={(k, v) => updateRow(whole, setWhole, k, v)}
             teachersFor={teachersFor}
+            rooms={rooms}
+            homeRoomName={homeRoomName}
+            roomBusy={roomBusy}
             conflict={wholeConflict}
           />
         ) : (
@@ -285,6 +303,9 @@ export function LessonSlotModal({
                 row={g1}
                 onChange={(k, v) => updateRow(g1, setG1, k, v)}
                 teachersFor={teachersFor}
+                rooms={rooms}
+                homeRoomName={homeRoomName}
+                roomBusy={roomBusy}
                 conflict={g1Conflict}
               />
             </div>
@@ -297,6 +318,9 @@ export function LessonSlotModal({
                 row={g2}
                 onChange={(k, v) => updateRow(g2, setG2, k, v)}
                 teachersFor={teachersFor}
+                rooms={rooms}
+                homeRoomName={homeRoomName}
+                roomBusy={roomBusy}
                 conflict={g2Conflict}
               />
             </div>
@@ -350,14 +374,21 @@ function RowFields({
   onChange,
   teachersFor,
   conflict,
+  rooms,
+  homeRoomName,
+  roomBusy,
 }: {
   subjects: Subject[]
   row: Row
-  onChange: (key: 'subjectId' | 'teacherId', value: string) => void
+  onChange: (key: keyof Row, value: string) => void
   teachersFor: (subjectId: string) => Teacher[]
   conflict: ConflictInfo | null
+  rooms: { id: string; name: string }[]
+  homeRoomName?: string | null
+  roomBusy?: (roomId: string) => string | null
 }) {
   const avail = teachersFor(row.subjectId)
+  const busyIn = row.roomId && roomBusy ? roomBusy(row.roomId) : null
   return (
     <div className="space-y-3">
       <Select label="Fan" value={row.subjectId} onChange={(e) => onChange('subjectId', e.target.value)}>
@@ -385,6 +416,21 @@ function RowFields({
 
       {row.subjectId && avail.length === 0 && (
         <p className="text-xs text-amber-600">Bu fanga biriktirilgan o'qituvchi yo'q.</p>
+      )}
+
+      {rooms.length > 0 && (
+        <Select label="Xona" value={row.roomId} onChange={(e) => onChange('roomId', e.target.value)}>
+          <option value="">{homeRoomName ? `Sinf xonasi (${homeRoomName})` : 'Sinf xonasi'}</option>
+          {rooms.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+              {roomBusy?.(r.id) ? ` — band (${roomBusy(r.id)})` : ''}
+            </option>
+          ))}
+        </Select>
+      )}
+      {busyIn && (
+        <p className="text-xs text-amber-700">Bu xona shu vaqtda {busyIn} da band.</p>
       )}
 
       {/* Ziddiyat ogohlantirilmasi */}

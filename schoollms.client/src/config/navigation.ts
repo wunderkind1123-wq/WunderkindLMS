@@ -252,6 +252,7 @@ export const navByRole: Record<Role, NavItem[]> = {
         { label: 'Dars jadvali', to: '/admin/schedule', end: true, group: 'JADVAL' },
         { label: "O'qituvchi jadvali", to: '/admin/schedule/teachers', group: 'JADVAL' },
         { label: 'Dars jadvali yaratish', to: '/admin/schedule/manage', group: 'JADVAL' },
+        { label: 'Yuklama va avtomatik tuzish', to: '/admin/schedule/builder', group: 'JADVAL' },
       ],
     },
     { label: 'Xabarlar', to: '/admin/messages', icon: MessageSquare, perm: 'messages' },
