@@ -112,9 +112,10 @@ public sealed class DisciplineParentNotifier(
             "",
             $"O'quvchi: {student.FullName}"
                 + (string.IsNullOrWhiteSpace(student.ClassName) ? "" : $" ({student.ClassName})"),
-            $"Sabab: {point.ReasonName}",
-            $"Ball: {points}",
         };
+        if (!string.IsNullOrWhiteSpace(point.SubjectName)) lines.Add($"Fan: {point.SubjectName}");
+        lines.Add($"Sabab: {point.ReasonName}");
+        lines.Add($"Ball: {points}");
 
         if (!string.IsNullOrWhiteSpace(point.Note)) lines.Add($"Izoh: {point.Note}");
         lines.Add($"Vaqt: {FormatTime(point.CreatedAt)}");

@@ -97,6 +97,8 @@ public static class HomeworkDisciplinePoints
                 point.ReasonName = reason.Name;
                 point.Points = reason.Points;
                 point.Note = Note(subject, c.Date, c.Period, mark);
+                point.SubjectId = subjectId;
+                point.SubjectName = subject.Length > 0 ? subject : null;
                 point.UpdatedAt = now;
                 point.UpdatedBy = Author;
                 continue;
@@ -112,6 +114,8 @@ public static class HomeworkDisciplinePoints
                 CreatedAt = now,
                 CreatedBy = Author,
                 SourceKey = key,
+                SubjectId = subjectId,
+                SubjectName = subject.Length > 0 ? subject : null,
             });
         }
         await db.SaveChangesAsync(ct);

@@ -93,6 +93,19 @@ public static class DisciplineIncidents
     }
 
     /// <summary>
+    /// The subject an entry is tagged with: (id, name snapshot) of an existing subject, or (null, null)
+    /// for a blank / unknown id — the entry then reads as "umumiy".
+    /// </summary>
+    public static async Task<(string? Id, string? Name)> SubjectAsync(
+        IAppDbContext db, string? subjectId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(subjectId)) return (null, null);
+        var name = await db.Subjects.AsNoTracking().Where(s => s.Id == subjectId)
+            .Select(s => s.Name).FirstOrDefaultAsync(ct);
+        return name is null ? (null, null) : (subjectId, name);
+    }
+
+    /// <summary>
     /// One pupil's score and its whole history, newest first: manual entries and attendance-reason days,
     /// only those that add up to the score (<see cref="ScoreSinceAsync"/>). The parent's cabinet and the
     /// homeroom teacher read this same list.
@@ -111,7 +124,7 @@ public static class DisciplineIncidents
         var items = manual.Select(p => new DisciplinePointDto(
             p.Id, p.StudentId,
             string.IsNullOrEmpty(p.ReasonName) ? reasonNames.GetValueOrDefault(p.ReasonId, "—") : p.ReasonName,
-            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual")).ToList();
+            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", SubjectName: p.SubjectName)).ToList();
 
         // One day + one reason = one incident (AttendanceDisciplineDays): 7 missed lessons still count once.
         var marks = await db.JournalEntries.AsNoTracking()

@@ -219,6 +219,44 @@ public class TeacherDisciplineTests(ApiFixture fixture)
         Assert.Equal(w.TName, Str(row, "createdBy"));
     }
 
+    /// <summary>
+    /// Ota-onalar taklifi (2026-11-23): dars ekranidan qo'yilgan ball dars FANI bilan yoziladi va
+    /// tarixda (o'qituvchi varaqasi, Harakatlar lentasi) fan nomi ko'rinadi. Noma'lum fan id'si
+    /// yozuvni rad etmaydi — u shunchaki "umumiy" bo'lib qoladi.
+    /// </summary>
+    [Fact]
+    public async Task Point_from_a_lesson_carries_the_lesson_subject()
+    {
+        var w = await SeedAsync();
+        var response = await w.T.PostAsJsonAsync($"{Base}/points",
+            new { studentId = w.A1, reasonId = w.NegativeId, subjectId = w.SubjectId });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using (var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()))
+            Assert.StartsWith("Matematika", body.RootElement.GetProperty("subjectName").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await w.T.PostAsJsonAsync($"{Base}/points",
+            new { studentId = w.A2, reasonId = w.PositiveId, subjectId = "no-such-subject" })).StatusCode);
+
+        await fixture.Api.WithDbAsync(async db =>
+        {
+            var p = await db.DisciplinePoints.AsNoTracking().SingleAsync(x => x.StudentId == w.A1);
+            Assert.Equal(w.SubjectId, p.SubjectId);
+            Assert.StartsWith("Matematika", p.SubjectName);
+            var general = await db.DisciplinePoints.AsNoTracking().SingleAsync(x => x.StudentId == w.A2);
+            Assert.Null(general.SubjectId);
+            Assert.Null(general.SubjectName);
+        });
+
+        var sheet = await ObjectAsync(w.T, $"{Base}/points?studentId={w.A1}");
+        Assert.StartsWith("Matematika", Str(sheet.GetProperty("items").EnumerateArray().First(), "subjectName"));
+
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+        var feed = await ObjectAsync(admin, $"/api/admin/discipline/feed?className={w.ClassA}");
+        var rows = feed.GetProperty("items").EnumerateArray().ToList();
+        Assert.Contains(rows, r => (Str(r, "subjectName") ?? "").StartsWith("Matematika"));
+        Assert.Contains(rows, r => r.GetProperty("subjectName").ValueKind == JsonValueKind.Null);
+    }
+
     [Fact]
     public async Task Homeroom_teacher_and_todays_substitute_reach_their_pupils()
     {

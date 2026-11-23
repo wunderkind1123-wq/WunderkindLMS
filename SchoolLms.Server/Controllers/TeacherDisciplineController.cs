@@ -123,7 +123,7 @@ public sealed class TeacherDisciplineController(
             .OrderByDescending(p => p.CreatedAt).Take(RecentItems).ToListAsync(ct);
         var items = manual.Select(p => new TeacherDisciplinePointDto(
             p.Id, p.ReasonName, p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual",
-            DisciplineIncidents.TeacherMayDelete(p, Uid))).ToList();
+            DisciplineIncidents.TeacherMayDelete(p, Uid), SubjectName: p.SubjectName)).ToList();
 
         // Attendance-reason days move the score too — shown so the number adds up, never deletable here.
         var reasonRows = await db.AbsenceReasons.AsNoTracking().Where(r => r.Points != 0)
@@ -186,6 +186,8 @@ public sealed class TeacherDisciplineController(
             CreatedBy = t.FullName,
             CreatedByUserId = Uid,
         };
+        // Dars fani — dars ekranidan keladi; noma'lum id jim tashlanadi (yozuv "umumiy" bo'lib qoladi).
+        (point.SubjectId, point.SubjectName) = await DisciplineIncidents.SubjectAsync(db, req.SubjectId, ct);
         // Blok darsida qo'yilgan ball — blok guruhi va o'quvchining manba sinfi bilan (17:00 hisoboti
         // ustoz bo'yicha har guruhni alohida ko'rsatadi, docs/modules/blocks.md).
         if (!string.IsNullOrWhiteSpace(req.OwnerId) && Guid.TryParse(req.OwnerId, out var sg)
@@ -204,7 +206,7 @@ public sealed class TeacherDisciplineController(
 
         return new TeacherDisciplinePointDto(
             point.Id, point.ReasonName, point.Points, point.Note, point.CreatedAt, point.CreatedBy, "manual",
-            true, notified);
+            true, notified, point.SubjectName);
     }
 
     /// <summary>Takes back the teacher's OWN entry, on the day it was made; anything else is 403.</summary>

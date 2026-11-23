@@ -58,6 +58,8 @@ public class HomeworkDisciplinePointsTests(ApiFixture fixture)
         var point = Assert.Single(await PointsAsync());
         Assert.Equal((partial.Id, -2, HomeworkDisciplinePoints.Author), (point.ReasonId, point.Points, point.CreatedBy));
         Assert.Contains("«−»", point.Note);
+        // The journal's subject — the parent sees which lesson it came from.
+        Assert.Equal((subject.Id, subject.Name), (point.SubjectId, point.SubjectName));
 
         // «*» → the same entry takes the other reason.
         await SetAsync(HomeworkStatus.NotDone, grade: 4);

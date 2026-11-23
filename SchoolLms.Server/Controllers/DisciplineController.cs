@@ -415,6 +415,7 @@ public class DisciplineController(
             CreatedBy = user?.FullName ?? "Administrator",
             CreatedByUserId = string.IsNullOrEmpty(Uid) ? null : Uid,
         };
+        (p.SubjectId, p.SubjectName) = await DisciplineIncidents.SubjectAsync(db, req.SubjectId, ct);
         db.DisciplinePoints.Add(p);
         // EntityDisciplinePoint was defined and never written until 2026-10-15 (audit-log.md).
         audit.Record(AuditService.EntityDisciplinePoint, p.Id, "create",
@@ -428,7 +429,8 @@ public class DisciplineController(
         var notified = dr is null ? 0 : await Notifier.NotifyAsync(student, dr, p, ct);
 
         return new DisciplinePointDto(
-            p.Id, p.StudentId, name, pts, p.Note, p.CreatedAt, p.CreatedBy, "manual", notified, p.ReasonId);
+            p.Id, p.StudentId, name, pts, p.Note, p.CreatedAt, p.CreatedBy, "manual", notified, p.ReasonId,
+            SubjectName: p.SubjectName);
     }
 
     /// <summary>
@@ -475,6 +477,7 @@ public class DisciplineController(
         var user = await db.Users.FindAsync([Uid], ct);
         var note = (req.Note ?? "").Trim();
         var author = user?.FullName ?? "Administrator";
+        var (subjectId, subjectName) = await DisciplineIncidents.SubjectAsync(db, req.SubjectId, ct);
 
         var pairs = new List<(Student Student, DisciplinePoint Point)>();
         foreach (var student in students)
@@ -489,6 +492,8 @@ public class DisciplineController(
                 CreatedAt = AppClock.Now.ToString("o"),
                 CreatedBy = author,
                 CreatedByUserId = string.IsNullOrEmpty(Uid) ? null : Uid,
+                SubjectId = subjectId,
+                SubjectName = subjectName,
             };
             db.DisciplinePoints.Add(p);
             pairs.Add((student, p));
@@ -507,7 +512,8 @@ public class DisciplineController(
             var notified = await Notifier.NotifyAsync(student, dr, p, ct);
             notifiedTotal += notified;
             items.Add(new DisciplinePointDto(
-                p.Id, p.StudentId, dr.Name, dr.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", notified, p.ReasonId));
+                p.Id, p.StudentId, dr.Name, dr.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", notified, p.ReasonId,
+                SubjectName: p.SubjectName));
         }
 
         return new ClassDisciplinePointResultDto(items.Count, notifiedTotal, items, skipped);
@@ -524,7 +530,8 @@ public class DisciplineController(
         var result = manual.Select(p => new DisciplinePointDto(
             p.Id, p.StudentId,
             string.IsNullOrEmpty(p.ReasonName) ? drNames.GetValueOrDefault(p.ReasonId, "—") : p.ReasonName,
-            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", 0, p.ReasonId, p.UpdatedAt, p.UpdatedBy)).ToList();
+            p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", 0, p.ReasonId, p.UpdatedAt, p.UpdatedBy,
+            p.SubjectName)).ToList();
 
         // Jurnal davomati — sabab balli != 0 bo'lganlari (qoldiga ta'sir qilgani uchun ko'rsatamiz).
         // Bitta kun + bitta sabab = bitta qator (AttendanceDisciplineDays), nechta darsligi izohda.
@@ -687,7 +694,8 @@ public class DisciplineController(
                 rows.Add(new DisciplineFeedRowDto(
                     p.Id, p.StudentId, s.FullName, s.ClassName,
                     string.IsNullOrEmpty(p.ReasonName) ? drNames.GetValueOrDefault(p.ReasonId, "—") : p.ReasonName,
-                    p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", p.ReasonId, p.UpdatedAt, p.UpdatedBy));
+                    p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", p.ReasonId, p.UpdatedAt, p.UpdatedBy,
+                    p.SubjectName));
             }
         }
 
@@ -802,7 +810,7 @@ public class DisciplineController(
 
         return new DisciplinePointDto(
             p.Id, p.StudentId, p.ReasonName, p.Points, p.Note, p.CreatedAt, p.CreatedBy, "manual", 0,
-            p.ReasonId, p.UpdatedAt, p.UpdatedBy);
+            p.ReasonId, p.UpdatedAt, p.UpdatedBy, p.SubjectName);
     }
 
     /// <summary>Qo'lda kiritilgan ball yozuvini o'chiradi (jurnal davomatini emas). Audited.</summary>
@@ -886,6 +894,6 @@ public class DisciplineController(
     /// <summary>A point as the audit shows it (Uzbek keys, audit-log.md).</summary>
     private static Dictionary<string, object?> PointView(DisciplinePoint p) => new()
     {
-        ["Sabab"] = p.ReasonName, ["Ball"] = p.Points, ["Izoh"] = p.Note, ["Qo'ygan"] = p.CreatedBy,
+        ["Sabab"] = p.ReasonName, ["Ball"] = p.Points, ["Izoh"] = p.Note, ["Qo'ygan"] = p.CreatedBy, ["Fan"] = p.SubjectName,
     };
 }

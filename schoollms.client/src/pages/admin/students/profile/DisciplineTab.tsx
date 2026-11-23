@@ -108,7 +108,10 @@ export function DisciplineTab({ points, score, student, canEdit, onChanged }: Pr
                   {p.points > 0 ? `+${p.points}` : p.points}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-700">{p.reasonName}</p>
+                  <p className="truncate text-sm font-medium text-slate-700">
+                    {p.reasonName}
+                    {p.subjectName && <span className="ml-1.5 text-xs font-semibold text-brand-600">· {p.subjectName}</span>}
+                  </p>
                   {p.note && <p className="truncate text-xs text-slate-400">{p.note}</p>}
                 </div>
                 <div className="shrink-0 text-right text-xs text-slate-400">

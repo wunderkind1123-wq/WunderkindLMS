@@ -27,7 +27,8 @@ export function signedPoints(p) {
 }
 
 // ownerId — darsning egasi (blok guruhida ball blok guruhi va manba sinfiga yoziladi, docs/modules/blocks.md).
-export function BehaviourSheet({ student, ownerId, reasons, onClose, onChanged }) {
+// subjectId — dars fani: ota-ona "qaysi fandan" rag'bat/jarima olganini ko'radi.
+export function BehaviourSheet({ student, ownerId, subjectId, reasons, onClose, onChanged }) {
   const q = useAsync(() => teacherApi.disciplinePoints(student.id), [student.id])
   // Most entries teachers make are violations — the sheet opens on "Salbiy".
   const [type, setType] = useState('negative')
@@ -56,7 +57,7 @@ export function BehaviourSheet({ student, ownerId, reasons, onClose, onChanged }
     setSaving(true)
     setError(null)
     try {
-      await teacherApi.addDisciplinePoint({ studentId: student.id, reasonId: selected.id, note: note.trim() || null, ownerId: ownerId ?? null })
+      await teacherApi.addDisciplinePoint({ studentId: student.id, reasonId: selected.id, note: note.trim() || null, ownerId: ownerId ?? null, subjectId: subjectId ?? null })
       hapticNotify('success')
       onChanged?.()
       onClose()
@@ -217,6 +218,7 @@ export function BehaviourSheet({ student, ownerId, reasons, onClose, onChanged }
               <p className="truncate text-[12px] text-slate-400">
                 {[
                   item.source === 'attendance' ? fullDate(item.createdAt) : dateTime(item.createdAt),
+                  item.subjectName,
                   item.source === 'attendance' ? 'davomat' : item.createdBy,
                   item.note && item.source !== 'attendance' ? item.note : null,
                 ]

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search, Send } from 'lucide-react'
-import type { DisciplineReason, DisciplineType } from '@/types'
+import type { DisciplineReason, DisciplineType, Subject } from '@/types'
 import {
   addDisciplinePoint,
   disciplineTypeLabel,
@@ -9,10 +9,11 @@ import {
   updateDisciplinePoint,
 } from '@/api/services/discipline'
 import { searchStudents, type StudentListRow } from '@/api/services/studentSearch'
+import { getSubjects } from '@/api/services/subjects'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Textarea } from '@/components/ui/Input'
+import { Select, Textarea } from '@/components/ui/Input'
 
 /** The pupil the incident is for — fixed (profile) or picked in the form (Harakatlar). */
 export interface IncidentStudent {
@@ -54,6 +55,8 @@ export function IncidentFormModal({ open, student, editing, onClose, onSaved }: 
   const [type, setType] = useState<DisciplineType>('negative')
   const [reasonId, setReasonId] = useState('')
   const [note, setNote] = useState('')
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [subjectId, setSubjectId] = useState('')
   const [picked, setPicked] = useState<IncidentStudent | null>(null)
   const [query, setQuery] = useState('')
   const [found, setFound] = useState<StudentListRow[]>([])
@@ -66,6 +69,7 @@ export function IncidentFormModal({ open, student, editing, onClose, onSaved }: 
     setType(editing ? disciplineTypeOf(editing.points) : 'negative')
     setReasonId(editing?.reasonId ?? '')
     setNote(editing?.note ?? '')
+    setSubjectId('')
     setPicked(null)
     setQuery('')
     setFound([])
@@ -73,6 +77,10 @@ export function IncidentFormModal({ open, student, editing, onClose, onSaved }: 
     getDisciplineReasons()
       .then((all) => setReasons(all.filter((r) => r.kind === 'other')))
       .catch(() => setReasons([]))
+    if (!editing)
+      getSubjects(undefined, true)
+        .then((all) => setSubjects([...all].sort((a, b) => a.name.localeCompare(b.name))))
+        .catch(() => setSubjects([]))
   }, [open, editing])
 
   // Pupil search (Harakatlar) — server side, debounced.
@@ -125,7 +133,7 @@ export function IncidentFormModal({ open, student, editing, onClose, onSaved }: 
         await updateDisciplinePoint(editing.id, reasonId, note.trim())
         onSaved(0)
       } else if (target) {
-        const saved = await addDisciplinePoint(target.id, reasonId, note.trim() || undefined)
+        const saved = await addDisciplinePoint(target.id, reasonId, note.trim() || undefined, subjectId || undefined)
         onSaved(saved.notifiedParents ?? 0)
       }
     } catch (e) {
@@ -279,6 +287,18 @@ export function IncidentFormModal({ open, student, editing, onClose, onSaved }: 
             </p>
           )}
         </div>
+
+        {/* ---------- Fan (ixtiyoriy) — ota-ona "qaysi fandan" ekanini ko'radi ---------- */}
+        {!editing && subjects.length > 0 && (
+          <Select label="Fan (ixtiyoriy)" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+            <option value="">Umumiy (fanga bog'liq emas)</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        )}
 
         <Textarea
           label="Izoh (ixtiyoriy)"

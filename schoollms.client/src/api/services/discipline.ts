@@ -123,11 +123,14 @@ export async function addDisciplinePoint(
   studentId: string,
   reasonId: string,
   note?: string,
+  /** Qaysi fan darsida — bo'sh: umumiy. */
+  subjectId?: string,
 ): Promise<DisciplinePoint> {
   const { data } = await api.post<DisciplinePoint>('/admin/discipline/points', {
     studentId,
     reasonId,
     note,
+    subjectId,
   })
   return data
 }

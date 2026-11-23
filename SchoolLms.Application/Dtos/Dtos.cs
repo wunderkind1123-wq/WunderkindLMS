@@ -690,7 +690,7 @@ public record DisciplineScoreRowDto(
     string StudentId, string FullName, string ClassName, int Plus, int Minus, int Remaining,
     string? TrackName = null);
 /// <summary>O'quvchiga ball kiritish so'rovi (sabab bo'yicha).</summary>
-public record AddDisciplinePointRequest(string StudentId, string ReasonId, string? Note, string? OwnerId = null);
+public record AddDisciplinePointRequest(string StudentId, string ReasonId, string? Note, string? OwnerId = null, string? SubjectId = null);
 /// <summary>
 /// Butun sinfga bitta intizomiy ball kiritish (C-6, students-parity.md §2.2.3): sinfning HAR
 /// BIR faol o'quvchisiga bir xil sabab bilan alohida yozuv qo'shiladi — EduSchool'dagi
@@ -699,7 +699,7 @@ public record AddDisciplinePointRequest(string StudentId, string ReasonId, strin
 /// <c>ClassId</c> yo'nalish guruhining id'si ham bo'lishi mumkin — unda ball guruhning faol
 /// a'zolariga yoziladi (9–11-sinflar yo'nalish bo'yicha o'qiydi, track-groups-as-classes.md).
 /// </summary>
-public record AddClassDisciplinePointRequest(string ClassId, string ReasonId, string? Note);
+public record AddClassDisciplinePointRequest(string ClassId, string ReasonId, string? Note, string? SubjectId = null);
 /// <summary>Sinf bo'ylab ball kiritish natijasi: nechta o'quvchiga yozildi, nechtasiga ota-onaga xabar ketdi.</summary>
 public record ClassDisciplinePointResultDto(int Applied, int NotifiedParents, List<DisciplinePointDto> Items, int Skipped = 0);
 /// <summary>Bitta intizomiy ball yozuvi (tarix). <c>Source</c>: "manual" (qo'lda, o'chirsa bo'ladi) yoki "attendance" (jurnal davomati, faqat ko'rish).</summary>
@@ -710,10 +710,12 @@ public record ClassDisciplinePointResultDto(int Applied, int NotifiedParents, Li
 /// <param name="ReasonId">The reason row (manual entries) — the edit form preselects it. Null for attendance.</param>
 /// <param name="UpdatedAt">Last edit (ISO), null when never edited.</param>
 /// <param name="UpdatedBy">Who edited last, null when never edited.</param>
+/// <param name="SubjectName">Fan nomi (qaysi dars) — null: umumiy yoki davomat.</param>
 public record DisciplinePointDto(
     string Id, string StudentId, string ReasonName, int Points, string Note, string CreatedAt,
     string CreatedBy, string Source, int NotifiedParents = 0,
-    string? ReasonId = null, string? UpdatedAt = null, string? UpdatedBy = null);
+    string? ReasonId = null, string? UpdatedAt = null, string? UpdatedBy = null,
+    string? SubjectName = null);
 /// <summary>O'quvchi/ota-ona ilovasi uchun intizomiy ball: qoldi + plus/minus + tarix (100 dan boshlanadi).</summary>
 public record StudentDisciplineDto(int Remaining, int Plus, int Minus, List<DisciplinePointDto> Items);
 
@@ -726,7 +728,8 @@ public record StudentDisciplineDto(int Remaining, int Plus, int Minus, List<Disc
 public record DisciplineFeedRowDto(
     string Id, string StudentId, string FullName, string ClassName, string ReasonName, int Points,
     string Note, string CreatedAt, string CreatedBy, string Source,
-    string? ReasonId = null, string? UpdatedAt = null, string? UpdatedBy = null);
+    string? ReasonId = null, string? UpdatedAt = null, string? UpdatedBy = null,
+    string? SubjectName = null);
 
 /// <summary>
 /// "Harakatlar" lentasi: bitta sahifa + filtrlangan to'plamning jamlamasi + filtr ro'yxatlari.
@@ -774,7 +777,7 @@ public record TeacherDisciplineScoreDto(string StudentId, int Remaining, int Tod
 /// </summary>
 public record TeacherDisciplinePointDto(
     string Id, string ReasonName, int Points, string Note, string CreatedAt, string CreatedBy,
-    string Source, bool CanDelete, int NotifiedParents = 0);
+    string Source, bool CanDelete, int NotifiedParents = 0, string? SubjectName = null);
 
 /// <summary>A pupil's behaviour for the teacher: score, today's points and the recent history.</summary>
 public record TeacherStudentDisciplineDto(

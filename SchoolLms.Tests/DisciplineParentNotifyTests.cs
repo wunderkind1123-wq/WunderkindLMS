@@ -230,6 +230,15 @@ public class DisciplineParentNotifyTests(ApiFixture fixture) : IAsyncLifetime
         Assert.Equal(
             "Rag'bat bali\n\nO'quvchi: Aliyev Vali (7-A)\nSabab: Olimpiada g'olibi\nBall: +5\nVaqt: 17.09.2026 14:05",
             DisciplineParentNotifier.BuildMessage(student, plus));
+
+        // Dars fani bilan qo'yilgan ball — ota-ona "qaysi fandan" ekanini xabardan ham ko'radi.
+        var lesson = new DisciplinePoint
+        {
+            ReasonName = "Uy vazifasi yo'q", Points = -2, Note = "", CreatedAt = "2026-11-23T09:10:00", SubjectName = "Matematika",
+        };
+        Assert.Equal(
+            "Intizomiy ball\n\nO'quvchi: Aliyev Vali (7-A)\nFan: Matematika\nSabab: Uy vazifasi yo'q\nBall: -2\nVaqt: 23.11.2026 09:10",
+            DisciplineParentNotifier.BuildMessage(student, lesson));
     }
 
     // =====================================================================

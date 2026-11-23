@@ -501,6 +501,11 @@ export function HarakatlarPage() {
                       <span className="block max-w-[14rem] truncate" title={row.reasonName}>
                         {row.reasonName}
                       </span>
+                      {row.subjectName && (
+                        <span className="block max-w-[14rem] truncate text-xs font-semibold text-brand-600">
+                          {row.subjectName}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span

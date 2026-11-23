@@ -1256,6 +1256,8 @@ export interface DisciplinePoint {
   /** Last edit (ISO) and who made it — null when never edited. */
   updatedAt?: string | null
   updatedBy?: string | null
+  /** Qaysi fan darsida qo'yilgan — null: umumiy yoki davomat. */
+  subjectName?: string | null
 }
 
 /** Maktab bo'ylab "Harakatlar" lentasidagi bitta qator (o'quvchi va sinf bilan) */
@@ -1276,6 +1278,8 @@ export interface DisciplineFeedRow {
   reasonId?: string | null
   updatedAt?: string | null
   updatedBy?: string | null
+  /** Qaysi fan darsida qo'yilgan — null: umumiy yoki davomat. */
+  subjectName?: string | null
 }
 
 /** EduSchool reason type — the sign of the points (docs/modules/behaviour.md). */

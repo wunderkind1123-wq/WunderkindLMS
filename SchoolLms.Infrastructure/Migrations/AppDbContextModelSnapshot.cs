@@ -3352,6 +3352,14 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("student_id");
 
+                    b.Property<string>("SubjectId")
+                        .HasColumnType("text")
+                        .HasColumnName("subject_id");
+
+                    b.Property<string>("SubjectName")
+                        .HasColumnType("text")
+                        .HasColumnName("subject_name");
+
                     b.Property<string>("UpdatedAt")
                         .HasColumnType("text")
                         .HasColumnName("updated_at");

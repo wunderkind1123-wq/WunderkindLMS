@@ -824,6 +824,16 @@ public class DisciplinePoint
 
     /// <summary>Yozuv paytidagi o'quvchining manba sinfi yoki yo'nalishi — sinf jurnali va hisobotlar shu bo'yicha. Oddiy darsda null.</summary>
     public string? SourceClassId { get; set; }
+
+    /// <summary>
+    /// Qaysi FAN darsida qo'yilgani (subjects.id) — ota-ona "qaysi fandan rag'bat/jarima oldi"
+    /// ni ko'rishi uchun (ota-onalar taklifi, 2026-11-23). O'qituvchi dars ekranidan qo'ysa dars fani,
+    /// uy vazifasi avtomatik ballida jurnal fani yoziladi. null — umumiy (kechikish, forma va h.k.).
+    /// </summary>
+    public string? SubjectId { get; set; }
+
+    /// <summary>Fan nomi (nusxa — fan keyin o'zgarsa/o'chsa ham tarix saqlanadi). null — umumiy.</summary>
+    public string? SubjectName { get; set; }
 }
 
 /// <summary>

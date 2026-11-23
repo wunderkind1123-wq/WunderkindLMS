@@ -630,6 +630,7 @@ function LessonAttendance({ lesson, quarter, date, isToday = true, reasons, canM
             <BehaviourSheet
               student={sheetStudent}
               ownerId={classId}
+              subjectId={subjectId}
               reasons={behaviourReasons.data}
               onClose={closeSheet}
               onChanged={behaviourScores.reload}
