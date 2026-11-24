@@ -675,6 +675,15 @@ app.UseHttpsRedirection();
 app.UseMcpPreAuthLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// SaveChanges ichida yoziladigan audit qatorlari (davomat — AttendanceAudit) kim qilganini bilsin.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.User.Identity?.IsAuthenticated == true)
+        SchoolLms.Application.Abstractions.AuditActor.Set(
+            ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+            ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value);
+    await next();
+});
 // /mcp: bir ulanishga 2 ta, butun jarayonga 6 ta parallel chaqiruv (navbatsiz).
 app.UseMcpConcurrency();
 app.UseRateLimiter();

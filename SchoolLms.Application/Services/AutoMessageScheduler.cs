@@ -37,6 +37,21 @@ public sealed class AutoMessageScheduler(IServiceProvider services, ILogger<Auto
                 logger.LogError(ex, "Avtomatik xabarlar tekshiruvi xato bilan tugadi");
             }
 
+            // "Kelmadi" xabaridan keyin davomat "keldi" ga o'zgarganlar — ota-onaga tuzatish (2026-11-24).
+            try
+            {
+                using var scope = services.CreateScope();
+                await new AbsenceCorrectionNotifier(
+                        scope.ServiceProvider.GetRequiredService<IAppDbContext>(),
+                        scope.ServiceProvider.GetRequiredService<TelegramService>(),
+                        logger)
+                    .RunAsync(AppClock.Today, stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Avtomatik xabarlar tekshiruvi xato bilan tugadi");
+            }
+
             try { await Task.Delay(Interval, stoppingToken); }
             catch (TaskCanceledException) { break; }
         }

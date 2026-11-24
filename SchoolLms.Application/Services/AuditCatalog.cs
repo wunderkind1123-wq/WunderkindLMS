@@ -64,7 +64,7 @@ public static class AuditCatalog
             AuditService.EntityStudentStatus, AuditService.EntityStudentImport, AuditService.EntityStudentDelete, AuditService.EntityStudentReport,
             AuditService.EntityGuardian, AuditService.EntityStudentEvent, AuditService.EntityCertificate,
             AuditService.EntityStudyGroup, AuditService.EntityLead, "StudentLocation",
-            AuditService.EntityAttendanceDay,
+            AuditService.EntityAttendanceDay, AuditService.EntityAttendance, AuditService.EntityAbsenceCorrection,
         ],
         [Finance] =
         [

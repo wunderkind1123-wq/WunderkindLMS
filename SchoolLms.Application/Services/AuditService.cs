@@ -140,6 +140,10 @@ public class AuditService(IAppDbContext db, IHttpContextAccessor http)
     public const string EntityContract = "Contract";
     /// <summary>A homeroom teacher changed the reason of a missed day or wrote why the pupil was away.</summary>
     public const string EntityAttendanceDay = "AttendanceDay";
+    /// <summary>A lesson's attendance mark of a pupil set, changed or removed (any screen) — AttendanceAudit.</summary>
+    public const string EntityAttendance = "Attendance";
+    /// <summary>The parent was told "did not come", the absence was then removed and a correction went out.</summary>
+    public const string EntityAbsenceCorrection = "AbsenceCorrection";
 
     /// <summary>
     /// Changed fields only: <paramref name="before"/> and <paramref name="after"/> are flattened

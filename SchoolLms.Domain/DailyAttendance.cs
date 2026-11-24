@@ -90,6 +90,15 @@ public class AbsenceNotice
     public string SentBy { get; set; } = string.Empty;
 
     public DateTimeOffset SentAt { get; set; }
+
+    /// <summary>
+    /// Xabardan keyin davomat "keldi" ga o'zgartirilib, ota-onaga tuzatish xabari ketgan vaqt
+    /// (2026-11-24, AbsenceCorrectionNotifier). null — tuzatish kerak bo'lmagan yoki hali ketmagan.
+    /// </summary>
+    public DateTimeOffset? CorrectedAt { get; set; }
+
+    /// <summary>Tuzatish nechta chatga yetkazildi.</summary>
+    public int CorrectionChats { get; set; }
 }
 
 /// <summary>

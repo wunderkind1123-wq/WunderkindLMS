@@ -345,6 +345,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         foreach (var g in PendingMcpRevocations(ids => McpGrants.Where(g => ids.Contains(g.UserId) && g.RevokedAt == null).ToList()))
             Revoke(g);
         BlockStamping.ApplyAsync(this, CancellationToken.None).GetAwaiter().GetResult();
+        AttendanceAudit.ApplyAsync(this, CancellationToken.None).GetAwaiter().GetResult();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -356,6 +357,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
                 Revoke(g);
         // Blok darsi qatorlari blok guruhi va manba sinfini oladi (BlockStamping.cs izohi).
         await BlockStamping.ApplyAsync(this, cancellationToken);
+        // Davomat belgisi o'zgarishi — audit jurnaliga (AttendanceAudit.cs izohi).
+        await AttendanceAudit.ApplyAsync(this, cancellationToken);
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
