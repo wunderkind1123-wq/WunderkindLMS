@@ -114,14 +114,16 @@ public static class LiveScheduleEdit
     /// Shablonning haftalarga biriktirilishi bo'yicha holati: 3 — joriy haftaga biriktirilgan
     /// (yakshanba kuni — kelgusi haftaga), 2 — chegara va undan keyingi haftalarga, 1 — faqat o'tgan
     /// haftalarda (eski versiya yoki yozgi ta'tildagi haqiqiy jadval), 0 — biriktirilmagan qoralama.
+    /// <paramref name="classId"/> berilsa — faqat shu eganing biriktirishlari o'qiladi.
     /// </summary>
-    public static async Task<Func<string, int>> TemplateRankAsync(IAppDbContext db, CancellationToken ct = default)
+    public static async Task<Func<string, int>> TemplateRankAsync(
+        IAppDbContext db, CancellationToken ct = default, string? classId = null)
     {
         var boundary = EditBoundary();
         var reference = ReferenceDay();
         var weeks = await WeeksAsync(db, ct);
         var ranks = (await db.WeekAssignments.AsNoTracking()
-                .Where(a => a.TemplateId != null)
+                .Where(a => a.TemplateId != null && (classId == null || a.ClassId == classId))
                 .Select(a => new { a.TemplateId, a.Quarter, a.Week }).ToListAsync(ct))
             .GroupBy(a => a.TemplateId!, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Max(a =>

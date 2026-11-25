@@ -61,9 +61,24 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var query = db.ScheduleTemplates.Include(t => t.Lessons).Where(t => t.ClassId == classId);
         if (owner is not null) query = query.Where(t => t.OwnerKind == owner.Kind);
 
+        // Barqaror tartib: amaldagisi birinchi (joriy → kelgusi → o'tgan → qoralama). Jadval sahifasi
+        // shablonni nomi bo'yicha topadi — bir xil nomli ikkitasi bo'lsa, tasodifiy biri emas, amaldagisi.
+        var rank = await LiveScheduleEdit.TemplateRankAsync(db, ct, classId);
         var templates = await query.ToListAsync(ct);
-        return templates.Select(ToDto).ToList();
+        return templates
+            .OrderByDescending(t => rank(t.Id)).ThenBy(t => t.Name, StringComparer.Ordinal).ThenBy(t => t.Id, StringComparer.Ordinal)
+            .Select(ToDto).ToList();
     }
+
+    /// <summary>
+    /// Bitta egada arxivlanmagan shablon nomi takrorlanmaydi: jadval sahifasi shablonni nomi bo'yicha
+    /// topadi va ikkitasi bo'lsa noto'g'risini faollashtirishi mumkin.
+    /// </summary>
+    private async Task<string?> NameTakenAsync(string classId, string ownerKind, string name, string? exceptId, CancellationToken ct) =>
+        await db.ScheduleTemplates.AnyAsync(t => t.ClassId == classId && t.OwnerKind == ownerKind && !t.IsArchived
+                                                 && t.Name == name && t.Id != exceptId, ct)
+            ? $"«{name}» nomli jadval bu yerda allaqachon bor — boshqa nom tanlang"
+            : null;
 
     [HttpPost]
     public async Task<ActionResult<ScheduleTemplateDto>> Create(
@@ -72,6 +87,7 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
         var owner = await OwnerAsync(classId, ct);
         if (owner is null) return NotFound();
         if (await BlockClashAsync(owner, [], ct) is { } blockClash) return Conflict(new { message = blockClash });
+        if (await NameTakenAsync(classId, owner.Kind, req.Name, null, ct) is { } taken) return Conflict(new { message = taken });
 
         var tpl = new ScheduleTemplate { ClassId = classId, Name = req.Name, OwnerKind = owner.Kind };
         db.ScheduleTemplates.Add(tpl);
@@ -87,11 +103,12 @@ public class ScheduleTemplatesController(AppDbContext db, AuditService audit) : 
     {
         var tpl = await FindAsync(classId, templateId, ct);
         if (tpl is null) return NotFound();
-        if (tpl.Name != req.Name)
-            audit.Record(AuditService.EntityScheduleTemplate, tpl.Id, "update",
-                $"Dars jadvali nomi o'zgardi: {await OwnerNameAsync(classId, ct)} — «{tpl.Name}» → «{req.Name}»",
-                before: new Dictionary<string, object?> { ["Nomi"] = tpl.Name },
-                after: new Dictionary<string, object?> { ["Nomi"] = req.Name });
+        if (tpl.Name == req.Name) return NoContent();
+        if (await NameTakenAsync(classId, tpl.OwnerKind, req.Name, tpl.Id, ct) is { } taken) return Conflict(new { message = taken });
+        audit.Record(AuditService.EntityScheduleTemplate, tpl.Id, "update",
+            $"Dars jadvali nomi o'zgardi: {await OwnerNameAsync(classId, ct)} — «{tpl.Name}» → «{req.Name}»",
+            before: new Dictionary<string, object?> { ["Nomi"] = tpl.Name },
+            after: new Dictionary<string, object?> { ["Nomi"] = req.Name });
         tpl.Name = req.Name;
         await db.SaveChangesAsync(ct);
         return NoContent();

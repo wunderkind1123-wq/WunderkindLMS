@@ -207,7 +207,21 @@ export function MasterScheduleGrid() {
   const currentNames = names.filter((n) => !isArchivedTemplateName(n))
   const archivedNames = names.filter(isArchivedTemplateName)
 
-  const templateOf = (classId: string) => templates[classId]?.find((t) => t.name === name) ?? null
+  /** Egadagi shu nomli shablonlar (server tartibi: amaldagisi birinchi). Odatda bitta. */
+  const templatesNamed = (classId: string) => templates[classId]?.filter((t) => t.name === name) ?? []
+  /**
+   * Shu nomli shablon. Eski ma'lumotda bitta egada bir xil nomli ikkitasi bo'lishi mumkin (server endi
+   * buni taqiqlaydi) — unda joriy haftadagisi, bo'lmasa server tartibidagi birinchisi.
+   */
+  const templateOf = (classId: string) => {
+    const list = templatesNamed(classId)
+    return list.find((t) => t.id === activeNow[classId]) ?? list[0] ?? null
+  }
+  /** Bir xil nomli shablonlari bor egalar — qaysi biri nazarda tutilgani noaniq, ommaviy amallar to'xtaydi. */
+  const duplicatedOwners = classes.filter((c) => templatesNamed(c.id).length > 1)
+  const duplicateError = (owners: OwnerRow[]) =>
+    `${owners.map((c) => c.name).join(', ')}: "${name}" nomli ${owners.length > 1 ? 'jadvallar' : 'jadval'} bir nechta. ` +
+    "Avval sinf/guruh jadvali sahifasida ortiqchasini qayta nomlang."
   const lessonsAt = (classId: string, period: number) =>
     (templateOf(classId)?.lessons ?? []).filter((l) => l.day === day && l.period === period)
 
@@ -581,6 +595,12 @@ export function MasterScheduleGrid() {
           .filter((w) => q.quarter > cq || w >= cw),
       }))
     const targets = only ? [only] : classes.filter((c) => templateOf(c.id))
+    // Bir xil nomli ikki shablondan noto'g'risi joriy va kelgusi haftalarga qo'yilib qolmasin.
+    const ambiguous = targets.filter((c) => templatesNamed(c.id).length > 1)
+    if (ambiguous.length > 0) {
+      setError(duplicateError(ambiguous))
+      return
+    }
     setAssigning(true)
     setError(null)
     try {
@@ -620,6 +640,10 @@ export function MasterScheduleGrid() {
   const renameAll = async () => {
     const to = renameTo.trim()
     if (!to || to === name) return
+    if (duplicatedOwners.length > 0) {
+      setError(duplicateError(duplicatedOwners))
+      return
+    }
     setBusy(true)
     setError(null)
     const owners = classes.filter((c) => templateOf(c.id))
@@ -656,6 +680,10 @@ export function MasterScheduleGrid() {
    * haftalarda ishlatilgan shablonni server arxivlaydi — tarix (jurnal, davomat, maosh) saqlanadi.
    */
   const deleteAll = async () => {
+    if (duplicatedOwners.length > 0) {
+      setError(duplicateError(duplicatedOwners))
+      return
+    }
     setBusy(true)
     setError(null)
     const owners = classes.filter((c) => templateOf(c.id))
@@ -933,7 +961,16 @@ export function MasterScheduleGrid() {
                         {c.isTrack ? "yo'nalish" : 'guruh'}
                       </span>
                     )}
-                    {live && !readOnly && activeNow[c.id] !== templateOf(c.id)?.id && (
+                    {!readOnly && templatesNamed(c.id).length > 1 && (
+                      <Link
+                        to={`/admin/schedule/manage/${c.id}`}
+                        title={`"${name}" nomli ${templatesNamed(c.id).length} ta jadval bor — qaysi biri nazarda tutilgani noaniq. Ortiqchasini qayta nomlang.`}
+                        className="mt-0.5 block text-[10px] font-medium text-red-600 hover:underline"
+                      >
+                        {templatesNamed(c.id).length} ta bir xil nomli jadval
+                      </Link>
+                    )}
+                    {live && !readOnly && templatesNamed(c.id).length <= 1 && activeNow[c.id] !== templateOf(c.id)?.id && (
                       <span className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-medium text-amber-700">
                         {templateOf(c.id) ? 'faol emas' : "jadval yo'q"}
                         {templateOf(c.id) && (
