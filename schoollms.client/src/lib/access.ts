@@ -106,7 +106,30 @@ export const LA_CRITERIA_KEY = 'lessonAnalysisCriteria'
  * egasi yotoqxonaning faqat qizlar yoki faqat o'g'il bolalar qismini ko'radi va belgilaydi. Server:
  * `DormGender` (Domain). Ikkalasi ham yoki hech biri — butun yotoqxona.
  */
-export const DORM_PAGE = '/admin/attendance/boarding?session=dorm'
+/**
+ * Menyu sahifasi yo'q server kalitlari — rol oynasida alohida belgi. `encodeGrants` ularni sahifadan hosil
+ * qilmaydi, shuning uchun belgisiz rol saqlanganda indamay o'chib ketardi: 2026-11-20 «Akademik Director»
+ * roli saqlanganda uchalasi tushib, direktorning 17:00 kunlik hisoboti to'xtadi.
+ */
+export const ROLE_FLAGS: readonly { key: string; label: string; hint: string }[] = [
+  {
+    key: 'dailyReport',
+    label: 'Kunlik hisobot (Telegram, 17:00)',
+    hint: "Har o'quv kuni 17:00 da Telegram'ga PDF: darslar, baholar, gamifikatsiya. Telegram ulangan bo'lishi kerak.",
+  },
+  {
+    key: 'studentReports',
+    label: "O'quvchi hisobotlari (PDF)",
+    hint: "O'quvchi profilida ixtiyoriy davr uchun PDF hisobot. Ota-onaga yuborilmaydi.",
+  },
+  {
+    key: 'reportsCopy',
+    label: 'Hisobotlar nusxasi (Telegram, sinf ZIP)',
+    hint: "Haftalik/oylik hisobot qoidasida «Ma'muriyatga ham yuborish» yoqilsa — sinf bo'yicha ZIP Telegram'ga.",
+  },
+]
+
+export const DORM_PAGE ='/admin/attendance/boarding?session=dorm'
 export const DORM_GIRLS_KEY = 'dormGirlsOnly'
 export const DORM_BOYS_KEY = 'dormBoysOnly'
 export type DormGender = 'all' | 'female' | 'male'
