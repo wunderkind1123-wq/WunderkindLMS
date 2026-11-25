@@ -519,7 +519,7 @@ public static partial class AssignmentQuestionImport
     }
 
     /// <summary>Counts Word list items per (list, level) and renders their visible label.</summary>
-    private sealed class WordNumbering(Numbering? numbering)
+    internal sealed class WordNumbering(Numbering? numbering)
     {
         private readonly Dictionary<(int Num, int Level), int> _counters = [];
 

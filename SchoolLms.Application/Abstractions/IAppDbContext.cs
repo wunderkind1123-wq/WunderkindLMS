@@ -393,6 +393,9 @@ public interface IAppDbContext
     DbSet<MonitoringTest> MonitoringTests { get; }
     DbSet<MonitoringItem> MonitoringItems { get; }
     DbSet<MonitoringParticipant> MonitoringParticipants { get; }
+    DbSet<MonitoringSitting> MonitoringSittings { get; }
+    DbSet<MonitoringSittingCode> MonitoringSittingCodes { get; }
+    DbSet<MonitoringStudentCode> MonitoringStudentCodes { get; }
 
     /// <summary>Olimpiada (Olympiad.cs, docs/modules/olympiad.md).</summary>
     DbSet<OlympiadSettings> OlympiadSettings { get; }

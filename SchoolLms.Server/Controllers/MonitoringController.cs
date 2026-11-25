@@ -19,7 +19,7 @@ namespace SchoolLms.Server.Controllers;
 [Authorize]
 [AdminPerm("monitoring", GatedRead = true)]
 [Route("api/admin/monitoring")]
-public class MonitoringController(AppDbContext db, AuditService audit) : ControllerBase
+public class MonitoringController(AppDbContext db, AuditService audit, IWebHostEnvironment env) : ControllerBase
 {
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -97,6 +97,11 @@ public class MonitoringController(AppDbContext db, AuditService audit) : Control
     [HttpGet("question-template")]
     public IActionResult QuestionTemplate() => File(MonitoringService.QuestionTemplate(), XlsxMime, "monitoring-savollar-namuna.xlsx");
 
+    /// <summary>Ustozlar test tuzadigan Word namuna — ko'rsatma va namuna savollar.</summary>
+    [HttpGet("word-template")]
+    public IActionResult WordTemplate() => File(MonitoringWordImport.Template(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", MonitoringWordImport.TemplateFileName);
+
     [HttpPost("banks/{id:guid}/import")]
     [RequestSizeLimit(20_000_000)]
     public Task<IActionResult> Import(Guid id, IFormFile? file, CancellationToken ct = default) => Run(async () =>
@@ -108,6 +113,28 @@ public class MonitoringController(AppDbContext db, AuditService audit) : Control
         if (result.Errors.Count > 0) throw new MonitoringException(string.Join("\n", result.Errors.Take(30)));
         return result;
     });
+
+    /// <summary>Word (.docx) / .txt fayl (multipart <c>file</c>) yoki <c>text</c> — oldindan ko'rish, saqlamaydi.</summary>
+    [HttpPost("banks/{id:guid}/import/preview")]
+    [RequestSizeLimit(AssignmentQuestionImport.MaxRequestBytes)]
+    public Task<IActionResult> ImportPreview(Guid id, IFormFile? file, [FromForm] string? text, CancellationToken ct = default) => Run(async () =>
+    {
+        if (!await db.MonitoringBanks.AnyAsync(b => b.Id == id, ct)) throw new MonitoringException("Bank topilmadi", 404);
+        return await MonitoringImportPreview.RunAsync(env, file, text);
+    });
+
+    /// <summary>Ko'rib chiqilgan savollarni bankka yozadi.</summary>
+    [HttpPost("banks/{id:guid}/images")]
+    [RequestSizeLimit(6_000_000)]
+    public Task<IActionResult> UploadImage(Guid id, IFormFile? file, CancellationToken ct = default) => Run(async () =>
+    {
+        if (!await db.MonitoringBanks.AnyAsync(b => b.Id == id, ct)) throw new MonitoringException("Bank topilmadi", 404);
+        return await MonitoringImportPreview.SaveImageAsync(env, file);
+    });
+
+    [HttpPost("banks/{id:guid}/questions/bulk")]
+    public Task<IActionResult> AddMany(Guid id, List<MonitoringQuestionPayload> rows, CancellationToken ct = default) =>
+        Run(async () => new { added = await MonitoringService.AddQuestionsAsync(db, id, rows, ct) });
 
     // ---------------------------------------------------------------- tests
 
@@ -146,10 +173,115 @@ public class MonitoringController(AppDbContext db, AuditService audit) : Control
     public Task<IActionResult> ResetDevice(Guid id, CancellationToken ct = default) =>
         Run(async () => { await MonitoringService.ResetDeviceAsync(db, id, ct); return null; });
 
+    // ---------------------------------------------------------------- sittings (bir o'tirishda bir nechta fan)
+
+    [HttpGet("sittings")]
+    public Task<IActionResult> Sittings(CancellationToken ct = default) =>
+        Run(async () => await MonitoringSittingService.ListAsync(db, ct));
+
+    [HttpPost("sittings")]
+    public Task<IActionResult> CreateSitting(MonitoringSittingPayload p, CancellationToken ct = default) => Run(async () =>
+    {
+        var s = await MonitoringSittingService.CreateAsync(db, p, Uid, ct);
+        audit.Record("monitoring_sitting", s.Id.ToString(), "create", $"Test sessiyasi yaratildi: {s.Title} ({s.TestIds.Count} fan)");
+        await db.SaveChangesAsync(ct);
+        return new { id = s.Id };
+    });
+
+    [HttpGet("sittings/{id:guid}")]
+    public Task<IActionResult> Sitting(Guid id, CancellationToken ct = default) =>
+        Run(async () => await MonitoringSittingService.DetailAsync(db, id, ct));
+
+    [HttpDelete("sittings/{id:guid}")]
+    public Task<IActionResult> DeleteSitting(Guid id, CancellationToken ct = default) =>
+        Run(async () => { await MonitoringSittingService.DeleteAsync(db, id, ct); return null; });
+
+    /// <summary>Sessiyani bitta formada: har fan uchun bankdan test, keyin sessiya (bitta tranzaksiya).</summary>
+    [HttpPost("sittings/quick")]
+    public Task<IActionResult> QuickSitting(MonitoringQuickSittingPayload p, CancellationToken ct = default) => Run(async () =>
+    {
+        var s = await MonitoringSittingService.QuickCreateAsync(db, p, Uid, ct);
+        audit.Record("monitoring_sitting", s.Id.ToString(), "create", $"Test sessiyasi tez yaratildi: {s.Title} ({s.TestIds.Count} fan)");
+        await db.SaveChangesAsync(ct);
+        return new { id = s.Id };
+    });
+
+    /// <summary>Jonli kuzatuv — test paytida har necha soniyada so'raladi.</summary>
+    [HttpGet("sittings/{id:guid}/live")]
+    public Task<IActionResult> SittingLive(Guid id, CancellationToken ct = default) => Run(async () =>
+    {
+        await MonitoringService.FinishExpiredAsync(db, null, ct);
+        return await MonitoringSittingService.SittingLiveAsync(db, id, ct);
+    });
+
+    [HttpGet("tests/{id:guid}/live")]
+    public Task<IActionResult> TestLive(Guid id, CancellationToken ct = default) => Run(async () =>
+    {
+        await MonitoringService.FinishExpiredAsync(db, id, ct);
+        return await MonitoringSittingService.TestLiveAsync(db, id, ct);
+    });
+
+    /// <summary>Tayyorlik tekshiruvi — o'quvchilar kirishidan oldin ma'lum muammolar ro'yxati.</summary>
+    [HttpGet("sittings/{id:guid}/readiness")]
+    public Task<IActionResult> SittingReadiness(Guid id, CancellationToken ct = default) =>
+        Run(async () => await MonitoringSittingService.SittingReadinessAsync(db, id, UploadExists, ct));
+
+    [HttpGet("tests/{id:guid}/readiness")]
+    public Task<IActionResult> TestReadiness(Guid id, CancellationToken ct = default) =>
+        Run(async () => await MonitoringSittingService.TestReadinessAsync(db, id, UploadExists, ct));
+
+    private bool UploadExists(string name) =>
+        name.All(c => char.IsLetterOrDigit(c) || c is '.' or '-' or '_')
+        && System.IO.File.Exists(System.IO.Path.Combine(env.ContentRootPath, "uploads", name));
+
+    [HttpPost("sittings/{id:guid}/pin")]
+    public Task<IActionResult> RotateSittingPin(Guid id, CancellationToken ct = default) =>
+        Run(async () => new { pin = await MonitoringSittingService.RotatePinAsync(db, id, ct) });
+
+    [HttpPost("tests/{id:guid}/pin")]
+    public Task<IActionResult> RotateTestPin(Guid id, CancellationToken ct = default) =>
+        Run(async () => new { pin = await MonitoringService.RotateTestPinAsync(db, id, ct) });
+
+    // ---------------------------------------------------------------- doimiy shaxsiy kodlar (§2.9)
+
+    [HttpGet("student-codes")]
+    public Task<IActionResult> StudentCodes([FromQuery] string? className, CancellationToken ct = default) =>
+        Run(async () => await MonitoringStudentCodeService.ListAsync(db, className, ct));
+
+    /// <summary>Kodi yo'q barcha faol o'quvchilarga kod (bor kodlar o'zgarmaydi).</summary>
+    [HttpPost("student-codes/generate")]
+    public Task<IActionResult> GenerateStudentCodes(CancellationToken ct = default) => Run(async () =>
+    {
+        var added = await MonitoringStudentCodeService.GenerateMissingAsync(db, ct);
+        audit.Record("monitoring_student_code", "all", "create", $"Doimiy test kodlari berildi: {added} o'quvchi");
+        await db.SaveChangesAsync(ct);
+        return new { added };
+    });
+
+    /// <summary>Kod yo'qolsa — yangisi; eskisi darhol ishlamay qoladi.</summary>
+    [HttpPost("student-codes/{studentId}/regenerate")]
+    public Task<IActionResult> RegenerateStudentCode(string studentId, CancellationToken ct = default) => Run(async () =>
+    {
+        var code = await MonitoringStudentCodeService.RegenerateAsync(db, studentId, ct);
+        audit.Record("monitoring_student_code", studentId, "update", "Doimiy test kodi almashtirildi");
+        await db.SaveChangesAsync(ct);
+        return new { code };
+    });
+
+    [HttpPost("sitting-codes/{id:guid}/reset-device")]
+    public Task<IActionResult> ResetSittingDevice(Guid id, CancellationToken ct = default) =>
+        Run(async () => { await MonitoringSittingService.ResetDeviceAsync(db, id, ct); return null; });
+
+    /// <summary>Oynadan chiqish chegarasi bilan to'xtatilgan testni davom ettirish.</summary>
+    [HttpPost("participants/{id:guid}/reopen")]
+    public Task<IActionResult> Reopen(Guid id, CancellationToken ct = default) =>
+        Run(async () => { await MonitoringService.ReopenAsync(db, id, ct); return null; });
+
     [HttpDelete("tests/{id:guid}")]
     public Task<IActionResult> DeleteTest(Guid id, CancellationToken ct = default) => Run(async () =>
     {
         var test = await db.MonitoringTests.FirstOrDefaultAsync(t => t.Id == id, ct) ?? throw new MonitoringException("Test topilmadi", 404);
+        await MonitoringSittingService.EnsureNotInSittingAsync(db, id, ct);
         db.MonitoringTests.Remove(test);
         audit.Record("monitoring_test", id.ToString(), "delete", $"Monitoring testi o'chirildi: {test.Title}");
         await db.SaveChangesAsync(ct);
@@ -202,14 +334,37 @@ public class PublicMonitoringController(AppDbContext db) : ControllerBase
         }
     }
 
+    /// <summary>Kod kimniki va qaysi test — boshlashdan oldingi tasdiq uchun (hech narsa o'zgarmaydi).</summary>
+    [HttpPost("check")]
+    [EnableRateLimiting("monitoring")]
+    public Task<IActionResult> Check(MonitoringStartRequest req, CancellationToken ct = default) =>
+        Run(async () => await MonitoringService.PeekAsync(db, req, ct));
+
     [HttpPost("start")]
     [EnableRateLimiting("monitoring")]
     public Task<IActionResult> Start(MonitoringStartRequest req, CancellationToken ct = default) =>
         Run(async () => await MonitoringService.StartAsync(db, req, ct));
 
+    /// <summary>
+    /// Javob saqlandi — tasdiq <c>{ saved: savol raqami }</c>. Brauzer faqat shu tasdiqni "saqlandi"
+    /// deb oladi: Wi-Fi kirish sahifasi yoki begona proksi qaytargan "200" javobni yo'qotmasin.
+    /// </summary>
     [HttpPut("answer")]
     public Task<IActionResult> Answer(MonitoringAnswerRequest req, CancellationToken ct = default) =>
-        Run(async () => { await MonitoringService.AnswerAsync(db, req, ct); return null; });
+        Run(async () => { await MonitoringService.AnswerAsync(db, req, ct); return new { saved = req.Order }; });
+
+    /// <summary>Halollik hodisasi: oynadan chiqish, nusxa olish urinishi va h.k.</summary>
+    [HttpPost("event")]
+    public Task<IActionResult> Event(MonitoringEventRequest req, CancellationToken ct = default) =>
+        Run(async () => await MonitoringService.RecordEventAsync(db, req, ct));
+
+    /// <summary>Server vaqti — "Kompyuterni tekshirish" soat farqi va tarmoq tezligini o'lchaydi.</summary>
+    [HttpGet("time")]
+    public IActionResult Time() => Ok(new { now = DateTimeOffset.UtcNow });
+
+    [HttpPost("ping")]
+    public Task<IActionResult> Ping(MonitoringStartRequest req, CancellationToken ct = default) =>
+        Run(async () => await MonitoringService.PingAsync(db, req, ct));
 
     [HttpPost("finish")]
     public Task<IActionResult> Finish(MonitoringStartRequest req, CancellationToken ct = default) =>

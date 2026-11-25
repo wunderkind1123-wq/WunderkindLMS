@@ -279,15 +279,17 @@ builder.Services.AddRateLimiter(options =>
     // minutes — looser than the lead form, because a poll answer creates no lead and parents at a
     // school meeting answer from one Wi-Fi; one answer per browser is enforced by the service.
     // Opening the page shares `survey-read`.
-    // Onlayn monitoring testi (`/monitoring`, curriculum-monitoring.md §2): kod bilan kirish. Bitta
-    // kompyuter xonasi bitta IP ortida — 30 o'quvchi bir vaqtda boshlaydi; kod 8 belgi, 32 harfli
-    // alifbo, shuning uchun 120/daqiqa taxmin qilishni ma'nosiz qoldiradi.
+    // Onlayn monitoring testi (`/monitoring`, curriculum-monitoring.md §2): kod bilan kirish.
+    // BUTUN MAKTAB bitta tashqi IP ortida (2026-11-25, §2.8): oylik testda 6 sinf × 25 o'quvchi bir
+    // daqiqada "Davom etish" + "Boshlash" bosadi — 300 so'rov. 120/daqiqa ularning yarmini 429 bilan
+    // qaytarardi. Kod 8 belgi, 32 harfli alifbo (≈10¹² variant): 1500/daqiqa bilan ham taxmin qilish
+    // ming yillar oladi.
     options.AddPolicy("monitoring", httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: PublicFormPartition(httpContext),
             factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             {
-                PermitLimit = 120,
+                PermitLimit = 1500,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));
@@ -761,7 +763,9 @@ app.MapFallback(async ctx =>
     // lives in the main SPA, the PWA's Profil screen links to it.
     // "Eslatmalarim" (Bilimlar bazasi, docs/modules/wiki.md) — the same exception.
     // "Ish reja" (/teacher/ish-reja) — the same exception (curriculum-monitoring.md §1).
+    // "Test savollarim" (/teacher/savollar) — the same exception (curriculum-monitoring.md §2.2).
     if (path.StartsWith("/teacher/dars-tahlili", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/teacher/savollar", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/teacher/uy-vazifasi", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/teacher/eslatmalar", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/teacher/ish-reja", StringComparison.OrdinalIgnoreCase))
@@ -807,7 +811,10 @@ app.MapFallback(async ctx =>
     // docs/modules/sales-marketing.md D2.
     // The public vacancy page (/vakansiya, /vakansiya/{slug}) — the same rule, any host.
     // The public poll page (/sorovnoma/{token}, docs/modules/surveys-forms.md) — the same rule.
+    // The pupil test page (/monitoring, curriculum-monitoring.md §2.4) — lab PCs reach it by the
+    // school portal link or by the server's IP, not only by the app host.
     if (path.StartsWith("/ariza/", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("/monitoring", StringComparison.OrdinalIgnoreCase)
         || path.Equals("/vakansiya", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/vakansiya/", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/sorovnoma/", StringComparison.OrdinalIgnoreCase)

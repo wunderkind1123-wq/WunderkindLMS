@@ -1,0 +1,33 @@
+# Sinov tunneli (curriculum-monitoring.md §2.7) — boshqa tarmoqdagi kompyuterlar testni shu
+# kompyuterdagi LOKAL tizimda yechishi uchun. Deploy EMAS: baza, natijalar — shu kompyuterda.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.tunnel.yml \
+#     --profile test-tunnel up -d test-gateway test-tunnel
+#   docker logs wunderkind-test-tunnel 2>&1 | grep trycloudflare      → havola
+#   … --profile test-tunnel stop test-gateway test-tunnel             → yopish
+#
+# Internetga FAQAT test sahifasi chiqadi — filtr: deploy/test-tunnel/Caddyfile. Havola har
+# ishga tushirishda yangi bo'ladi (Cloudflare "quick tunnel", akkaunt shart emas). Kompyuter
+# uxlasa yoki o'chsa — test ham to'xtaydi.
+
+services:
+  test-gateway:
+    profiles: ["test-tunnel"]
+    image: caddy:2.8.4-alpine
+    container_name: wunderkind-test-gateway
+    volumes:
+      - ./deploy/test-tunnel/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  test-tunnel:
+    profiles: ["test-tunnel"]
+    image: cloudflare/cloudflared:2024.12.2
+    container_name: wunderkind-test-tunnel
+    command: tunnel --no-autoupdate --url http://test-gateway:80
+    environment:
+      TUNNEL_TRANSPORT_PROTOCOL: "http2"
+    depends_on:
+      - test-gateway
+    restart: unless-stopped

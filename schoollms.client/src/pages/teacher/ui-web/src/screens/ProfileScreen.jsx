@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   GraduationCap, BookOpen, Badge, LineChart, Users2,
-  MessageSquareWarning, Moon, Lock, LogOut, ChevronRight, Download, ListChecks, ClipboardList,
+  MessageSquareWarning, Moon, Lock, LogOut, ChevronRight, Download, ListChecks, ClipboardList, FileQuestion,
 } from 'lucide-react'
 import Avatar from '../components/Avatar'
 import AppButton from '../components/AppButton'
@@ -93,6 +93,8 @@ export default function ProfileScreen({ onNavigate, dark, onToggleTheme }) {
             <Item icon={<ListChecks size={16} />} title="Dars tahlilim" hint="Darslarim tahlili va reytingim" onClick={() => window.location.assign('/teacher/dars-tahlili')} />
             {/* Ish reja — asosiy ilovada (/teacher/ish-reja), docs/modules/curriculum-monitoring.md §1. */}
             <Item icon={<ListChecks size={16} />} title="Ish reja" hint="Mavzular: o'tildi belgisi" onClick={() => window.location.assign('/teacher/ish-reja')} />
+            {/* Test savollarim — asosiy ilovada (/teacher/savollar), curriculum-monitoring.md §2.2. */}
+            <Item icon={<FileQuestion size={16} />} title="Test savollarim" hint="Word'dagi testni yuklash va tahrirlash" onClick={() => window.location.assign('/teacher/savollar')} />
             {/* Uy vazifasi bajarilishi — asosiy ilovada (/teacher/uy-vazifasi), docs/modules/homework-completion.md. */}
             <Item icon={<ClipboardList size={16} />} title="Uy vazifasi jadvali" hint="Kim vazifani bajardi: + − * K Y" onClick={() => window.location.assign('/teacher/uy-vazifasi')} />
             <Item icon={<MessageSquareWarning size={16} />} title="Taklif va shikoyatlar" hint="Adminga murojaat yuborish" last onClick={() => onNavigate?.('feedback')} />

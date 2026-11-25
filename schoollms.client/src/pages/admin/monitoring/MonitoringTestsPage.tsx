@@ -10,6 +10,7 @@ import {
   getMonitoringOwners,
   getTests,
   monitoringError,
+  seasonalLabel,
   STATUS_LABEL,
   type MonitoringBank,
   type MonitoringDelivery,
@@ -67,6 +68,8 @@ export function MonitoringTestsPage() {
         </div>
         <div className="flex gap-2">
           <Link to="/admin/monitoring/banks"><Button variant="secondary">Savollar banki</Button></Link>
+          <Link to="/admin/monitoring/sittings"><Button variant="secondary">Sessiyalar (bir nechta fan)</Button></Link>
+          <Link to="/admin/monitoring/codes"><Button variant="secondary">Doimiy kodlar</Button></Link>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> Yangi test
           </Button>
@@ -100,6 +103,11 @@ export function MonitoringTestsPage() {
                     <td className="px-4 py-3">
                       <Link to={`/admin/monitoring/${t.id}`} className="font-medium text-brand-700 hover:underline">{t.title}</Link>
                       <p className="text-xs text-slate-400">{t.subjectName} · {t.groupName ?? `${t.grade}-sinf`} · {t.itemCount} savol</p>
+                      {seasonalLabel(t.seasonalYear, t.seasonalMonth) && (
+                        <span className="mt-1 inline-block rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+                          Oylik test · {seasonalLabel(t.seasonalYear, t.seasonalMonth)}
+                        </span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(t.testDate)}</td>
                     <td className="px-4 py-3 text-slate-500">{t.owners.join(', ')}</td>
@@ -164,6 +172,10 @@ function CreateTestModal({ onClose }: { onClose: () => void }) {
   const [bankId, setBankId] = useState('')
   const [bankQuestions, setBankQuestions] = useState<MonitoringQuestion[]>([])
   const [picked, setPicked] = useState<string[]>([])
+  const [shuffle, setShuffle] = useState(true)
+  const [maxLeaves, setMaxLeaves] = useState('2')
+  const [monthly, setMonthly] = useState(false)
+  const [seasonalMonth, setSeasonalMonth] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -218,6 +230,10 @@ function CreateTestModal({ onClose }: { onClose: () => void }) {
         questionIds: useBank ? picked : undefined,
         key: useBank ? undefined : key,
         optionCount: useBank ? undefined : Number(optionCount),
+        shuffle: delivery === 'online' && shuffle,
+        maxLeaves: delivery === 'online' && maxLeaves.trim() !== '' ? Number(maxLeaves) : null,
+        seasonalYear: monthly ? Number(seasonalMonth.slice(0, 4)) : null,
+        seasonalMonth: monthly ? Number(seasonalMonth.slice(5, 7)) : null,
       })
       navigate(`/admin/monitoring/${id}`)
     } catch (e) {
@@ -307,6 +323,25 @@ function CreateTestModal({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <label className="flex items-start gap-2">
+              <input type="checkbox" className="mt-0.5" checked={monthly} onChange={(e) => setMonthly(e.target.checked)} />
+              <span>
+                <span className="font-medium text-slate-700">Oylik test</span>
+                <span className="block text-xs text-slate-400">
+                  Har o'quvchining foizi shu oyning Mavsumiy bahosi bo'lib yoziladi va ota-onaga «Oylik o'sish»da ko'rinadi.
+                  Shu oy va fanga qo'lda qo'yilgan baho bo'lsa, test natijasi bilan almashtiriladi.
+                </span>
+              </span>
+            </label>
+            {monthly && (
+              <label className="block max-w-xs space-y-1">
+                <span className={label}>Qaysi oy uchun</span>
+                <input type="month" className={control} value={seasonalMonth} onChange={(e) => setSeasonalMonth(e.target.value)} />
+              </label>
+            )}
+          </div>
+
           {delivery === 'online' && (
             <div className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-3">
               <label className="block space-y-1">
@@ -321,6 +356,24 @@ function CreateTestModal({ onClose }: { onClose: () => void }) {
                 <span className={label}>Vaqt (daqiqa)</span>
                 <input className={control} inputMode="numeric" value={timeLimit} onChange={(e) => setTimeLimit(e.target.value)} />
               </label>
+              <div className="space-y-2 border-t border-slate-100 pt-3 sm:col-span-3">
+                <span className={label}>Ko‘chirishdan himoya</span>
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-0.5" checked={shuffle} onChange={(e) => setShuffle(e.target.checked)} />
+                  <span>
+                    Har o‘quvchiga savollar va variantlar o‘z tartibida
+                    <span className="block text-xs text-slate-500">Yonidagi o‘quvchidan «3-savol — B» deb ko‘chirib bo‘lmaydi. «Barcha javoblar to‘g‘ri» kabi joyiga bog‘liq variantli savollar bo‘lsa, o‘chiring.</span>
+                  </span>
+                </label>
+                <label className="flex flex-wrap items-center gap-2">
+                  <span>Test oynasidan chiqishga ruxsat:</span>
+                  <input className={control.replace('w-full', 'w-20')} inputMode="numeric" value={maxLeaves} placeholder="∞" onChange={(e) => setMaxLeaves(e.target.value.replace(/\D/g, ''))} />
+                  <span>marta</span>
+                  <span className="block w-full text-xs text-slate-500">
+                    Boshqa tab, dastur (masalan ChatGPT) yoki to‘liq ekrandan chiqish sanaladi. Ruxsatdan oshsa test o‘zi yakunlanadi, uni natijalar sahifasida davom ettirish mumkin. Bo‘sh qoldirilsa, faqat qayd qilinadi.
+                  </span>
+                </label>
+              </div>
             </div>
           )}
 

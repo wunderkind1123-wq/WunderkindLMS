@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, Library, Plus, Trash2 } from 'lucide-react'
 import {
-  deleteBank,
-  getBanks,
-  getMonitoringOptions,
+  bankApi,
   monitoringError,
-  saveBank,
+  type BankApi,
+  type BankScope,
   type MonitoringBank,
   type MonitoringOptions,
 } from '@/api/services/monitoring'
@@ -23,21 +22,26 @@ export const control =
  * Monitoring savollar banklari — blok test banklaridan ALOHIDA (mijoz, 2026-11-06). Bank fan va
  * sinf darajasi (yoki yo'nalish) bo'yicha: savollarni shu darajaning ish rejasidagi mavzularga bog'lash
  * mumkin — natijada mavzu bo'yicha tahlil chiqadi.
+ *
+ * `scope="teacher"` (`/teacher/savollar`, 2026-11-24): ustoz o'zi dars beradigan fan va sinflarning
+ * banklarini ko'radi, yaratadi va Word'dan to'ldiradi. Testni va natijani o'quv bo'limi boshqaradi.
  */
-export function MonitoringBanksPage() {
+export function MonitoringBanksPage({ scope = 'admin' }: { scope?: BankScope }) {
+  const bapi = useMemo(() => bankApi(scope), [scope])
+  const teacher = scope === 'teacher'
   const [banks, setBanks] = useState<MonitoringBank[] | null>(null)
   const [options, setOptions] = useState<MonitoringOptions | null>(null)
   const [editing, setEditing] = useState<MonitoringBank | 'new' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(() => {
-    Promise.all([getBanks(), getMonitoringOptions()])
+    Promise.all([bapi.getBanks(), bapi.getOptions()])
       .then(([b, o]) => {
         setBanks(b)
         setOptions(o)
       })
       .catch((e) => setError(monitoringError(e, "Banklarni olib bo'lmadi")))
-  }, [])
+  }, [bapi])
 
   useEffect(() => {
     load()
@@ -46,7 +50,7 @@ export function MonitoringBanksPage() {
   async function remove(b: MonitoringBank): Promise<void> {
     if (!confirm(`«${b.title}» banki va undagi ${b.questionCount} ta savol o'chirilsinmi? O'tkazilgan testlar o'zgarmaydi.`)) return
     try {
-      await deleteBank(b.id)
+      await bapi.deleteBank(b.id)
       load()
     } catch (e) {
       alert(monitoringError(e))
@@ -60,14 +64,21 @@ export function MonitoringBanksPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Monitoring savollari</h1>
-          <p className="text-sm text-slate-400">Ichki monitoring uchun alohida savollar banklari</p>
+          <h1 className="text-xl font-semibold text-slate-800">{teacher ? 'Test savollarim' : 'Monitoring savollari'}</h1>
+          <p className="text-sm text-slate-400">
+            {teacher
+              ? "Dars beradigan fan va sinflaringiz bo'yicha savollar banki. Word'dagi testni yuklab, tekshirib, tahrirlaysiz — testni o'quv bo'limi tuzadi"
+              : 'Ichki monitoring uchun alohida savollar banklari'}
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => void downloadFile('/admin/monitoring/question-template', 'monitoring-savollar-namuna.xlsx')}>
-            <Download className="h-4 w-4" /> Savollar namunasi
+          <Button variant="secondary" onClick={() => void downloadFile(bapi.wordTemplatePath, 'test-savollari-namuna.docx')}>
+            <Download className="h-4 w-4" /> Word namunasi
           </Button>
-          <Button onClick={() => setEditing('new')}>
+          <Button variant="secondary" onClick={() => void downloadFile(bapi.templatePath, 'monitoring-savollar-namuna.xlsx')}>
+            <Download className="h-4 w-4" /> Excel namunasi
+          </Button>
+          <Button onClick={() => setEditing('new')} disabled={teacher && options.subjects.length === 0}>
             <Plus className="h-4 w-4" /> Yangi bank
           </Button>
         </div>
@@ -76,14 +87,18 @@ export function MonitoringBanksPage() {
       {banks.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 py-14 text-center">
           <Library className="h-8 w-8 text-slate-300" />
-          <p className="text-sm text-slate-500">Hali bank yo'q</p>
+          <p className="text-sm text-slate-500">
+            {teacher && options.subjects.length === 0
+              ? "Dars jadvalida sizga fan biriktirilmagan — o'quv bo'limiga murojaat qiling"
+              : "Hali bank yo'q. «Yangi bank» tugmasini bosing, keyin Word fayldagi testni yuklang"}
+          </p>
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {banks.map((b) => (
             <Card key={b.id} className="p-4">
               <div className="flex items-start justify-between gap-2">
-                <Link to={`/admin/monitoring/banks/${b.id}`} className="min-w-0">
+                <Link to={`${bapi.listPath}/${b.id}`} className="min-w-0">
                   <p className="font-medium text-brand-700 hover:underline">{b.title}</p>
                   <p className="text-xs text-slate-400">
                     {b.subjectName} · {b.groupName ?? `${b.grade}-sinf`}
@@ -104,6 +119,7 @@ export function MonitoringBanksPage() {
         <BankModal
           bank={editing === 'new' ? null : editing}
           options={options}
+          api={bapi}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
@@ -118,11 +134,13 @@ export function MonitoringBanksPage() {
 export function BankModal({
   bank,
   options,
+  api,
   onClose,
   onSaved,
 }: {
   bank: MonitoringBank | null
   options: MonitoringOptions
+  api: BankApi
   onClose: () => void
   onSaved: (id: string) => void
 }) {
@@ -138,7 +156,7 @@ export function BankModal({
     setBusy(true)
     setError(null)
     try {
-      const { id } = await saveBank(bank?.id ?? null, {
+      const { id } = await api.saveBank(bank?.id ?? null, {
         title: title.trim(),
         subjectId,
         grade: kind === 'grade' && grade !== '' ? Number(grade) : null,
@@ -179,7 +197,7 @@ export function BankModal({
         <div className="grid grid-cols-2 gap-2">
           <select className={control} value={kind} onChange={(e) => setKind(e.target.value as 'grade' | 'track')} aria-label="Turi">
             <option value="grade">Sinf darajasi</option>
-            <option value="track">Yo'nalish</option>
+            {options.tracks.length > 0 && <option value="track">Yo'nalish</option>}
           </select>
           {kind === 'grade' ? (
             <select className={control} value={grade} onChange={(e) => setGrade(e.target.value)} aria-label="Daraja">

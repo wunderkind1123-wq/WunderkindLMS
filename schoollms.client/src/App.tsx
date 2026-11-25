@@ -114,6 +114,9 @@ import { CurriculumReportPage } from '@/pages/admin/curriculum/CurriculumReportP
 import { TeacherCurriculumPage } from '@/pages/teacher/curriculum/TeacherCurriculumPage'
 import { MonitoringTestsPage } from '@/pages/admin/monitoring/MonitoringTestsPage'
 import { MonitoringTestPage } from '@/pages/admin/monitoring/MonitoringTestPage'
+import { MonitoringSittingPage, MonitoringSittingsPage } from '@/pages/admin/monitoring/MonitoringSittingsPage'
+import { MonitoringLivePage } from '@/pages/admin/monitoring/MonitoringLivePage'
+import { MonitoringStudentCodesPage } from '@/pages/admin/monitoring/MonitoringStudentCodesPage'
 import { MonitoringBanksPage } from '@/pages/admin/monitoring/MonitoringBanksPage'
 import { MonitoringBankPage } from '@/pages/admin/monitoring/MonitoringBankPage'
 import { MonitoringPublicPage } from '@/pages/public/MonitoringPublicPage'
@@ -308,6 +311,11 @@ export default function App() {
           <Route path="monitoring" element={<RequirePerm perm="monitoring"><MonitoringTestsPage /></RequirePerm>} />
           <Route path="monitoring/banks" element={<RequirePerm perm="monitoring"><MonitoringBanksPage /></RequirePerm>} />
           <Route path="monitoring/banks/:id" element={<RequirePerm perm="monitoring"><MonitoringBankPage /></RequirePerm>} />
+          <Route path="monitoring/codes" element={<RequirePerm perm="monitoring"><MonitoringStudentCodesPage /></RequirePerm>} />
+          <Route path="monitoring/sittings" element={<RequirePerm perm="monitoring"><MonitoringSittingsPage /></RequirePerm>} />
+          <Route path="monitoring/sittings/:id" element={<RequirePerm perm="monitoring"><MonitoringSittingPage /></RequirePerm>} />
+          <Route path="monitoring/sittings/:id/live" element={<RequirePerm perm="monitoring"><MonitoringLivePage kind="sitting" /></RequirePerm>} />
+          <Route path="monitoring/:id/live" element={<RequirePerm perm="monitoring"><MonitoringLivePage kind="test" /></RequirePerm>} />
           <Route path="monitoring/:id" element={<RequirePerm perm="monitoring"><MonitoringTestPage /></RequirePerm>} />
           <Route path="attendance" element={<RequirePerm perm="attendance"><AttendancePage /></RequirePerm>} />
           <Route path="attendance/analytics" element={<RequirePerm perm="attendance"><AttendanceAnalyticsPage /></RequirePerm>} />
@@ -478,6 +486,11 @@ export default function App() {
         <Route path="/teacher/ish-reja" element={<AppLayout />}>
           <Route index element={<TeacherCurriculumPage />} />
           <Route path=":id" element={<CurriculumPlanPage teacher />} />
+        </Route>
+        {/* Test savollarim — monitoring banki, ustoz Word'dan yuklaydi (curriculum-monitoring.md §2.2). Same SPA exception. */}
+        <Route path="/teacher/savollar" element={<AppLayout />}>
+          <Route index element={<MonitoringBanksPage scope="teacher" />} />
+          <Route path=":id" element={<MonitoringBankPage scope="teacher" />} />
         </Route>
         {/* Eslatmalarim (Bilimlar bazasi, docs/modules/wiki.md) — the same SPA exception (Program.cs MapFallback). */}
         <Route path="/teacher/eslatmalar" element={<AppLayout />}>

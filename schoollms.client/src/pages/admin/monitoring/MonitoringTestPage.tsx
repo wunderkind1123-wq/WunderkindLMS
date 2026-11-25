@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Download, Lock, Printer, Send, Unlock } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Download, Lock, Play, Printer, Radio, Send, ShieldAlert, Unlock } from 'lucide-react'
 import {
   getTest,
   letter,
@@ -8,6 +8,9 @@ import {
   monitoringError,
   PARTICIPANT_LABEL,
   resetDevice,
+  reopenParticipant,
+  EVENT_LABEL,
+  type MonitoringParticipant,
   saveAnswers,
   saveTestItems,
   setTestStatus,
@@ -20,6 +23,9 @@ import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
 import { cn, formatDate } from '@/lib/utils'
 import { control } from './MonitoringBanksPage'
+import { ReadinessCard } from './ReadinessCard'
+import { RoomPin } from './RoomPin'
+import { seasonalLabel } from '@/api/services/monitoring'
 
 type Tab = 'entry' | 'results' | 'topics' | 'key'
 
@@ -79,12 +85,22 @@ export function MonitoringTestPage() {
               {test.delivery === 'online' ? 'onlayn' : "qog'ozda"} · {national ? `milliy uslub (${test.nationalMethod === 'rasch' ? 'Rasch' : 'vazn'})` : 'oddiy'} ·{' '}
               <b>{STATUS_LABEL[test.status]}</b>
             </p>
+            {seasonalLabel(test.seasonalYear, test.seasonalMonth) && (
+              <p className="mt-1 text-xs text-sky-700">
+                Oylik test · {seasonalLabel(test.seasonalYear, test.seasonalMonth)} — topshirganlarning foizi Mavsumiy bahoga yoziladi va ota-onaga ko'rinadi
+              </p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => void downloadFile(`/admin/monitoring/tests/${id}/export`, 'monitoring-natijalar.xlsx')}>
             <Download className="h-4 w-4" /> Excel
           </Button>
+          {test.delivery === 'online' && test.status === 'published' && (
+            <Link to={`/admin/monitoring/${id}/live`}>
+              <Button variant="secondary"><Radio className="h-4 w-4 text-red-500" /> Jonli kuzatuv</Button>
+            </Link>
+          )}
           {test.status === 'draft' && (
             <Button onClick={() => void status('published')}>
               <Send className="h-4 w-4" /> {test.delivery === 'online' ? 'Ochish va kodlar' : 'Boshlash'}
@@ -97,6 +113,9 @@ export function MonitoringTestPage() {
           )}
         </div>
       </div>
+
+      {test.delivery === 'online' && test.status === 'published' && <RoomPin kind="test" id={test.id} pin={test.roomPin} onChanged={load} />}
+      {test.delivery === 'online' && test.status !== 'closed' && <ReadinessCard kind="test" id={test.id} />}
 
       <div className="flex flex-wrap gap-2 text-sm">
         <Stat label="Topshirdi" value={`${done}/${test.participants.length}`} />
@@ -228,12 +247,27 @@ function OnlineCodes({ test, onChanged }: { test: MonitoringTestDetail; onChange
     }
   }
 
+  async function reopen(p: MonitoringParticipant): Promise<void> {
+    if (!confirm(`${p.studentName} testni davom ettirsinmi? Oynadan chiqishlar hisobi noldan boshlanadi, jurnal saqlanadi.`)) return
+    try {
+      await reopenParticipant(p.id)
+      onChanged()
+    } catch (e) {
+      alert(monitoringError(e))
+    }
+  }
+
   return (
     <Card className="p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 p-4 text-sm">
         <p className="text-slate-600">
           O'quvchi <b className="font-mono">{link}</b> sahifasini ochib, shaxsiy kodini kiritadi.
           {test.opensAt && ` Ochiq: ${new Date(test.opensAt).toLocaleString('uz-UZ')} — ${new Date(test.closesAt!).toLocaleString('uz-UZ')}, ${test.timeLimitMin} daqiqa.`}
+          <span className="mt-1 flex items-center gap-1 text-xs text-slate-500 print:hidden">
+            <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
+            {test.shuffle ? 'Savol va variantlar aralashtiriladi' : 'Aralashtirilmaydi'} ·{' '}
+            {test.maxLeaves == null ? 'oynadan chiqish faqat qayd qilinadi' : `oynadan ${test.maxLeaves} martadan ko'p chiqsa test to'xtaydi`}
+          </span>
         </p>
         <Button variant="secondary" onClick={() => window.print()} disabled={test.status === 'draft'}>
           <Printer className="h-4 w-4" /> Chop etish
@@ -250,6 +284,7 @@ function OnlineCodes({ test, onChanged }: { test: MonitoringTestDetail; onChange
                 <th className="px-4 py-2">Sinf</th>
                 <th className="px-4 py-2">Kod</th>
                 <th className="px-4 py-2">Holat</th>
+                <th className="px-4 py-2 print:hidden">Halollik</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
@@ -265,7 +300,13 @@ function OnlineCodes({ test, onChanged }: { test: MonitoringTestDetail; onChange
                       <span className="ml-1 text-xs text-slate-400">({p.answers.replace(/-/g, '').length}/{test.items.length})</span>
                     )}
                   </td>
+                  <td className="px-4 py-2 print:hidden"><Integrity p={p} /></td>
                   <td className="px-4 py-2 text-right">
+                    {p.finishReason === 'leaves' && test.status === 'published' && (
+                      <button type="button" onClick={() => void reopen(p)} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
+                        <Play className="h-3.5 w-3.5" /> Davom ettirish
+                      </button>
+                    )}
                     {p.status === 'in_progress' && p.deviceBound && (
                       <button type="button" onClick={() => void unlock(p.id)} className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
                         <Unlock className="h-3.5 w-3.5" /> Qurilmani almashtirish
@@ -279,6 +320,32 @@ function OnlineCodes({ test, onChanged }: { test: MonitoringTestDetail; onChange
         </div>
       )}
     </Card>
+  )
+}
+
+/** Oynadan chiqishlar soni va hodisalar jurnali (bosilsa ochiladi). */
+function Integrity({ p }: { p: MonitoringParticipant }) {
+  const events = p.events ?? []
+  if (events.length === 0) return <span className="text-xs text-slate-300">—</span>
+  return (
+    <details className="text-xs">
+      <summary className={cn('cursor-pointer select-none', p.leaves > 0 ? 'font-medium text-amber-700' : 'text-slate-500')}>
+        {p.leaves > 0 ? `Chiqdi: ${p.leaves}` : 'Qayd bor'}
+        {p.finishReason === 'leaves' && <span className="ml-1 rounded bg-red-50 px-1 text-red-600">to'xtatildi</span>}
+        <span className="ml-1 text-slate-400">({events.length})</span>
+      </summary>
+      <ul className="mt-1 space-y-0.5 text-slate-500">
+        {events.map((e, i) => {
+          const [at, kind] = e.split(' ')
+          return (
+            <li key={i}>
+              <span className="tabular-nums text-slate-400">{new Date(at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>{' '}
+              {EVENT_LABEL[kind] ?? kind}
+            </li>
+          )
+        })}
+      </ul>
+    </details>
   )
 }
 
@@ -313,6 +380,7 @@ function Results({ test }: { test: MonitoringTestDetail }) {
                 <th className="px-4 py-2 text-right">Foiz</th>
                 {national && <th className="px-4 py-2 text-right">Ball</th>}
                 {national && <th className="px-4 py-2">Daraja</th>}
+                {test.delivery === 'online' && <th className="px-4 py-2">Halollik</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -326,6 +394,7 @@ function Results({ test }: { test: MonitoringTestDetail }) {
                   <td className="px-4 py-2 text-right tabular-nums">{p.status === 'done' ? `${p.percent}%` : '—'}</td>
                   {national && <td className="px-4 py-2 text-right font-semibold tabular-nums">{p.points ?? '—'}</td>}
                   {national && <td className="px-4 py-2 font-semibold text-brand-700">{p.level ?? (p.status === 'done' ? '—' : '')}</td>}
+                  {test.delivery === 'online' && <td className="px-4 py-2"><Integrity p={p} /></td>}
                 </tr>
               ))}
             </tbody>

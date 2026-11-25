@@ -97,6 +97,7 @@ internal static class CurriculumMonitoringModel
             });
             e.HasKey(x => x.Id);
             e.Property(x => x.ImageUrl).HasMaxLength(500);
+            e.Property(x => x.OptionImages).HasDefaultValueSql("'{}'");
             e.Property(x => x.Weight).HasPrecision(6, 2);
             e.HasIndex(x => new { x.BankId, x.Order });
             // a topic deleted by a plan re-upload just unlinks the question
@@ -112,6 +113,9 @@ internal static class CurriculumMonitoringModel
                 t.HasCheckConstraint("ck_monitoring_tests_method",
                     "(scoring = 'simple' and national_method is null) or (scoring = 'national' and national_method in ('rasch','weights'))");
                 t.HasCheckConstraint("ck_monitoring_tests_status", "status in ('draft','published','closed')");
+                t.HasCheckConstraint("ck_monitoring_tests_seasonal",
+                    "(seasonal_year is null and seasonal_month is null) or (seasonal_year between 2000 and 2100 and seasonal_month between 1 and 12)");
+                t.HasCheckConstraint("ck_monitoring_tests_max_leaves", "max_leaves is null or max_leaves between 0 and 20");
             });
             e.HasKey(x => x.Id);
             e.Property(x => x.Title).HasMaxLength(200);
@@ -119,6 +123,8 @@ internal static class CurriculumMonitoringModel
             e.Property(x => x.Scoring).HasMaxLength(10);
             e.Property(x => x.NationalMethod).HasMaxLength(10);
             e.Property(x => x.Status).HasMaxLength(10);
+            e.Property(x => x.RoomPin).HasMaxLength(4);
+            e.HasIndex(x => x.RoomPin);
             e.HasIndex(x => x.TestDate);
             e.HasOne<Subject>().WithMany().HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(x => x.Items).WithOne().HasForeignKey(i => i.TestId).OnDelete(DeleteBehavior.Cascade);
@@ -134,10 +140,42 @@ internal static class CurriculumMonitoringModel
             });
             e.HasKey(x => x.Id);
             e.Property(x => x.ImageUrl).HasMaxLength(500);
+            e.Property(x => x.OptionImages).HasDefaultValueSql("'{}'");
             e.Property(x => x.Weight).HasPrecision(6, 2);
             e.HasIndex(x => new { x.TestId, x.Order }).IsUnique().HasDatabaseName("ux_monitoring_items_order");
             e.HasOne<MonitoringQuestion>().WithMany().HasForeignKey(x => x.QuestionId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne<CurriculumTopic>().WithMany().HasForeignKey(x => x.TopicId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<MonitoringSitting>(e =>
+        {
+            e.ToTable("monitoring_sittings");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.RoomPin).HasMaxLength(4);
+            e.HasIndex(x => x.RoomPin);
+            e.HasIndex(x => x.TestDate);
+        });
+
+        b.Entity<MonitoringStudentCode>(e =>
+        {
+            e.ToTable("monitoring_student_codes");
+            e.HasKey(x => x.StudentId);
+            e.Property(x => x.Code).HasMaxLength(12);
+            e.HasIndex(x => x.Code).IsUnique().HasDatabaseName("ux_monitoring_student_codes_code");
+            e.HasOne<Student>().WithMany().HasForeignKey(x => x.StudentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<MonitoringSittingCode>(e =>
+        {
+            e.ToTable("monitoring_sitting_codes");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Code).HasMaxLength(12);
+            e.Property(x => x.DeviceToken).HasMaxLength(64);
+            e.HasIndex(x => x.Code).IsUnique().HasDatabaseName("ux_monitoring_sitting_codes_code");
+            e.HasIndex(x => new { x.SittingId, x.StudentId }).IsUnique().HasDatabaseName("ux_monitoring_sitting_codes_once");
+            e.HasOne<MonitoringSitting>().WithMany().HasForeignKey(x => x.SittingId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Student>().WithMany().HasForeignKey(x => x.StudentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<MonitoringParticipant>(e =>
@@ -146,6 +184,8 @@ internal static class CurriculumMonitoringModel
             {
                 t.HasCheckConstraint("ck_monitoring_participants_status", "status in ('pending','in_progress','done','absent')");
                 t.HasCheckConstraint("ck_monitoring_participants_owner_kind", "owner_kind in ('class','group')");
+                t.HasCheckConstraint("ck_monitoring_participants_finish_reason", "finish_reason is null or finish_reason in ('time','leaves')");
+                t.HasCheckConstraint("ck_monitoring_participants_leaves", "leaves >= 0");
             });
             e.HasKey(x => x.Id);
             e.Property(x => x.OwnerKind).HasMaxLength(8);
@@ -154,6 +194,8 @@ internal static class CurriculumMonitoringModel
             e.Property(x => x.Status).HasMaxLength(12);
             e.Property(x => x.AccessCode).HasMaxLength(12);
             e.Property(x => x.DeviceToken).HasMaxLength(64);
+            e.Property(x => x.FinishReason).HasMaxLength(10);
+            e.Property(x => x.Events).HasDefaultValueSql("'{}'");
             e.Property(x => x.Percent).HasPrecision(5, 2);
             e.Property(x => x.Points).HasPrecision(5, 1);
             e.Property(x => x.Level).HasMaxLength(4);

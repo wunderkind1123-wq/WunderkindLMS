@@ -7896,6 +7896,13 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("option_count");
 
+                    b.PrimitiveCollection<List<string>>("OptionImages")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("option_images")
+                        .HasDefaultValueSql("'{}'");
+
                     b.PrimitiveCollection<List<string>>("Options")
                         .IsRequired()
                         .HasColumnType("text[]")
@@ -7975,9 +7982,29 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("device_token");
 
+                    b.PrimitiveCollection<List<string>>("Events")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("events")
+                        .HasDefaultValueSql("'{}'");
+
+                    b.Property<string>("FinishReason")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("finish_reason");
+
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("finished_at");
+
+                    b.Property<DateTimeOffset?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<int>("Leaves")
+                        .HasColumnType("integer")
+                        .HasColumnName("leaves");
 
                     b.Property<string>("Level")
                         .HasMaxLength(4)
@@ -8042,6 +8069,10 @@ namespace SchoolLms.Infrastructure.Migrations
 
                     b.ToTable("monitoring_participants", null, t =>
                         {
+                            t.HasCheckConstraint("ck_monitoring_participants_finish_reason", "finish_reason is null or finish_reason in ('time','leaves')");
+
+                            t.HasCheckConstraint("ck_monitoring_participants_leaves", "leaves >= 0");
+
                             t.HasCheckConstraint("ck_monitoring_participants_owner_kind", "owner_kind in ('class','group')");
 
                             t.HasCheckConstraint("ck_monitoring_participants_status", "status in ('pending','in_progress','done','absent')");
@@ -8067,6 +8098,13 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("image_url");
+
+                    b.PrimitiveCollection<List<string>>("OptionImages")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("option_images")
+                        .HasDefaultValueSql("'{}'");
 
                     b.PrimitiveCollection<List<string>>("Options")
                         .IsRequired()
@@ -8108,6 +8146,124 @@ namespace SchoolLms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SchoolLms.Domain.MonitoringSitting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("RoomPin")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("room_pin");
+
+                    b.Property<DateOnly>("TestDate")
+                        .HasColumnType("date")
+                        .HasColumnName("test_date");
+
+                    b.PrimitiveCollection<List<Guid>>("TestIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("test_ids");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_monitoring_sittings");
+
+                    b.HasIndex("RoomPin")
+                        .HasDatabaseName("ix_monitoring_sittings_room_pin");
+
+                    b.HasIndex("TestDate")
+                        .HasDatabaseName("ix_monitoring_sittings_test_date");
+
+                    b.ToTable("monitoring_sittings", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.MonitoringSittingCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("DeviceToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("device_token");
+
+                    b.Property<Guid>("SittingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sitting_id");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("student_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_monitoring_sitting_codes");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_monitoring_sitting_codes_code");
+
+                    b.HasIndex("StudentId")
+                        .HasDatabaseName("ix_monitoring_sitting_codes_student_id");
+
+                    b.HasIndex("SittingId", "StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_monitoring_sitting_codes_once");
+
+                    b.ToTable("monitoring_sitting_codes", (string)null);
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.MonitoringStudentCode", b =>
+                {
+                    b.Property<string>("StudentId")
+                        .HasColumnType("text")
+                        .HasColumnName("student_id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("StudentId")
+                        .HasName("pk_monitoring_student_codes");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_monitoring_student_codes_code");
+
+                    b.ToTable("monitoring_student_codes", (string)null);
+                });
+
             modelBuilder.Entity("SchoolLms.Domain.MonitoringTest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8142,6 +8298,10 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
 
+                    b.Property<int?>("MaxLeaves")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_leaves");
+
                     b.Property<string>("NationalMethod")
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
@@ -8151,11 +8311,28 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("opens_at");
 
+                    b.Property<string>("RoomPin")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("room_pin");
+
                     b.Property<string>("Scoring")
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("scoring");
+
+                    b.Property<int?>("SeasonalMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("seasonal_month");
+
+                    b.Property<int?>("SeasonalYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("seasonal_year");
+
+                    b.Property<bool>("Shuffle")
+                        .HasColumnType("boolean")
+                        .HasColumnName("shuffle");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -8185,6 +8362,9 @@ namespace SchoolLms.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_monitoring_tests");
 
+                    b.HasIndex("RoomPin")
+                        .HasDatabaseName("ix_monitoring_tests_room_pin");
+
                     b.HasIndex("SubjectId")
                         .HasDatabaseName("ix_monitoring_tests_subject_id");
 
@@ -8195,9 +8375,13 @@ namespace SchoolLms.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("ck_monitoring_tests_delivery", "delivery in ('paper','online')");
 
+                            t.HasCheckConstraint("ck_monitoring_tests_max_leaves", "max_leaves is null or max_leaves between 0 and 20");
+
                             t.HasCheckConstraint("ck_monitoring_tests_method", "(scoring = 'simple' and national_method is null) or (scoring = 'national' and national_method in ('rasch','weights'))");
 
                             t.HasCheckConstraint("ck_monitoring_tests_scoring", "scoring in ('simple','national')");
+
+                            t.HasCheckConstraint("ck_monitoring_tests_seasonal", "(seasonal_year is null and seasonal_month is null) or (seasonal_year between 2000 and 2100 and seasonal_month between 1 and 12)");
 
                             t.HasCheckConstraint("ck_monitoring_tests_status", "status in ('draft','published','closed')");
                         });
@@ -14777,6 +14961,33 @@ namespace SchoolLms.Infrastructure.Migrations
                         .HasForeignKey("TopicId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_monitoring_questions_curriculum_topics_topic_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.MonitoringSittingCode", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.MonitoringSitting", null)
+                        .WithMany()
+                        .HasForeignKey("SittingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_monitoring_sitting_codes_monitoring_sittings_sitting_id");
+
+                    b.HasOne("SchoolLms.Domain.Student", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_monitoring_sitting_codes_students_student_id");
+                });
+
+            modelBuilder.Entity("SchoolLms.Domain.MonitoringStudentCode", b =>
+                {
+                    b.HasOne("SchoolLms.Domain.Student", null)
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_monitoring_student_codes_students_student_id");
                 });
 
             modelBuilder.Entity("SchoolLms.Domain.MonitoringTest", b =>

@@ -1,0 +1,31 @@
+# Sinov tunneli — FAQAT o'quvchi test sahifasi internetga chiqadi (curriculum-monitoring.md §2.7).
+#
+# Internet → Cloudflare quick tunnel (https://….trycloudflare.com) → shu filtr → backend.
+# O'tadi: /monitoring, uning JS/CSS fayllari, savol rasmlari va /api/public/monitoring/*.
+# Qolgan hamma narsa (login, admin, LMS API, ota-ona portali) — 404: tunnel havolasini bilgan
+# odam LMS'ga kira olmaydi. O'quv bo'limi testni lokal (http://localhost:8080) dan boshqaradi.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	encode gzip
+
+	@test path /monitoring /assets/* /uploads/* /logo.png /favicon* /api/public/monitoring/*
+	handle @test {
+		reverse_proxy backend:8080 {
+			# backend'ning chastota chegarasi o'quvchilarni bitta IP deb sanamasin
+			header_up X-Forwarded-For {http.request.header.Cf-Connecting-Ip}
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	handle / {
+		redir * /monitoring
+	}
+
+	handle {
+		respond "Topilmadi" 404
+	}
+}

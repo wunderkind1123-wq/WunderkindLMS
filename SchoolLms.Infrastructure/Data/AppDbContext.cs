@@ -312,6 +312,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<MonitoringTest> MonitoringTests => Set<MonitoringTest>();
     public DbSet<MonitoringItem> MonitoringItems => Set<MonitoringItem>();
     public DbSet<MonitoringParticipant> MonitoringParticipants => Set<MonitoringParticipant>();
+    public DbSet<MonitoringSitting> MonitoringSittings => Set<MonitoringSitting>();
+    public DbSet<MonitoringSittingCode> MonitoringSittingCodes => Set<MonitoringSittingCode>();
+    public DbSet<MonitoringStudentCode> MonitoringStudentCodes => Set<MonitoringStudentCode>();
 
     // Olimpiada (Olympiad.cs, docs/modules/olympiad.md). Configuration: OlympiadModel.cs.
     public DbSet<OlympiadSettings> OlympiadSettings => Set<OlympiadSettings>();
