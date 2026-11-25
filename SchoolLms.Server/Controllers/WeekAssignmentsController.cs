@@ -77,10 +77,15 @@ public class WeekAssignmentsController(AppDbContext db, AuditService audit) : Co
             });
 
         var wanted = req.Assignments ?? [];
+        var existing = await db.WeekAssignments.Where(
+            a => a.ClassId == classId && a.Quarter == req.Quarter && a.OwnerKind == owner.Kind).ToListAsync(ct);
+        // Sahifa chorakning barcha haftalarini yuboradi; tekshiruvlar faqat o'zgarayotgan haftalarga —
+        // o'zgarmagan o'tgan haftadagi eski shablon saqlashni rad etmasin.
+        var changed = WeekAssignmentChanges.Changed(existing.Select(a => (a.Week, a.TemplateId)), wanted);
 
         // Bloklar (3-qoida): biriktirilayotgan shablon blok soatiga dars qo'ymasin; blok guruhining
-        // haftalari esa bloklar bo'limida avtomatik yuritiladi.
-        var templateIds = wanted.Where(a => a.TemplateId != null).Select(a => a.TemplateId!).Distinct().ToList();
+        // haftalari esa bloklar bo'limida avtomatik yuritiladi (kataklar bo'sh bo'lsa ham tekshiriladi).
+        var templateIds = changed.Where(a => a.TemplateId != null).Select(a => a.TemplateId!).Distinct().ToList();
         var cells = await db.ScheduleTemplates.AsNoTracking().Where(t => templateIds.Contains(t.Id))
             .SelectMany(t => t.Lessons).Select(l => new { l.Day, l.Period }).Distinct().ToListAsync(ct);
         var blockClash = await new BlockScheduleService(db).ClashForOwnerAsync(
@@ -88,11 +93,9 @@ public class WeekAssignmentsController(AppDbContext db, AuditService audit) : Co
         if (blockClash is not null) return Conflict(new { message = blockClash });
 
         var clash = await ScheduleConflicts.ForAssignmentsAsync(
-            db, owner, req.Quarter, [.. wanted.Select(a => (a.Week, a.TemplateId))], ct);
+            db, owner, req.Quarter, [.. changed.Select(a => (a.Week, a.TemplateId))], ct);
         if (clash.Count > 0) return Conflict(new { message = ScheduleConflicts.Message(clash) });
 
-        var existing = await db.WeekAssignments.Where(
-            a => a.ClassId == classId && a.Quarter == req.Quarter && a.OwnerKind == owner.Kind).ToListAsync(ct);
         await RecordAsync(owner, req.Quarter, existing, wanted, ct);
         db.WeekAssignments.RemoveRange(existing);
         db.WeekAssignments.AddRange(wanted.Select(a => new WeekAssignment
