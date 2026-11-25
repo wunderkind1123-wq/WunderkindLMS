@@ -15,6 +15,7 @@ import {
   DORM_GIRLS_KEY,
   DORM_PAGE,
   LA_CRITERIA_KEY,
+  ROLE_FLAGS,
   dormGenderOf,
   encodeGrants,
   grantsOf,
@@ -69,6 +70,7 @@ export function RolesPage() {
   const [grants, setGrants] = useState<Map<string, AccessLevel>>(new Map())
   const [aiAccess, setAiAccess] = useState(false)
   const [laCriteria, setLaCriteria] = useState(false)
+  const [flags, setFlags] = useState<Set<string>>(new Set())
   const [dormGender, setDormGender] = useState<DormGender>('all')
   const dormGranted = (grants.get(DORM_PAGE) ?? 'none') !== 'none'
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -89,6 +91,7 @@ export function RolesPage() {
     setGrants(grantsOf(role?.permissions ?? []))
     setAiAccess((role?.permissions ?? []).includes(AI_ACCESS_KEY))
     setLaCriteria((role?.permissions ?? []).includes(LA_CRITERIA_KEY))
+    setFlags(new Set(ROLE_FLAGS.map((f) => f.key).filter((k) => (role?.permissions ?? []).includes(k))))
     setDormGender(dormGenderOf(role?.permissions ?? []))
     setExpanded(new Set())
     setFormError(null)
@@ -130,6 +133,8 @@ export function RolesPage() {
         ...encodeGrants(grants),
         ...(aiAccess ? [AI_ACCESS_KEY] : []),
         ...(laCriteria ? [LA_CRITERIA_KEY] : []),
+        // + sahifasiz kalitlar (lib/access.ts ROLE_FLAGS) — belgisiz saqlashda o'chib ketardi.
+        ...ROLE_FLAGS.map((f) => f.key).filter((k) => flags.has(k)),
         // + yotoqxona: faqat qizlar / faqat o'g'il bolalar (lib/access.ts DORM_*) — sahifa berilgandagina.
         ...(dormGranted && dormGender === 'female' ? [DORM_GIRLS_KEY] : []),
         ...(dormGranted && dormGender === 'male' ? [DORM_BOYS_KEY] : []),
@@ -344,6 +349,23 @@ export function RolesPage() {
             checked={laCriteria}
             onChange={setLaCriteria}
           />
+
+          {ROLE_FLAGS.map((f) => (
+            <FlagRow
+              key={f.key}
+              label={f.label}
+              hint={f.hint}
+              checked={flags.has(f.key)}
+              onChange={(on) =>
+                setFlags((cur) => {
+                  const next = new Set(cur)
+                  if (on) next.add(f.key)
+                  else next.delete(f.key)
+                  return next
+                })
+              }
+            />
+          ))}
 
           <p className="text-xs text-slate-400">
             Ko'rish — sahifa va uning barcha ma'lumoti ko'rinadi, o'zgartirib bo'lmaydi. To'liq — qo'shish,
