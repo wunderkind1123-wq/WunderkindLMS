@@ -85,6 +85,71 @@ public class ScheduleTemplatesTests(ApiFixture fixture)
             (await admin.DeleteAsync($"{Base(other)}/{templateId}")).StatusCode);
     }
 
+    /// <summary>
+    /// Bitta egada arxivlanmagan shablon nomi takrorlanmaydi (jadval sahifasi shablonni nomi bo'yicha
+    /// topadi): yaratish ham, qayta nomlash ham 409. Boshqa sinfda va arxivlangan shablon nomi — mumkin.
+    /// </summary>
+    [Fact]
+    public async Task Bir_egada_shablon_nomi_takrorlanmaydi()
+    {
+        var w = await SeedAsync();
+        var other = await SeedAsync();
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+        await CreateTemplateAsync(admin, w, "2-chorak");
+        var second = (await CreateTemplateAsync(admin, w, "Qoralama")).GetProperty("id").GetString()!;
+
+        var dup = await admin.PostAsJsonAsync(Base(w), new { name = "2-chorak" });
+        Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
+        Assert.Contains("allaqachon bor", await dup.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await admin.PatchAsJsonAsync($"{Base(w)}/{second}", new { name = "2-chorak" })).StatusCode);
+        // O'z nomiga "qayta nomlash" — o'zgarish yo'q, xato ham yo'q.
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await admin.PatchAsJsonAsync($"{Base(w)}/{second}", new { name = "Qoralama" })).StatusCode);
+        Assert.Equal(["2-chorak", "Qoralama"],
+            (await TemplatesAsync(admin, w)).Select(t => t.GetProperty("name").GetString()).Order());
+
+        // Boshqa sinfda shu nom — mumkin.
+        await CreateTemplateAsync(admin, other, "2-chorak");
+
+        // Arxivlangan shablonning nomi band emas.
+        await fixture.Api.WithDbAsync(async db =>
+        {
+            var tpl = await db.ScheduleTemplates.SingleAsync(t => t.Id == second);
+            tpl.IsArchived = true;
+            await db.SaveChangesAsync();
+        });
+        await CreateTemplateAsync(admin, w, "Qoralama");
+    }
+
+    /// <summary>
+    /// Eski ma'lumotda bir xil nomli ikki shablon bo'lsa, ro'yxatda haftaga biriktirilgani birinchi —
+    /// jadval sahifasi qoralamani emas, amaldagisini topadi. Tartib har so'rovda bir xil.
+    /// </summary>
+    [Fact]
+    public async Task Royxatda_biriktirilgan_shablon_qoralamadan_oldin()
+    {
+        var w = await SeedAsync();
+        using var admin = await fixture.Api.ClientAsAsync(Roles.Admin);
+        // Takror nomni API endi bermaydi — eski ma'lumotni bazaga to'g'ridan-to'g'ri yozamiz.
+        // Id bo'yicha tartib teskari bo'lsin: biriktirilgani id bo'yicha oxirgi.
+        var used = new ScheduleTemplate { ClassId = w.ClassId, Name = "2-chorak", Id = "zzzz-" + Guid.NewGuid() };
+        var draft = new ScheduleTemplate { ClassId = w.ClassId, Name = "2-chorak", Id = "0000-" + Guid.NewGuid() };
+        await fixture.Api.WithDbAsync(async db =>
+        {
+            db.ScheduleTemplates.AddRange(used, draft);
+            db.WeekAssignments.Add(new WeekAssignment
+            {
+                ClassId = w.ClassId, Quarter = Quarter, Week = Week, TemplateId = used.Id,
+            });
+            await db.SaveChangesAsync();
+        });
+
+        for (var i = 0; i < 3; i++)
+            Assert.Equal([used.Id, draft.Id],
+                (await TemplatesAsync(admin, w)).Select(t => t.GetProperty("id").GetString()));
+    }
+
     // =====================================================================
     //  2. Katak: butun sinf, bo'lingan, tozalash, validatsiya
     // =====================================================================
