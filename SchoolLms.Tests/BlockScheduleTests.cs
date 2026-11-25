@@ -1,4 +1,6 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using SchoolLms.Application.Dtos;
@@ -6,6 +8,7 @@ using SchoolLms.Application.Services;
 using SchoolLms.Domain;
 using SchoolLms.Infrastructure.Auth;
 using SchoolLms.Infrastructure.Data;
+using SchoolLms.Server.Controllers;
 using SchoolLms.Tests.Fixtures;
 
 namespace SchoolLms.Tests;
@@ -250,6 +253,66 @@ public class BlockScheduleTests(ApiFixture fixture) : IAsyncLifetime
         var sg = katta.StudyGroupId.ToString();
         var lesson = await db.ScheduleTemplates.Where(t => t.ClassId == sg).SelectMany(t => t.Lessons).SingleAsync();
         Assert.Equal(w.TeacherC, lesson.TeacherId);
+    }
+
+    /// <summary>
+    /// Yo'nalish guruhida o'tgan haftalarga Dushanba 1-darsda darsi bor eski shablon biriktirilgan,
+    /// keyin shu soatga blok qo'yilgan. Sahifa chorakning BARCHA haftalarini yuboradi: o'tgan haftalar
+    /// o'zgarmagan, keyingilari — blok soatida darsi yo'q yangi shablon → saqlanadi (204). O'tgan
+    /// haftaning shabloni almashtirilib blok soatiga dars qo'yilsa — rad (409), baza o'zgarmaydi.
+    /// </summary>
+    [Fact]
+    public async Task Hafta_biriktirishda_ozgarmagan_otgan_haftalar_tekshirilmaydi()
+    {
+        await using var db = await NewDbAsync();
+        var w = await SeedAsync(db);
+        var boundary = LiveScheduleEdit.EditBoundary();
+        var weeks = ScheduleMath.GetQuarterWeeks(Iso(w.QuarterStart), Iso(w.QuarterEnd));
+        bool Past(int week) => string.CompareOrdinal(weeks.Single(x => x.Week == week).StartISO, boundary) < 0;
+        Assert.True(Past(1));
+
+        ScheduleTemplate Template(string name, int period)
+        {
+            var tpl = new ScheduleTemplate
+            {
+                ClassId = w.Fil, OwnerKind = LessonOwnerKind.Group, Name = name,
+                Lessons = [new ScheduleLesson { Day = 0, Period = period, SubjectId = w.Math, TeacherId = w.TeacherD }],
+            };
+            db.ScheduleTemplates.Add(tpl);
+            return tpl;
+        }
+
+        // "Asosiy" (Dushanba 1-dars) faqat o'tgan haftalarda qoladi; joriy haftadan — "Yangi" (4-dars).
+        var asosiy = await db.ScheduleTemplates.SingleAsync(t => t.ClassId == w.Fil);
+        var yangi = Template("Yangi", 4);
+        foreach (var a in await db.WeekAssignments.Where(a => a.ClassId == w.Fil).ToListAsync())
+            if (!Past(a.Week)) a.TemplateId = yangi.Id;
+        await db.SaveChangesAsync();
+
+        var eng = await BlockAsync(db, w, "Filologiya+Ijtimoiy", w.English, BlockDayPattern.Odd, [w.Fil, w.Ijt]);
+        await PlaceAsync(db, eng, new BlockSlot(0, 1));
+
+        var ikkinchi = Template("2-chorak dars jadvali", 5);
+        var boshqa = Template("Boshqa", 1);
+        await db.SaveChangesAsync();
+        var controller = new WeekAssignmentsController(db, new AuditService(db, new HttpContextAccessor()));
+        SaveWeekAssignmentsRequest Request(Func<int, string> pastTemplate) => new(1,
+            [.. weeks.Select(x => new WeekAssignmentDto(x.Week, Past(x.Week) ? pastTemplate(x.Week) : ikkinchi.Id))]);
+
+        // O'tgan 1-hafta shabloni ham almashtirilsa — blok soatiga dars tushadi: rad.
+        var refused = await controller.Save(w.Fil, Request(week => week == 1 ? boshqa.Id : asosiy.Id));
+        var conflict = Assert.IsType<ConflictObjectResult>(refused);
+        Assert.Equal("Filologiya Dushanba, 1-dars da «Filologiya+Ijtimoiy» blokida band",
+            conflict.Value!.GetType().GetProperty("message")!.GetValue(conflict.Value));
+        Assert.Equal(yangi.Id, (await db.WeekAssignments.AsNoTracking()
+            .Where(a => a.ClassId == w.Fil).ToListAsync()).First(a => !Past(a.Week)).TemplateId);
+
+        // O'tgan haftalar o'zgarmagan — saqlanadi.
+        Assert.IsType<NoContentResult>(await controller.Save(w.Fil, Request(_ => asosiy.Id)));
+
+        var saved = await db.WeekAssignments.AsNoTracking().Where(a => a.ClassId == w.Fil && a.Quarter == 1).ToListAsync();
+        Assert.Equal(weeks.Count, saved.Count);
+        Assert.All(saved, a => Assert.Equal(Past(a.Week) ? asosiy.Id : ikkinchi.Id, a.TemplateId));
     }
 
     /* =====================================================================
