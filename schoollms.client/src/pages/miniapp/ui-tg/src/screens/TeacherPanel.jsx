@@ -24,6 +24,7 @@ import { SeasonalScreen } from './teacher/SeasonalScreen'
 import { BlockExamsScreen } from './teacher/BlockExamsScreen'
 import { InterimTestsScreen } from './teacher/InterimTestsScreen'
 import { CurriculumScreen } from './teacher/CurriculumScreen'
+import { QuestionBanksScreen } from './teacher/QuestionBanksScreen'
 import { AssignmentsTab } from './teacher/AssignmentsTab'
 import { HrTab } from './hr/HrTab'
 
@@ -78,6 +79,8 @@ export function TeacherPanel() {
   // Oraliq testlar (2026-11-10): "Bugun" dagi kartadan.
   const [interimTests, setInterimTests] = useState(false)
   const [curriculum, setCurriculum] = useState(false)
+  // Test savollarim (2026-11-26): "Bugun" dagi kartadan.
+  const [questionBanks, setQuestionBanks] = useState(false)
 
   if (ctx.loading && ctx.data === null) {
     return (
@@ -115,12 +118,13 @@ export function TeacherPanel() {
     setBlockExams(false)
     setInterimTests(false)
     setCurriculum(false)
+    setQuestionBanks(false)
     setTab(next)
   }
 
   return (
     <>
-      {active === 'home' && !boarding && !seasonal && !blockExams && !interimTests && !curriculum && (
+      {active === 'home' && !boarding && !seasonal && !blockExams && !interimTests && !curriculum && !questionBanks && (
         <TodayTab
           profile={profile}
           meta={meta}
@@ -130,12 +134,14 @@ export function TeacherPanel() {
           onOpenBlockExams={() => setBlockExams(true)}
           onOpenInterimTests={() => setInterimTests(true)}
           onOpenCurriculum={() => setCurriculum(true)}
+          onOpenQuestionBanks={() => setQuestionBanks(true)}
         />
       )}
       {active === 'home' && seasonal && <SeasonalScreen profile={profile} onBack={() => setSeasonal(false)} />}
       {active === 'home' && blockExams && <BlockExamsScreen onBack={() => setBlockExams(false)} />}
       {active === 'home' && interimTests && <InterimTestsScreen onBack={() => setInterimTests(false)} />}
       {active === 'home' && curriculum && <CurriculumScreen onBack={() => setCurriculum(false)} />}
+      {active === 'home' && questionBanks && <QuestionBanksScreen onBack={() => setQuestionBanks(false)} />}
       {active === 'home' && boarding && (
         <BoardingScreen
           key={boarding}

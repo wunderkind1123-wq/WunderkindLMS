@@ -40,8 +40,9 @@ import { SeasonalCard } from './SeasonalScreen'
 import { BlockExamsCard } from './BlockExamsScreen'
 import { InterimTestsCard } from './InterimTestsScreen'
 import { CurriculumCard } from './CurriculumScreen'
+import { QuestionBanksCard } from './QuestionBanksScreen'
 
-export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams, onOpenInterimTests, onOpenCurriculum }) {
+export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams, onOpenInterimTests, onOpenCurriculum, onOpenQuestionBanks }) {
   const perms = profile.permissions || []
   const canSchedule = perms.includes('schedule')
   const canJournal = perms.includes('journal')
@@ -139,6 +140,8 @@ export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOp
             {/* Oraliq testlar (2026-11-10) — yo'nalishlarning haftalik testi. */}
             {onOpenInterimTests && <InterimTestsCard onOpen={onOpenInterimTests} />}
             {onOpenCurriculum && <CurriculumCard onOpen={onOpenCurriculum} />}
+            {/* Test savollarim (2026-11-26) — oylik test savollarini Word'dan yuklash. */}
+            {onOpenQuestionBanks && <QuestionBanksCard onOpen={onOpenQuestionBanks} />}
 
             {/* Qizil ro'yxat (2026-10-15): ota-ona bilan bog'lanish kerak bo'lgan o'quvchilar — faqat holat bo'lsa. */}
             {profile.homeroomClass && <RedListCard />}

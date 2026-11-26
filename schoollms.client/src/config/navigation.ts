@@ -21,6 +21,7 @@ import {
   ListChecks,
   NotebookPen,
   Trophy,
+  FileQuestion,
 } from 'lucide-react'
 import type { Role } from '@/types'
 import { SHOW_PARENT_FINANCE } from './flags'
@@ -473,6 +474,8 @@ export const navByRole: Record<Role, NavItem[]> = {
     // Uy vazifasi bajarilishi (homework-completion.md) — a SPA page like Dars tahlilim; same `journal` key.
     { label: 'Uy vazifasi', to: '/teacher/uy-vazifasi', icon: ClipboardCheck, perm: 'journal' },
     { label: 'Ish reja', to: '/teacher/ish-reja', icon: ListChecks },
+    // Test savollarim — monitoring banki, ustoz Word'dan yuklaydi (curriculum-monitoring.md §2.2).
+    { label: 'Test savollarim', to: '/teacher/savollar', icon: FileQuestion },
     { label: 'Feedback', to: '/teacher/evaluation', icon: ClipboardList },
     // Dars tahlilim — o'z yakunlangan dars kuzatuvlari va ko'rsatkichi (lesson-analysis.md §7).
     { label: 'Dars tahlilim', to: '/teacher/dars-tahlili', icon: ListChecks },

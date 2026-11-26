@@ -83,6 +83,24 @@ export const teacherApi = {
   deleteTopic: (topicId) => api.del(`${BASE}/curriculum/topics/${topicId}`),
   /** "Dars bo'lmadi" — shu mavzu va keyingilari bitta darsga suriladi: `{ moved, lastDate }`. */
   shiftTopics: (fromTopicId) => api.post(`${BASE}/curriculum/shift`, { fromTopicId }),
+
+  /* ---------- Test savollarim — monitoring banki (curriculum-monitoring.md §2.2) ---------- */
+
+  /** Banklar faqat ustoz jadvalda dars beradigan fan × sinf/yo'nalish bo'yicha (server cheklaydi). */
+  questionBanks: () => api.get(`${BASE}/question-banks`),
+  questionBankOptions: () => api.get(`${BASE}/question-banks/options`),
+  createQuestionBank: (body) => api.post(`${BASE}/question-banks`, body),
+  questionBank: (id) => api.get(`${BASE}/question-banks/${id}`),
+  deleteBankQuestion: (bankId, questionId) => api.del(`${BASE}/question-banks/${bankId}/questions/${questionId}`),
+  /** Word namuna — o'z Telegram chatiga. */
+  questionTemplateToTelegram: () => api.post(`${BASE}/question-banks/word-template/telegram`),
+  /** Word (.docx/.txt) → savollar va muammolar ro'yxati; hech narsa saqlamaydi. */
+  previewBankImport: (bankId, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.form(`${BASE}/question-banks/${bankId}/import/preview`, form)
+  },
+  saveBankQuestions: (bankId, rows) => api.post(`${BASE}/question-banks/${bankId}/questions/bulk`, rows),
   /** O'qituvchi bloklari va shu yo'nalish o'quvchilari. */
   blockExamEntry: (examId, ownerId) => api.get(`${BASE}/block-exams/${examId}/entry${qs({ ownerId })}`),
   /** Faqat o'zgargan qatorlar: `{ ownerId, rows }`. */
