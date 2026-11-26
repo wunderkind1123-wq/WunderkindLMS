@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, KeyRound, Printer, RefreshCw } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet, KeyRound, Printer, RefreshCw } from 'lucide-react'
 import {
   generateStudentCodes,
+  getSittings,
   getStudentCodes,
   monitoringError,
   regenerateStudentCode,
+  studentCodesExportPath,
+  type MonitoringSittingListItem,
   type MonitoringStudentCode,
 } from '@/api/services/monitoring'
+import { downloadFile } from '@/api/services/curriculum'
+import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
@@ -24,9 +29,11 @@ export function MonitoringStudentCodesPage() {
   const [className, setClassName] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+  const [sittings, setSittings] = useState<MonitoringSittingListItem[]>([])
 
   const load = useCallback(() => {
     getStudentCodes().then(setRows).catch((e) => setError(monitoringError(e, "Kodlarni olib bo'lmadi")))
+    getSittings().then(setSittings).catch(() => setSittings([]))
   }, [])
 
   useEffect(() => {
@@ -48,6 +55,15 @@ export function MonitoringStudentCodesPage() {
       setNote(monitoringError(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function exportExcel(): Promise<void> {
+    setNote(null)
+    try {
+      await downloadFile(studentCodesExportPath(className || undefined), className ? `test-kodlari-${className}.xlsx` : 'test-kodlari.xlsx')
+    } catch (e) {
+      setNote(monitoringError(e, "Excel'ni yuklab bo'lmadi"))
     }
   }
 
@@ -83,8 +99,11 @@ export function MonitoringStudentCodesPage() {
             <option value="">Barcha sinflar</option>
             {classes.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
+          <Button variant="secondary" onClick={() => void exportExcel()} disabled={shown.every((r) => !r.code)}>
+            <FileSpreadsheet className="h-4 w-4" /> Excel yuklab olish
+          </Button>
           <Button variant="secondary" onClick={() => window.print()} disabled={shown.every((r) => !r.code)}>
-            <Printer className="h-4 w-4" /> Kartochkalarni chop etish
+            <Printer className="h-4 w-4" /> Kartochkalar (chop etish / PDF)
           </Button>
           <Button onClick={() => void generate()} disabled={busy || missing === 0}>
             <KeyRound className="h-4 w-4" /> {missing > 0 ? `Kodsizlarga kod berish (${missing})` : 'Hammada kod bor'}
@@ -92,6 +111,8 @@ export function MonitoringStudentCodesPage() {
         </div>
       </div>
       {note && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 print:hidden">{note}</p>}
+
+      <PinHelp sittings={sittings} />
 
       <Card className="p-0 print:hidden">
         <div className="overflow-x-auto">
@@ -136,5 +157,41 @@ export function MonitoringStudentCodesPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * "PIN qayerdan olinadi?" — har sessiyaning o'z xona PIN'i bor (sessiya yaratilganda beriladi);
+ * so'nggi sessiyalar PIN'i bilan shu yerda ham, to'liq boshqaruvi (yangi PIN) — sessiya sahifasida.
+ */
+function PinHelp({ sittings }: { sittings: MonitoringSittingListItem[] }) {
+  const recent = [...sittings].sort((a, b) => b.testDate.localeCompare(a.testDate)).slice(0, 6)
+  return (
+    <Card className="border border-amber-200 bg-amber-50/60 p-4 print:hidden">
+      <div className="flex items-start gap-3">
+        <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <div className="min-w-0 flex-1 space-y-2 text-sm text-amber-900">
+          <p className="font-semibold">Xona PIN qayerdan olinadi?</p>
+          <p>
+            Kod — o‘quvchining o‘zida (yil bo‘yi bir xil). <b>PIN esa har test sessiyasiga alohida</b> va sessiya yaratilganda avtomatik beriladi:
+            {' '}<b>Ichki monitoring → Sessiyalar → sessiyani oching</b> → tepadagi sariq <b>«Xona PIN»</b> kartasi. Test boshida nazoratchi uni doskaga
+            yozadi. PIN boshqa xonaga ma’lum bo‘lib qolsa — o‘sha kartada «Yangi PIN».
+          </p>
+          {recent.length > 0 ? (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {recent.map((s) => (
+                <Link key={s.id} to={`/admin/monitoring/sittings/${s.id}`}
+                  className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 hover:border-amber-400">
+                  <span className="block text-xs text-slate-500">{formatDate(s.testDate)} · {s.title}</span>
+                  <span className="font-mono text-lg font-bold tracking-[0.3em] text-amber-900">{s.roomPin ?? '—'}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-amber-800">Hali sessiya yo‘q — sessiya yaratilganda PIN shu yerda ham ko‘rinadi.</p>
+          )}
+        </div>
+      </div>
+    </Card>
   )
 }

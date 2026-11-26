@@ -153,7 +153,7 @@ public record MonitoringSittingPayload(string Title, string TestDate, List<Guid>
 
 public record MonitoringSittingTestDto(Guid Id, string Title, string SubjectName, string Status, int ItemCount, int? TimeLimitMin, int Participants, int Done);
 
-public record MonitoringSittingListItemDto(Guid Id, string Title, string TestDate, List<MonitoringSittingTestDto> Tests, int Pupils, int Finished);
+public record MonitoringSittingListItemDto(Guid Id, string Title, string TestDate, List<MonitoringSittingTestDto> Tests, int Pupils, int Finished, string? RoomPin);
 
 /// <param name="Steps">Har test uchun o'quvchi holati (<see cref="SchoolLms.Domain.MonitoringParticipantStatus"/>) yoki "" — bu fanda yo'q.</param>
 public record MonitoringSittingRowDto(

@@ -77,7 +77,7 @@ public static class MonitoringSittingService
         {
             var detail = await DetailAsync(db, s, ct);
             result.Add(new MonitoringSittingListItemDto(s.Id, s.Title, detail.TestDate, detail.Tests, detail.Rows.Count,
-                detail.Rows.Count(r => r.Steps.All(x => x is "" or MonitoringParticipantStatus.Done or MonitoringParticipantStatus.Absent))));
+                detail.Rows.Count(r => r.Steps.All(x => x is "" or MonitoringParticipantStatus.Done or MonitoringParticipantStatus.Absent)), s.RoomPin));
         }
         return result;
     }

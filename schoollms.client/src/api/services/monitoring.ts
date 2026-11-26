@@ -451,6 +451,8 @@ export interface MonitoringSittingListItem {
   tests: MonitoringSittingTest[]
   pupils: number
   finished: number
+  /** Xona PIN — doimiy kod bilan kirish uchun (doskaga yoziladi). */
+  roomPin: string | null
 }
 
 export interface MonitoringSittingRow {
@@ -549,3 +551,6 @@ export const saveSessionAnswer = async (code: string, device: string, order: num
 }
 export const finishSession = async (code: string, device: string, testId?: string | null, pin?: string) =>
   (await api.post<MonitoringSession>('/public/monitoring/finish', { code, device, testId, pin })).data
+/** Kodlar Excel'da — har sinf alohida varaqda va ko'rsatma (`downloadFile` bilan). */
+export const studentCodesExportPath = (className?: string) =>
+  `${BASE}/student-codes/export${className ? `?className=${encodeURIComponent(className)}` : ''}`

@@ -24,6 +24,41 @@ public static class MonitoringStudentCodeService
         return [.. pupils.Select(p => new MonitoringStudentCodeDto(p.Id, p.FullName, p.ClassName, codes.GetValueOrDefault(p.Id)))];
     }
 
+    /// <summary>
+    /// Kodlar Excel'da — har sinf alohida varaqda (sinf rahbariga tarqatish uchun) va "Ko'rsatma"
+    /// varag'i: qayerga kiriladi, PIN qayerdan olinadi. Kodi yo'q o'quvchi ham ro'yxatda (bo'sh kod).
+    /// </summary>
+    public static byte[] Export(List<MonitoringStudentCodeDto> rows, string link)
+    {
+        var sheets = rows.GroupBy(r => r.ClassName)
+            .OrderBy(g => Grade(g.Key)).ThenBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new ExcelExport.SheetSpec(SheetName(g.Key), ["№", "O'quvchi", "Sinf", "Test kodi"],
+                g.Select((r, i) => (IReadOnlyList<string>)[(i + 1).ToString(), r.StudentName, r.ClassName, r.Code ?? ""]).ToList()))
+            .ToList();
+        sheets.Add(new ExcelExport.SheetSpec("Ko'rsatma", ["Nima", "Izoh"],
+        [
+            ["Qayerga kiriladi", link],
+            ["Test kodi", "Har o'quvchiga bir marta beriladi va har oylik testda ishlaydi. Yo'qolsa — LMS: Ichki monitoring → Doimiy kodlar → «Yangi kod»."],
+            ["Xona PIN", "Har test sessiyasining o'z PIN'i bor. LMS: Ichki monitoring → Sessiyalar → sessiyani oching → sariq «Xona PIN» kartasi. Test boshida nazoratchi doskaga yozadi."],
+            ["Kirish", "O'quvchi kodini va doskadagi PIN'ni kiritadi, ismini tasdiqlaydi va testni boshlaydi."],
+        ]));
+        return ExcelExport.Build(sheets);
+    }
+
+    /// <summary>Excel varaq nomi: 31 belgigacha, <c>[]:*?/\</c> belgilarsiz.</summary>
+    private static string SheetName(string className)
+    {
+        var name = new string([.. (string.IsNullOrWhiteSpace(className) ? "Sinfsiz" : className).Select(c => "[]:*?/\\".Contains(c) ? '-' : c)]);
+        return name.Length > 31 ? name[..31] : name;
+    }
+
+    /// <summary>"10-A" → 10 (sinflar 5, 6 … 10, 11 tartibida; raqamsiz — oxirida).</summary>
+    private static int Grade(string className)
+    {
+        var digits = new string([.. className.TakeWhile(char.IsDigit)]);
+        return int.TryParse(digits, out var n) ? n : int.MaxValue;
+    }
+
     /// <summary>Kodi yo'q faol o'quvchilarga kod beradi; bor kodlarga tegmaydi. Nechta berilganini qaytaradi.</summary>
     public static async Task<int> GenerateMissingAsync(IAppDbContext db, CancellationToken ct)
     {

@@ -248,6 +248,16 @@ public class MonitoringController(AppDbContext db, AuditService audit, IWebHostE
     public Task<IActionResult> StudentCodes([FromQuery] string? className, CancellationToken ct = default) =>
         Run(async () => await MonitoringStudentCodeService.ListAsync(db, className, ct));
 
+    /// <summary>Kodlar Excel'da (har sinf alohida varaqda + ko'rsatma) — sinf bo'yicha yoki hammasi.</summary>
+    [HttpGet("student-codes/export")]
+    public async Task<IActionResult> ExportStudentCodes([FromQuery] string? className, CancellationToken ct = default)
+    {
+        var rows = await MonitoringStudentCodeService.ListAsync(db, className, ct);
+        var bytes = MonitoringStudentCodeService.Export(rows, $"https://{Request.Host}/monitoring");
+        var suffix = string.IsNullOrWhiteSpace(className) ? "" : "-" + className.Trim();
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"test-kodlari{suffix}.xlsx");
+    }
+
     /// <summary>Kodi yo'q barcha faol o'quvchilarga kod (bor kodlar o'zgarmaydi).</summary>
     [HttpPost("student-codes/generate")]
     public Task<IActionResult> GenerateStudentCodes(CancellationToken ct = default) => Run(async () =>

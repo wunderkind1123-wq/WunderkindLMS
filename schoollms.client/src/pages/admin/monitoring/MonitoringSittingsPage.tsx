@@ -91,9 +91,17 @@ export function MonitoringSittingsPage() {
                   <Link to={`/admin/monitoring/sittings/${s.id}`} className="font-semibold text-slate-800 hover:text-brand-700">{s.title}</Link>
                   <p className="text-xs text-slate-500">{formatDate(s.testDate)} · {s.pupils} o'quvchi · {s.finished} tasi hamma fanni tugatdi</p>
                 </div>
-                <button type="button" title="O'chirish" onClick={() => void remove(s)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-start gap-2">
+                  {/* Xona PIN — doimiy kod bilan kirishda kerak; test boshida doskaga yoziladi. */}
+                  <Link to={`/admin/monitoring/sittings/${s.id}`} title="Xona PIN — test boshida doskaga yozing"
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-center hover:border-amber-400">
+                    <span className="block text-[10px] uppercase tracking-wide text-amber-700">Xona PIN</span>
+                    <span className="font-mono text-base font-bold tracking-[0.25em] text-amber-900">{s.roomPin ?? '—'}</span>
+                  </Link>
+                  <button type="button" title="O'chirish" onClick={() => void remove(s)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <ol className="mt-3 flex flex-wrap gap-2 text-xs">
                 {s.tests.map((t, i) => (
