@@ -104,7 +104,7 @@ export function QuestionBanksScreen({ onBack }) {
     setError(null)
     setNote(null)
     try {
-      await teacherApi.questionTemplateToTelegram()
+      await teacherApi.bankWordTemplateToTelegram()
       hapticNotify('success')
       setNote("Word namunasi bot chatingizga yuborildi — shu ko'rinishda yozib, bankka yuklang.")
     } catch (e) {

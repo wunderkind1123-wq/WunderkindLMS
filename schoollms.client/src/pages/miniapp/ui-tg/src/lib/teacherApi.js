@@ -93,7 +93,7 @@ export const teacherApi = {
   questionBank: (id) => api.get(`${BASE}/question-banks/${id}`),
   deleteBankQuestion: (bankId, questionId) => api.del(`${BASE}/question-banks/${bankId}/questions/${questionId}`),
   /** Word namuna — o'z Telegram chatiga. */
-  questionTemplateToTelegram: () => api.post(`${BASE}/question-banks/word-template/telegram`),
+  bankWordTemplateToTelegram: () => api.post(`${BASE}/question-banks/word-template/telegram`),
   /** Word (.docx/.txt) → savollar va muammolar ro'yxati; hech narsa saqlamaydi. */
   previewBankImport: (bankId, file) => {
     const form = new FormData()
