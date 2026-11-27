@@ -41,8 +41,9 @@ import { BlockExamsCard } from './BlockExamsScreen'
 import { InterimTestsCard } from './InterimTestsScreen'
 import { CurriculumCard } from './CurriculumScreen'
 import { QuestionBanksCard } from './QuestionBanksScreen'
+import { HomeroomLeaderboardCard } from './HomeroomLeaderboardScreen'
 
-export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams, onOpenInterimTests, onOpenCurriculum, onOpenQuestionBanks }) {
+export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOpenSeasonal, onOpenBlockExams, onOpenInterimTests, onOpenCurriculum, onOpenQuestionBanks, onOpenLeaderboard }) {
   const perms = profile.permissions || []
   const canSchedule = perms.includes('schedule')
   const canJournal = perms.includes('journal')
@@ -151,6 +152,9 @@ export function TodayTab({ profile, meta, onOpenAttendance, onOpenBoarding, onOp
 
             {/* Sinf rahbari: o'quvchilari va qarzi (2026-10-12) — faqat rahbarlik bor o'qituvchida. */}
             {profile.homeroomClass && <HomeroomDebtsCard />}
+
+            {/* Liderbord (2026-11-27): rahbarlikdagi sinf/guruh reytingi — faqat ko'rish. */}
+            {profile.homeroomClass && onOpenLeaderboard && <HomeroomLeaderboardCard onOpen={onOpenLeaderboard} />}
 
             <StatGrid
               items={[

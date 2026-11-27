@@ -139,6 +139,64 @@ public class TeacherPortalController(
     }
 
     /// <summary>
+    /// Leaderboard sinf rahbari uchun (mijoz, 2026-11-27) — Mini App, FAQAT KO'RISH (ball qo'shish adminda qoladi).
+    /// Doira: o'qituvchi rahbar bo'lgan sinflar (<c>class_homeroom_teachers</c>) va u "Sinf rahbari" qilib
+    /// biriktirilgan yo'nalish guruhlari (<c>study_group_teachers</c>; jadval bo'yicha dars beradigan fan
+    /// o'qituvchilari bu yerga KIRMAYDI). O'rin faqat sinf/guruh ichida — maktab bo'yicha o'rin berilmaydi
+    /// (ota-onalardagi kabi). Har o'quvchining ballari qismlari bilan. Hisob — <see cref="LeaderboardService"/>.
+    /// Rahbarligi yo'q o'qituvchiga bo'sh ro'yxat.
+    /// </summary>
+    [HttpGet("homeroom/leaderboard")]
+    public async Task<IActionResult> HomeroomLeaderboard(CancellationToken ct)
+    {
+        var t = await Me();
+        if (t is null) return NotFound();
+
+        var classIds = (await HomeroomDirectory.ClassesOfAsync(db, t.Id, ct)).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        var trackIds = (await (from gt in db.StudyGroupTeachers.AsNoTracking()
+                               join g in db.StudyGroups.AsNoTracking() on gt.GroupId equals g.Id
+                               where gt.TeacherId == t.Id && g.IsTrack && !g.IsArchived
+                               select g.Id).ToListAsync(ct))
+            .Select(id => id.ToString()).ToHashSet(StringComparer.Ordinal);
+
+        var result = await LeaderboardService.BuildAsync(db, AppClock.Today, ct);
+
+        object Scope(string kind, LeaderboardScope s, IEnumerable<LeaderboardRow> rows)
+        {
+            var ranked = LeaderboardService.Rank(rows);
+            return new
+            {
+                Kind = kind, s.Id, s.Name, Count = ranked.Count,
+                Rows = ranked.Select(x => new
+                {
+                    x.Rank, x.Row.StudentId, x.Row.FullName, x.Row.ClassName,
+                    x.Row.Grades, x.Row.GradeCount, x.Row.IsTrack, x.Row.Interim, x.Row.InterimCount,
+                    x.Row.Attendance, x.Row.Lessons, x.Row.Absent, x.Row.MonthlyTest, x.Row.MonthlyCount,
+                    x.Row.Behaviour, x.Row.ManualPoints, x.Row.Base, x.Row.Total,
+                }),
+            };
+        }
+
+        var scopes = new List<object>();
+        foreach (var c in result.Classes.Where(c => classIds.Contains(c.Id)))
+            scopes.Add(Scope("class", c, result.Rows.Where(r => r.ClassId == c.Id)));
+        foreach (var g in result.Tracks.Where(g => trackIds.Contains(g.Id)))
+            scopes.Add(Scope("track", g, result.Rows.Where(r => r.TrackIds.Contains(g.Id))));
+
+        return Ok(new
+        {
+            From = result.From.ToString("yyyy-MM-dd"),
+            To = result.To.ToString("yyyy-MM-dd"),
+            Weights = new
+            {
+                Grades = LeaderboardService.GradesWeight, Attendance = LeaderboardService.AttendanceWeight,
+                Monthly = LeaderboardService.MonthlyWeight, Behaviour = LeaderboardService.BehaviourWeight,
+            },
+            Scopes = scopes,
+        });
+    }
+
+    /// <summary>
     /// Sinf rahbarining o'quvchilari va kim qarzdorligi (mijoz, 2026-10-12; summasiz — 2026-10-30) — rahbarlikdagi sinflar va
     /// yo'nalish guruhlari. Faqat rahbarga: oddiy fan o'qituvchisi pulni ko'rmaydi (bo'sh ro'yxat).
     /// Mini App va web-portal ikkalasi shu endpointni o'qiydi. Batafsil: <c>HomeroomDebts.cs</c>.

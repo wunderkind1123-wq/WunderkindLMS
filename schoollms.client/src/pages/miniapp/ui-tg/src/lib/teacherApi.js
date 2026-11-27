@@ -154,6 +154,8 @@ export const teacherApi = {
 
   /** Sinfim (2026-11-04): o'quvchilarimning xulq-atvor balli — ro'yxat uchun. */
   homeroomPupilScores: () => api.get(`${BASE}/homeroom/pupils`),
+  /** Liderbord (2026-11-27): rahbarlikdagi sinflar va guruhlar reytingi — faqat ko'rish. */
+  homeroomLeaderboard: () => api.get(`${BASE}/homeroom/leaderboard`),
   /** Bitta o'quvchining baholari va ballari, kim qo'ygani bilan; `quarter` bo'sh — joriy chorak. */
   homeroomPupilProgress: (studentId, quarter) =>
     api.get(`${BASE}/homeroom/pupils/${encodeURIComponent(studentId)}${qs({ quarter })}`),
